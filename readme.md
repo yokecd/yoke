@@ -1,6 +1,6 @@
 # yoke - Infrastructure-as-Code (IaC) Package Deployer for Kubernetes
 
-<img src="./yoke.jpg" width=600/>
+<img src="./halloumi.jpg" width=600/>
 
 ## Overview
 
