@@ -140,14 +140,14 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 		if err != nil {
 			return fmt.Errorf("failed to get revision history: %w", err)
 		}
-		latestAppliedRevision := revisions.History[len(revisions.History)-1]
+		currentResources := revisions.CurrentResources()
 
-		a, err := text.ToYamlFile(fmt.Sprintf("revision %d", latestAppliedRevision.ID), latestAppliedRevision.Resources)
+		a, err := text.ToYamlFile("current", currentResources)
 		if err != nil {
 			return err
 		}
 
-		b, err := text.ToYamlFile(fmt.Sprintf("revision %d", latestAppliedRevision.ID+1), resources)
+		b, err := text.ToYamlFile("next", resources)
 		if err != nil {
 			return err
 		}
