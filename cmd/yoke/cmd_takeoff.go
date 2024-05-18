@@ -40,6 +40,7 @@ type TakeoffParams struct {
 	Out            string
 	Flight         TakeoffFlightParams
 	DiffOnly       bool
+	Context        int
 }
 
 //go:embed cmd_takeoff_help.txt
@@ -68,6 +69,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.SkipDryRun, "skip-dry-run", false, "disables running dry run to resources before applying them")
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "only output the diff of provided release name and wasm resources")
+	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not using --diff-only)")
 	flagset.StringVar(&params.Out, "out", "", "if present outputs flight resources to directory specified, if out is - outputs to standard out")
 	flagset.StringVar(&params.Flight.Namespace, "namespace", "default", "preferred namespace for resources if they do not define one")
 
@@ -150,7 +152,7 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 			return err
 		}
 
-		_, err = fmt.Fprint(os.Stdout, text.DiffColorized(a, b, 4))
+		_, err = fmt.Fprint(os.Stdout, text.DiffColorized(a, b, params.Context))
 		return err
 	}
 
