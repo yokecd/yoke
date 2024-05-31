@@ -66,7 +66,7 @@ type Revision struct {
 	Resources []*unstructured.Unstructured `json:"resources"`
 }
 
-func AddHallmouiMetadata(resources []*unstructured.Unstructured, release string) {
+func AddYokeMetadata(resources []*unstructured.Unstructured, release string) {
 	for _, resource := range resources {
 		labels := resource.GetLabels()
 		if labels == nil {

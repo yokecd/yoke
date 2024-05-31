@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -405,18 +407,10 @@ func (client Client) EnsureNamespace(ctx context.Context, namespace string) erro
 }
 
 func (client Client) GetInClusterState(ctx context.Context, resource *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	mapping, err := client.LookupResourceMapping(resource)
+	resourceInterface, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup resource mapping %w", err)
+		return nil, fmt.Errorf("failed to get dynamic resource interface: %w", err)
 	}
-
-	resourceInterface := func() dynamic.ResourceInterface {
-		resourceInterface := client.dynamic.Resource(mapping.Resource)
-		if ns := resource.GetNamespace(); ns != "" {
-			return resourceInterface.Namespace(ns)
-		}
-		return resourceInterface
-	}()
 
 	state, err := resourceInterface.Get(ctx, resource.GetName(), metav1.GetOptions{})
 	if kerrors.IsNotFound(err) {
@@ -426,7 +420,106 @@ func (client Client) GetInClusterState(ctx context.Context, resource *unstructur
 	return state, err
 }
 
+func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Unstructured) error {
+	// TODO: let user configure these values?
+	var (
+		interval = 5 * time.Second
+		timeout  = 2 * time.Minute
+	)
+
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	done := make(chan error)
+
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("%s timeout reached", timeout))
+	defer cancel()
+
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-ctx.Done():
+				done <- context.Cause(ctx)
+				return
+			case <-timer.C:
+				state, err := client.GetInClusterState(ctx, resource)
+				if err != nil {
+					done <- fmt.Errorf("failed to get in cluster state: %w", err)
+					return
+				}
+
+				if state == nil {
+					done <- fmt.Errorf("resource not found")
+					return
+				}
+
+				ready, err := isReady(state)
+				if err != nil {
+					done <- err
+					return
+				}
+
+				if ready {
+					return
+				}
+
+				timer.Reset(interval)
+			}
+		}
+	}()
+
+	return <-done
+}
+
+func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured) error {
+	var wg sync.WaitGroup
+	wg.Add(len(resources))
+	defer wg.Wait()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errs := make(chan error, len(resources))
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	for _, resource := range resources {
+		go func() {
+			defer wg.Done()
+			if err := client.WaitForReady(ctx, resource); err != nil {
+				errs <- fmt.Errorf("failed to get readiness for %s: %w", internal.Canonical(resource), err)
+			}
+		}()
+	}
+
+	return <-errs
+}
+
 func IsNamespaced(resource dynamic.ResourceInterface) bool {
 	_, ok := resource.(interface{ Namespace(string) bool })
 	return ok
+}
+
+func isReady(resource *unstructured.Unstructured) (bool, error) {
+	switch gk := resource.GroupVersionKind().GroupKind(); gk {
+	case schema.GroupKind{Group: "apiextensions.k8s.io", Kind: "CustomResourceDefinition"}:
+		{
+			conditions, _, _ := unstructured.NestedSlice(resource.Object, "status", "conditions")
+			return slices.ContainsFunc(conditions, func(condition any) bool {
+				values, _ := condition.(map[string]any)
+				return values != nil && values["status"] == "True" && values["type"] == "Established"
+			}), nil
+		}
+	case schema.GroupKind{Group: "", Kind: "Namespace"}:
+		{
+			phase, _, _ := unstructured.NestedString(resource.Object, "status", "phase")
+			return phase == "Active", nil
+		}
+
+	default:
+		return false, fmt.Errorf("not implemented for GroupKind: %s", gk)
+	}
 }

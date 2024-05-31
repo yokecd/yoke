@@ -67,11 +67,11 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 }
 
 func Turbulence(ctx context.Context, params TurbulenceParams) error {
-	client, err := yoke.FromKubeConfig(params.KubeConfigPath)
+	commander, err := yoke.FromKubeConfig(params.KubeConfigPath)
 	if err != nil {
 		return err
 	}
-	return client.Turbulence(ctx, yoke.TurbulenceParams{
+	return commander.Turbulence(ctx, yoke.TurbulenceParams{
 		Release:       params.Release,
 		Context:       params.Context,
 		ConflictsOnly: params.ConflictsOnly,

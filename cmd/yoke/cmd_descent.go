@@ -61,12 +61,12 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 }
 
 func Descent(ctx context.Context, params DescentParams) error {
-	client, err := yoke.FromKubeConfig(params.KubeConfigPath)
+	commander, err := yoke.FromKubeConfig(params.KubeConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
 
-	return client.Descent(ctx, yoke.DescentParams{
+	return commander.Descent(ctx, yoke.DescentParams{
 		Release:    params.Release,
 		RevisionID: params.RevisionID,
 	})

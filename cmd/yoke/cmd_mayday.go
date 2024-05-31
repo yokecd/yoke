@@ -46,9 +46,9 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 }
 
 func Mayday(ctx context.Context, params MaydayParams) error {
-	client, err := yoke.FromKubeConfig(params.KubeConfigPath)
+	commander, err := yoke.FromKubeConfig(params.KubeConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
-	return client.Mayday(ctx, params.Release)
+	return commander.Mayday(ctx, params.Release)
 }

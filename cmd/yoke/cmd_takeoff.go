@@ -34,15 +34,17 @@ type TakeoffFlightParams struct {
 
 type TakeoffParams struct {
 	GlobalSettings
-	TestRun        bool
-	SkipDryRun     bool
-	ForceConflicts bool
-	Release        string
-	Out            string
-	Flight         TakeoffFlightParams
-	DiffOnly       bool
-	Context        int
-	Color          bool
+	TestRun          bool
+	SkipDryRun       bool
+	ForceConflicts   bool
+	Release          string
+	Out              string
+	Flight           TakeoffFlightParams
+	DiffOnly         bool
+	Context          int
+	Color            bool
+	CreateNamespaces bool
+	CreateCRDs       bool
 }
 
 //go:embed cmd_takeoff_help.txt
@@ -70,6 +72,9 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.TestRun, "test-run", false, "test-run executes the underlying wasm and outputs it to stdout but does not apply any resources to the cluster")
 	flagset.BoolVar(&params.SkipDryRun, "skip-dry-run", false, "disables running dry run to resources before applying them")
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
+	flagset.BoolVar(&params.CreateCRDs, "create-crds", false, "applies custom resource definitions found in flights")
+	flagset.BoolVar(&params.CreateNamespaces, "create-namespaces", false, "applies namespace resources found in flights")
+
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "use colored output in diffs")
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not using --diff-only)")
@@ -110,7 +115,7 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 		return err
 	}
 
-	client := yoke.FromK8Client(kube)
+	commander := yoke.FromK8Client(kube)
 
 	var resources internal.List[*unstructured.Unstructured]
 	if err := yaml.Unmarshal(output, &resources); err != nil {
@@ -131,7 +136,7 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 
 	complete()
 
-	internal.AddHallmouiMetadata(resources, params.Release)
+	internal.AddYokeMetadata(resources, params.Release)
 
 	if params.Out != "" {
 		if params.Out == "-" {
@@ -168,14 +173,16 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 		return err
 	}
 
-	return client.Takeoff(ctx, yoke.TakeoffParams{
-		Release:        params.Release,
-		Resources:      resources,
-		FlightID:       params.Flight.Path,
-		Namespace:      params.Flight.Namespace,
-		Wasm:           wasm,
-		SkipDryRun:     params.SkipDryRun,
-		ForceConflicts: params.ForceConflicts,
+	return commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:          params.Release,
+		Resources:        resources,
+		FlightID:         params.Flight.Path,
+		Namespace:        params.Flight.Namespace,
+		Wasm:             wasm,
+		SkipDryRun:       params.SkipDryRun,
+		ForceConflicts:   params.ForceConflicts,
+		CreateCRDs:       params.CreateCRDs,
+		CreateNamespaces: params.CreateNamespaces,
 	})
 }
 
