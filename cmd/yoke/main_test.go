@@ -261,6 +261,75 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestTakeoffWithCRDResource(t *testing.T) {
+	rest, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+	require.NoError(t, err)
+
+	_, err = kubernetes.NewForConfig(rest)
+	require.NoError(t, err)
+
+	background := background
+
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+
+	params := func(createCRDs bool) TakeoffParams {
+		return TakeoffParams{
+			Release:        "foo",
+			GlobalSettings: settings,
+			CreateCRDs:     createCRDs,
+			Flight: TakeoffFlightParams{
+				Input: strings.NewReader(`[
+					{
+						apiVersion: apiextensions.k8s.io/v1,
+						kind: CustomResourceDefinition,
+						metadata: {
+							name: crontabs.stable.example.com,
+						},
+						spec: {
+							group: stable.example.com,
+							versions: [
+								{
+									name: v1,
+									served: true,
+									storage: true,
+									scope: Cluster,
+									names: {
+										plural: crontabs,
+										singular: crontab,
+										kind: CronTab,
+										shortNames: [ct],
+									}
+								},
+							]
+						}
+					},
+					{
+						apiVersion: stable.example.com/v1,
+						kind: CronTab,
+						metadata: {
+							name: test-crd,
+						},
+					},
+				]`),
+			},
+		}
+	}
+
+	require.EqualError(
+		t,
+		TakeOff(background, params(false)),
+		`no matches for kind "CronTab" in version "stable.example.com/v1"`,
+	)
+
+	require.NoError(t, TakeOff(background, params(true)))
+	defer func() {
+		require.NoError(t, Mayday(background, MaydayParams{
+			GlobalSettings: settings,
+			Release:        "foo",
+		}))
+	}()
+}
+
 func TestTakeoffDiffOnly(t *testing.T) {
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 

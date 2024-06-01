@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"slices"
@@ -430,46 +431,38 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
-	done := make(chan error)
-
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("%s timeout reached", timeout))
 	defer cancel()
 
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case <-ctx.Done():
-				done <- context.Cause(ctx)
-				return
-			case <-timer.C:
-				state, err := client.GetInClusterState(ctx, resource)
-				if err != nil {
-					done <- fmt.Errorf("failed to get in cluster state: %w", err)
-					return
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-timer.C:
+			state, err := client.GetInClusterState(ctx, resource)
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 				}
-
-				if state == nil {
-					done <- fmt.Errorf("resource not found")
-					return
-				}
-
-				ready, err := isReady(state)
-				if err != nil {
-					done <- err
-					return
-				}
-
-				if ready {
-					return
-				}
-
-				timer.Reset(interval)
+				return fmt.Errorf("failed to get in cluster state: %w", err)
 			}
-		}
-	}()
 
-	return <-done
+			if state == nil {
+				return fmt.Errorf("resource not found")
+			}
+
+			ready, err := isReady(state)
+			if err != nil {
+				return err
+			}
+
+			if ready {
+				return nil
+			}
+
+			timer.Reset(interval)
+		}
+	}
 }
 
 func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured) error {

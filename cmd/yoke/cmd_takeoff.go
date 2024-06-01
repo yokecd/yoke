@@ -127,7 +127,10 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 	for _, resource := range resources {
 		mapping, err := kube.LookupResourceMapping(resource)
 		if err != nil {
-			return err
+			if meta.IsNoMatchError(err) {
+				continue
+			}
+			return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
 		}
 		if mapping.Scope.Name() == meta.RESTScopeNameNamespace && resource.GetNamespace() == "" {
 			resource.SetNamespace(cmp.Or(params.Flight.Namespace, "default"))
