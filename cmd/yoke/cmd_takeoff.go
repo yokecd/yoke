@@ -1,27 +1,18 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	_ "embed"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
-	y3 "gopkg.in/yaml.v3"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/davidmdm/x/xerr"
 	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/internal/k8s"
-	"github.com/davidmdm/yoke/internal/text"
-	"github.com/davidmdm/yoke/internal/wasi"
+	"github.com/davidmdm/yoke/internal/home"
 	"github.com/davidmdm/yoke/pkg/yoke"
 )
 
@@ -34,17 +25,7 @@ type TakeoffFlightParams struct {
 
 type TakeoffParams struct {
 	GlobalSettings
-	TestRun          bool
-	SkipDryRun       bool
-	ForceConflicts   bool
-	Release          string
-	Out              string
-	Flight           TakeoffFlightParams
-	DiffOnly         bool
-	Context          int
-	Color            bool
-	CreateNamespaces bool
-	CreateCRDs       bool
+	yoke.TakeoffParams
 }
 
 //go:embed cmd_takeoff_help.txt
@@ -64,7 +45,9 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 
 	params := TakeoffParams{
 		GlobalSettings: settings,
-		Flight:         TakeoffFlightParams{Input: source},
+		TakeoffParams: yoke.TakeoffParams{
+			Flight: yoke.FlightParams{Input: source},
+		},
 	}
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
@@ -99,151 +82,9 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 }
 
 func TakeOff(ctx context.Context, params TakeoffParams) error {
-	defer internal.DebugTimer(ctx, "command")()
-
-	output, wasm, err := EvalFlight(ctx, params.Release, params.Flight)
-	if err != nil {
-		return fmt.Errorf("failed to evaluate flight: %w", err)
-	}
-	if params.TestRun {
-		_, err = fmt.Print(string(output))
-		return err
-	}
-
-	kube, err := k8s.NewClientFromKubeConfig(params.KubeConfigPath)
+	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
 	if err != nil {
 		return err
 	}
-
-	commander := yoke.FromK8Client(kube)
-
-	var resources internal.List[*unstructured.Unstructured]
-	if err := yaml.Unmarshal(output, &resources); err != nil {
-		return fmt.Errorf("failed to unmarshal raw resources: %w", err)
-	}
-
-	complete := internal.DebugTimer(ctx, "looking up resource mappings")
-
-	for _, resource := range resources {
-		mapping, err := kube.LookupResourceMapping(resource)
-		if err != nil {
-			if meta.IsNoMatchError(err) {
-				continue
-			}
-			return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
-		}
-		if mapping.Scope.Name() == meta.RESTScopeNameNamespace && resource.GetNamespace() == "" {
-			resource.SetNamespace(cmp.Or(params.Flight.Namespace, "default"))
-		}
-	}
-
-	complete()
-
-	internal.AddYokeMetadata(resources, params.Release)
-
-	if params.Out != "" {
-		if params.Out == "-" {
-			return ExportToStdout(resources)
-		}
-		return ExportToFS(params.Out, params.Release, resources)
-	}
-
-	if params.DiffOnly {
-		revisions, err := kube.GetRevisions(ctx, params.Release)
-		if err != nil {
-			return fmt.Errorf("failed to get revision history: %w", err)
-		}
-		currentResources := revisions.CurrentResources()
-
-		a, err := text.ToYamlFile("current", internal.CanonicalObjectMap(currentResources))
-		if err != nil {
-			return err
-		}
-
-		b, err := text.ToYamlFile("next", internal.CanonicalObjectMap(resources))
-		if err != nil {
-			return err
-		}
-
-		differ := func() text.DiffFunc {
-			if params.Color {
-				return text.DiffColorized
-			}
-			return text.Diff
-		}()
-
-		_, err = fmt.Fprint(internal.Stdout(ctx), differ(a, b, params.Context))
-		return err
-	}
-
-	return commander.Takeoff(ctx, yoke.TakeoffParams{
-		Release:          params.Release,
-		Resources:        resources,
-		FlightID:         params.Flight.Path,
-		Namespace:        params.Flight.Namespace,
-		Wasm:             wasm,
-		SkipDryRun:       params.SkipDryRun,
-		ForceConflicts:   params.ForceConflicts,
-		CreateCRDs:       params.CreateCRDs,
-		CreateNamespaces: params.CreateNamespaces,
-	})
-}
-
-func ExportToFS(dir, release string, resources []*unstructured.Unstructured) error {
-	root := filepath.Join(dir, release)
-
-	if err := os.RemoveAll(root); err != nil {
-		return fmt.Errorf("failed remove previous flight export: %w", err)
-	}
-
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return fmt.Errorf("failed to create release output directory: %w", err)
-	}
-
-	var errs []error
-	for _, resource := range resources {
-		path := filepath.Join(root, internal.Canonical(resource)+".yaml")
-
-		if err := internal.WriteYAML(path, resource.Object); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return xerr.MultiErrFrom("failed to write resource(s)", errs...)
-}
-
-func ExportToStdout(resources []*unstructured.Unstructured) error {
-	output := make(map[string]any, len(resources))
-	for _, resource := range resources {
-		output[internal.Canonical(resource)] = resource.Object
-	}
-
-	encoder := y3.NewEncoder(os.Stdout)
-	encoder.SetIndent(2)
-	return encoder.Encode(output)
-}
-
-func EvalFlight(ctx context.Context, release string, flight TakeoffFlightParams) ([]byte, []byte, error) {
-	if flight.Input != nil && flight.Path == "" {
-		output, err := io.ReadAll(flight.Input)
-		return output, nil, err
-	}
-
-	wasm, err := yoke.LoadWasm(ctx, flight.Path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)
-	}
-
-	output, err := wasi.Execute(ctx, wasi.ExecParams{
-		Wasm:    wasm,
-		Release: release,
-		Stdin:   flight.Input,
-		Args:    flight.Args,
-		Env:     map[string]string{"NAMESPACE": flight.Namespace},
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
-	}
-
-	return output, wasm, nil
+	return commander.Takeoff(ctx, params.TakeoffParams)
 }

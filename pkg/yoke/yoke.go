@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -28,123 +27,6 @@ func FromKubeConfig(path string) (*Commander, error) {
 
 func FromK8Client(client *k8s.Client) *Commander {
 	return &Commander{client}
-}
-
-type TakeoffParams struct {
-	Release          string
-	Resources        []*unstructured.Unstructured
-	FlightID         string
-	Namespace        string
-	Wasm             []byte
-	SkipDryRun       bool
-	ForceConflicts   bool
-	CreateNamespaces bool
-	CreateCRDs       bool
-}
-
-func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
-	defer internal.DebugTimer(ctx, "takeoff")()
-
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
-	if err != nil {
-		return fmt.Errorf("failed to get revision history: %w", err)
-	}
-
-	previous := revisions.CurrentResources()
-
-	if reflect.DeepEqual(previous, params.Resources) {
-		return internal.Warning("resources are the same as previous revision: skipping takeoff")
-	}
-
-	if err := commander.k8s.ValidateOwnership(ctx, params.Release, params.Resources); err != nil {
-		return fmt.Errorf("failed to validate ownership: %w", err)
-	}
-
-	if params.Namespace != "" {
-		if err := commander.k8s.EnsureNamespace(ctx, params.Namespace); err != nil {
-			return fmt.Errorf("failed to ensure namespace: %w", err)
-		}
-	}
-
-	flight := splitResources(params.Resources)
-
-	if err := commander.applyResources(ctx, flight, params); err != nil {
-		return err
-	}
-
-	revisions.Add(flight.Core, params.FlightID, params.Wasm)
-
-	if err := commander.k8s.UpsertRevisions(ctx, params.Release, revisions); err != nil {
-		return fmt.Errorf("failed to create revision: %w", err)
-	}
-
-	removed, err := commander.k8s.RemoveOrphans(ctx, previous, flight.Core)
-	if err != nil {
-		return fmt.Errorf("failed to remove orhpans: %w", err)
-	}
-
-	var (
-		createdNames = internal.CanonicalNameList(params.Resources)
-		removedNames = internal.CanonicalNameList(removed)
-	)
-
-	if err := commander.k8s.UpdateResourceReleaseMapping(ctx, params.Release, createdNames, removedNames); err != nil {
-		return fmt.Errorf("failed to update resource release mapping: %w", err)
-	}
-
-	return nil
-}
-
-func (commander Commander) applyResources(ctx context.Context, resources FlightResources, params TakeoffParams) error {
-	applyOpts := k8s.ApplyResourcesOpts{
-		SkipDryRun:     params.SkipDryRun,
-		ForceConflicts: params.ForceConflicts,
-	}
-
-	wg := sync.WaitGroup{}
-	errs := make([]error, 2)
-
-	if params.CreateCRDs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := commander.k8s.ApplyResources(ctx, resources.CRDs, applyOpts); err != nil {
-				errs[0] = fmt.Errorf("failed to create CRDs: %w", err)
-				return
-			}
-			if err := commander.k8s.WaitForReadyMany(ctx, resources.CRDs); err != nil {
-				errs[0] = fmt.Errorf("failed to wait for CRDs to become ready: %w", err)
-				return
-			}
-		}()
-	}
-
-	if params.CreateNamespaces {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := commander.k8s.ApplyResources(ctx, resources.Namespaces, applyOpts); err != nil {
-				errs[1] = fmt.Errorf("failed to create namespaces: %w", err)
-				return
-			}
-			if err := commander.k8s.WaitForReadyMany(ctx, resources.Namespaces); err != nil {
-				errs[1] = fmt.Errorf("failed to wait for namespaces to become ready: %w", err)
-				return
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	if err := xerr.MultiErrOrderedFrom("failed to create flight dependencies", errs...); err != nil {
-		return err
-	}
-
-	if err := commander.k8s.ApplyResources(ctx, resources.Core, applyOpts); err != nil {
-		return fmt.Errorf("failed to apply resources: %w", err)
-	}
-
-	return nil
 }
 
 type DescentParams struct {
@@ -326,25 +208,4 @@ func removeAdditions[T any](expected, actual T) T {
 	}
 
 	return actual
-}
-
-type FlightResources struct {
-	Namespaces []*unstructured.Unstructured
-	CRDs       []*unstructured.Unstructured
-	Core       []*unstructured.Unstructured
-}
-
-func splitResources(resources []*unstructured.Unstructured) (result FlightResources) {
-	for _, resource := range resources {
-		gvk := resource.GroupVersionKind()
-		switch {
-		case gvk.Kind == "Namespace" && gvk.Group == "":
-			result.Namespaces = append(result.Namespaces, resource)
-		case gvk.Kind == "CustomResourceDefinition" && gvk.Group == "apiextensions.k8s.io":
-			result.CRDs = append(result.CRDs, resource)
-		default:
-			result.Core = append(result.Core, resource)
-		}
-	}
-	return
 }

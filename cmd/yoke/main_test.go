@@ -24,6 +24,7 @@ import (
 	"github.com/davidmdm/yoke/internal"
 	"github.com/davidmdm/yoke/internal/home"
 	"github.com/davidmdm/yoke/internal/k8s"
+	"github.com/davidmdm/yoke/pkg/yoke"
 )
 
 var background = context.Background()
@@ -59,9 +60,11 @@ func TestCreateDeleteCycle(t *testing.T) {
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	params := TakeoffParams{
 		GlobalSettings: settings,
-		Release:        "foo",
-		Flight: TakeoffFlightParams{
-			Input: createBasicDeployment(t, "sample-app", "default"),
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: createBasicDeployment(t, "sample-app", "default"),
+			},
 		},
 	}
 
@@ -119,9 +122,11 @@ func TestFailApplyDryRun(t *testing.T) {
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	params := TakeoffParams{
 		GlobalSettings: settings,
-		Release:        "foo",
-		Flight: TakeoffFlightParams{
-			Input: createBasicDeployment(t, "sample-app", "does-not-exist"),
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: createBasicDeployment(t, "sample-app", "does-not-exist"),
+			},
 		},
 	}
 
@@ -137,10 +142,12 @@ func TestReleaseOwnership(t *testing.T) {
 
 	makeParams := func(name string) TakeoffParams {
 		return TakeoffParams{
-			Release:        name,
 			GlobalSettings: settings,
-			Flight: TakeoffFlightParams{
-				Input: createBasicDeployment(t, "sample-app", "default"),
+			TakeoffParams: yoke.TakeoffParams{
+				Release: name,
+				Flight: yoke.FlightParams{
+					Input: createBasicDeployment(t, "sample-app", "default"),
+				},
 			},
 		}
 	}
@@ -172,11 +179,13 @@ func TestTakeoffWithNamespace(t *testing.T) {
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	params := TakeoffParams{
-		Release:        "foo",
 		GlobalSettings: settings,
-		Flight: TakeoffFlightParams{
-			Input:     createBasicDeployment(t, "sample-app", "default"),
-			Namespace: namespaceName,
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input:     createBasicDeployment(t, "sample-app", "default"),
+				Namespace: namespaceName,
+			},
 		},
 	}
 
@@ -208,30 +217,32 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 
 	params := func(createNamespaces bool) TakeoffParams {
 		return TakeoffParams{
-			Release:          "foo",
-			GlobalSettings:   settings,
-			CreateNamespaces: createNamespaces,
-			Flight: TakeoffFlightParams{
-				Input: strings.NewReader(`[
-					{
-						apiVersion: v1,
-						kind: Namespace,
-						metadata: {
-							name: test-ns-resource,
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:          "foo",
+				CreateNamespaces: createNamespaces,
+				Flight: yoke.FlightParams{
+					Input: strings.NewReader(`[
+						{
+							apiVersion: v1,
+							kind: Namespace,
+							metadata: {
+								name: test-ns-resource,
+							},
 						},
-					},
-					{
-						apiVersion: v1,
-						kind: ConfigMap,
-						metadata: {
-							name: test-cm,
-							namespace: test-ns-resource,
+						{
+							apiVersion: v1,
+							kind: ConfigMap,
+							metadata: {
+								name: test-cm,
+								namespace: test-ns-resource,
+							},
+							data: {
+								hello: world,
+							},
 						},
-						data: {
-							hello: world,
-						},
-					},
-				]`),
+					]`),
+				},
 			},
 		}
 	}
@@ -274,11 +285,12 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 
 	params := func(createCRDs bool) TakeoffParams {
 		return TakeoffParams{
-			Release:        "foo",
 			GlobalSettings: settings,
-			CreateCRDs:     createCRDs,
-			Flight: TakeoffFlightParams{
-				Input: strings.NewReader(`[
+			TakeoffParams: yoke.TakeoffParams{
+				Release:    "foo",
+				CreateCRDs: createCRDs,
+				Flight: yoke.FlightParams{
+					Input: strings.NewReader(`[
 					{
 						apiVersion: apiextensions.k8s.io/v1,
 						kind: CustomResourceDefinition,
@@ -287,30 +299,37 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 						},
 						spec: {
 							group: stable.example.com,
+							scope: Cluster,
 							versions: [
 								{
 									name: v1,
 									served: true,
 									storage: true,
-									scope: Cluster,
-									names: {
-										plural: crontabs,
-										singular: crontab,
-										kind: CronTab,
-										shortNames: [ct],
-									}
+									schema: {
+										openAPIV3Schema: {
+											type: object,
+											properties: {},
+										},
+									},
 								},
-							]
+							],
+							names: {
+								plural: crontabs,
+								singular: crontab,
+								kind: CronTab,
+								shortNames: [ct],
+							}
 						}
 					},
 					{
 						apiVersion: stable.example.com/v1,
 						kind: CronTab,
 						metadata: {
-							name: test-crd,
+							name: test,
 						},
 					},
 				]`),
+				},
 			},
 		}
 	}
@@ -318,7 +337,7 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params(false)),
-		`no matches for kind "CronTab" in version "stable.example.com/v1"`,
+		`failed to apply resources: dry run: _.stable.example.com.v1.crontab.test: failed to resolve resource: no matches for kind "CronTab" in version "stable.example.com/v1"`,
 	)
 
 	require.NoError(t, TakeOff(background, params(true)))
@@ -334,20 +353,22 @@ func TestTakeoffDiffOnly(t *testing.T) {
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	params := TakeoffParams{
-		Release:        "foo",
 		GlobalSettings: settings,
-		Flight: TakeoffFlightParams{
-			Input: strings.NewReader(`{
-				apiVersion: v1,
-				kind: ConfigMap,
-				metadata: {
-					name: test-diff,
-					namespace: default,
-				},
-				data: {
-					foo: bar,
-				},
-			}`),
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: strings.NewReader(`{
+					apiVersion: v1,
+					kind: ConfigMap,
+					metadata: {
+						name: test-diff,
+						namespace: default,
+					},
+					data: {
+						foo: bar,
+					},
+				}`),
+			},
 		},
 	}
 
@@ -360,21 +381,23 @@ func TestTakeoffDiffOnly(t *testing.T) {
 	ctx := internal.WithStdout(background, &stdout)
 
 	params = TakeoffParams{
-		Release:        "foo",
 		GlobalSettings: settings,
-		DiffOnly:       true,
-		Flight: TakeoffFlightParams{
-			Input: strings.NewReader(`{
-				apiVersion: v1,
-				kind: ConfigMap,
-				metadata: {
-					name: test-diff,
-					namespace: default,
-				},
-				data: {
-					baz: boop,
-				},
-			}`),
+		TakeoffParams: yoke.TakeoffParams{
+			Release:  "foo",
+			DiffOnly: true,
+			Flight: yoke.FlightParams{
+				Input: strings.NewReader(`{
+					apiVersion: v1,
+					kind: ConfigMap,
+					metadata: {
+						name: test-diff,
+						namespace: default,
+					},
+					data: {
+						baz: boop,
+					},
+				}`),
+			},
 		},
 	}
 
@@ -393,9 +416,10 @@ func TestTurbulenceFix(t *testing.T) {
 
 	takeoffParams := TakeoffParams{
 		GlobalSettings: settings,
-		Release:        "foo",
-		Flight: TakeoffFlightParams{
-			Input: strings.NewReader(`{
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: strings.NewReader(`{
 					apiVersion: v1,
 					kind: ConfigMap,
 					metadata: {
@@ -406,6 +430,7 @@ func TestTurbulenceFix(t *testing.T) {
 						key: value,
 					},
 				}`),
+			},
 		},
 	}
 

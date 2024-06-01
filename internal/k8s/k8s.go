@@ -278,7 +278,12 @@ func (client Client) GetDynamicResourceInterface(resource *unstructured.Unstruct
 
 func (client *Client) LookupResourceMapping(resource *unstructured.Unstructured) (*meta.RESTMapping, error) {
 	gvk := schema.FromAPIVersionAndKind(resource.GetAPIVersion(), resource.GetKind())
-	return client.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	mapping, err := client.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil && meta.IsNoMatchError(err) {
+		client.mapper.Reset()
+		mapping, err = client.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	}
+	return mapping, err
 }
 
 func (client Client) UpdateResourceReleaseMapping(ctx context.Context, release string, create, remove []string) error {
@@ -422,9 +427,11 @@ func (client Client) GetInClusterState(ctx context.Context, resource *unstructur
 }
 
 func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Unstructured) error {
+	defer internal.DebugTimer(ctx, fmt.Sprintf("waiting for %s to be ready", internal.Canonical(resource)))()
+
 	// TODO: let user configure these values?
 	var (
-		interval = 5 * time.Second
+		interval = time.Second
 		timeout  = 2 * time.Minute
 	)
 
@@ -451,7 +458,7 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 				return fmt.Errorf("resource not found")
 			}
 
-			ready, err := isReady(state)
+			ready, err := client.isReady(ctx, state)
 			if err != nil {
 				return err
 			}
@@ -466,6 +473,8 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 }
 
 func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured) error {
+	defer internal.DebugTimer(ctx, "waiting for resources to become ready")()
+
 	var wg sync.WaitGroup
 	wg.Add(len(resources))
 	defer wg.Wait()
@@ -496,7 +505,7 @@ func IsNamespaced(resource dynamic.ResourceInterface) bool {
 	return ok
 }
 
-func isReady(resource *unstructured.Unstructured) (bool, error) {
+func (client Client) isReady(_ context.Context, resource *unstructured.Unstructured) (bool, error) {
 	switch gk := resource.GroupVersionKind().GroupKind(); gk {
 	case schema.GroupKind{Group: "apiextensions.k8s.io", Kind: "CustomResourceDefinition"}:
 		{
