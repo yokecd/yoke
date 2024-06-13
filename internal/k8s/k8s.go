@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"slices"
 	"sync"
 	"time"
 
@@ -472,12 +471,7 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 				return fmt.Errorf("resource not found")
 			}
 
-			ready, err := client.isReady(ctx, state)
-			if err != nil {
-				return err
-			}
-
-			if ready {
+			if isReady(ctx, state) {
 				return nil
 			}
 
@@ -512,30 +506,4 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 	}
 
 	return <-errs
-}
-
-func IsNamespaced(resource dynamic.ResourceInterface) bool {
-	_, ok := resource.(interface{ Namespace(string) bool })
-	return ok
-}
-
-func (client Client) isReady(_ context.Context, resource *unstructured.Unstructured) (bool, error) {
-	switch gk := resource.GroupVersionKind().GroupKind(); gk {
-	case schema.GroupKind{Group: "apiextensions.k8s.io", Kind: "CustomResourceDefinition"}:
-		{
-			conditions, _, _ := unstructured.NestedSlice(resource.Object, "status", "conditions")
-			return slices.ContainsFunc(conditions, func(condition any) bool {
-				values, _ := condition.(map[string]any)
-				return values != nil && values["status"] == "True" && values["type"] == "Established"
-			}), nil
-		}
-	case schema.GroupKind{Group: "", Kind: "Namespace"}:
-		{
-			phase, _, _ := unstructured.NestedString(resource.Object, "status", "phase")
-			return phase == "Active", nil
-		}
-
-	default:
-		return false, fmt.Errorf("not implemented for GroupKind: %s", gk)
-	}
 }

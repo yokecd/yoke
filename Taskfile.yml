@@ -13,7 +13,7 @@ tasks:
 
   test:
     cmds:
-      - kind delete cluster && kind create cluster
+      - kind delete cluster --name=tests && kind create cluster --name=tests
       - go test -coverprofile cover.out -p 1 -v ./...
 
   wasm:
