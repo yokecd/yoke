@@ -21,8 +21,7 @@ func init() {
 
 type DescentParams struct {
 	GlobalSettings
-	Release    string
-	RevisionID int
+	yoke.DescentParams
 }
 
 func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, error) {
@@ -38,6 +37,8 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 	}
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+
+	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
 
 	flagset.Parse(args)
 
@@ -65,9 +66,5 @@ func Descent(ctx context.Context, params DescentParams) error {
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
-
-	return commander.Descent(ctx, yoke.DescentParams{
-		Release:    params.Release,
-		RevisionID: params.RevisionID,
-	})
+	return commander.Descent(ctx, params.DescentParams)
 }

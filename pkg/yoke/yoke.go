@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -32,6 +33,7 @@ func FromK8Client(client *k8s.Client) *Commander {
 type DescentParams struct {
 	Release    string
 	RevisionID int
+  Wait time.Duration
 }
 
 func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
@@ -87,6 +89,12 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	if err := commander.k8s.UpdateResourceReleaseMapping(ctx, params.Release, createdNames, removedNames); err != nil {
 		return fmt.Errorf("failed to update resource release mapping: %w", err)
 	}
+
+  if params.Wait > 0 {
+    if err := commander.k8s.WaitForReadyMany(ctx, next.Resources, k8s.WaitOptions{Timeout: params.Wait}); err != nil {
+      return fmt.Errorf("release did not become ready within wait period: %w", err)
+    }
+  }
 
 	return nil
 }

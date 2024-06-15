@@ -178,7 +178,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if params.Wait > 0 {
 		if err := commander.k8s.WaitForReadyMany(ctx, resources, k8s.WaitOptions{Timeout: params.Wait}); err != nil {
-			return fmt.Errorf("release did not become ready within %s timeout: to rollback use `yoke descent`: %w", params.Wait.String(), err)
+			return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
 		}
 	}
 
