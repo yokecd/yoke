@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -116,6 +117,44 @@ func TestCreateDeleteCycle(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, deployments.Items, 0)
+}
+
+func TestCreateWithWait(t *testing.T) {
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+	params := func(timeout time.Duration) TakeoffParams {
+		return TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release: "foo",
+				Flight: yoke.FlightParams{
+					Input: createBasicDeployment(t, "sample-app", "default"),
+				},
+				Wait: timeout,
+			},
+		}
+	}
+
+	mayday := func() error {
+		return Mayday(background, MaydayParams{
+			GlobalSettings: settings,
+			Release:        "foo",
+		})
+	}
+
+	// Test cleanup in case a foo release already exists (best-effort)
+	_ = mayday()
+
+	require.NoError(t, TakeOff(background, params(30*time.Second)))
+
+	require.NoError(t, mayday())
+
+	require.EqualError(
+		t,
+		TakeOff(background, params(1*time.Nanosecond)),
+		"release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default.apps.v1.deployment.sample-app: 1ns timeout reached",
+	)
+
+	require.NoError(t, mayday())
 }
 
 func TestFailApplyDryRun(t *testing.T) {
