@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -40,6 +41,7 @@ type TakeoffParams struct {
 	Color            bool
 	CreateNamespaces bool
 	CreateCRDs       bool
+	Wait             time.Duration
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -140,7 +142,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		if err := commander.k8s.EnsureNamespace(ctx, namespace); err != nil {
 			return fmt.Errorf("failed to ensure namespace: %w", err)
 		}
-		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(namespace)); err != nil {
+		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(namespace), k8s.WaitOptions{}); err != nil {
 			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", namespace, err)
 		}
 	}
@@ -174,6 +176,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to update resource release mapping: %w", err)
 	}
 
+	if params.Wait > 0 {
+		if err := commander.k8s.WaitForReadyMany(ctx, resources, k8s.WaitOptions{Timeout: params.Wait}); err != nil {
+			return fmt.Errorf("release did not become ready within %s timeout: to rollback use `yoke descent`: %w", params.Wait.String(), err)
+		}
+	}
+
 	return nil
 }
 
@@ -196,7 +204,7 @@ func (commander Commander) applyDependencies(ctx context.Context, dependencies F
 				errs[0] = fmt.Errorf("failed to create CRDs: %w", err)
 				return
 			}
-			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.CRDs); err != nil {
+			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.CRDs, k8s.WaitOptions{}); err != nil {
 				errs[0] = fmt.Errorf("failed to wait for CRDs to become ready: %w", err)
 				return
 			}
@@ -211,7 +219,7 @@ func (commander Commander) applyDependencies(ctx context.Context, dependencies F
 				errs[1] = fmt.Errorf("failed to create namespaces: %w", err)
 				return
 			}
-			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.Namespaces); err != nil {
+			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.Namespaces, k8s.WaitOptions{}); err != nil {
 				errs[1] = fmt.Errorf("failed to wait for namespaces to become ready: %w", err)
 				return
 			}

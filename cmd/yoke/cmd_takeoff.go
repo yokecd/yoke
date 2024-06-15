@@ -63,6 +63,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not using --diff-only)")
 	flagset.StringVar(&params.Out, "out", "", "if present outputs flight resources to directory specified, if out is - outputs to standard out")
 	flagset.StringVar(&params.Flight.Namespace, "namespace", "default", "preferred namespace for resources if they do not define one")
+	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to be ready")
 
 	args, params.Flight.Args = internal.CutArgs(args)
 

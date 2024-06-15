@@ -439,13 +439,18 @@ func (client Client) GetInClusterState(ctx context.Context, resource *unstructur
 	return state, err
 }
 
-func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Unstructured) error {
+type WaitOptions struct {
+	Timeout  time.Duration
+	Interval time.Duration
+}
+
+func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Unstructured, opts WaitOptions) error {
 	defer internal.DebugTimer(ctx, fmt.Sprintf("waiting for %s to be ready", internal.Canonical(resource)))()
 
 	// TODO: let user configure these values?
 	var (
-		interval = time.Second
-		timeout  = 2 * time.Minute
+		interval = cmp.Or(opts.Interval, time.Second)
+		timeout  = cmp.Or(opts.Timeout, 2*time.Minute)
 	)
 
 	timer := time.NewTimer(0)
@@ -480,7 +485,7 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 	}
 }
 
-func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured) error {
+func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured, opts WaitOptions) error {
 	defer internal.DebugTimer(ctx, "waiting for resources to become ready")()
 
 	var wg sync.WaitGroup
@@ -499,7 +504,7 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 	for _, resource := range resources {
 		go func() {
 			defer wg.Done()
-			if err := client.WaitForReady(ctx, resource); err != nil {
+			if err := client.WaitForReady(ctx, resource, opts); err != nil {
 				errs <- fmt.Errorf("failed to get readiness for %s: %w", internal.Canonical(resource), err)
 			}
 		}()
