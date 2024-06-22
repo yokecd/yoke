@@ -101,7 +101,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		if err != nil {
 			return fmt.Errorf("failed to get revision history: %w", err)
 		}
-		currentResources := revisions.CurrentResources()
+		currentResources, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+		if err != nil {
+			return fmt.Errorf("failed to get current resources for revision: %w", err)
+		}
 
 		a, err := text.ToYamlFile("current", internal.CanonicalObjectMap(currentResources))
 		if err != nil {
@@ -129,7 +132,15 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to get revision history: %w", err)
 	}
 
-	previous := revisions.CurrentResources()
+	previous, err := func() ([]*unstructured.Unstructured, error) {
+		if len(revisions.History) == 0 {
+			return nil, nil
+		}
+		return commander.k8s.GetRevisionResources(ctx, revisions.Active())
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to get previous resources for revision: %w", err)
+	}
 
 	if reflect.DeepEqual(previous, []*unstructured.Unstructured(resources)) {
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
@@ -157,9 +168,18 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to apply resources: %w", err)
 	}
 
-	revisions.Add(resources, params.Flight.Path, wasm)
-
-	if err := commander.k8s.UpsertRevisions(ctx, params.Release, revisions); err != nil {
+	now := time.Now()
+	if err := commander.k8s.CreateRevision(
+		ctx,
+		params.Release,
+		internal.Revision{
+			Source:    internal.SourceFrom(params.Flight.Path, wasm),
+			CreatedAt: now,
+			ActiveAt:  now,
+			Resources: len(resources),
+		},
+		resources,
+	); err != nil {
 		return fmt.Errorf("failed to create revision: %w", err)
 	}
 

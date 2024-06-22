@@ -148,11 +148,13 @@ func TestCreateWithWait(t *testing.T) {
 
 	require.NoError(t, mayday())
 
-	require.EqualError(
-		t,
-		TakeOff(background, params(1*time.Nanosecond)),
-		"release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default.apps.v1.deployment.sample-app: 1ns timeout reached",
-	)
+	err := TakeOff(background, params(1*time.Nanosecond))
+	require.Error(t, err, "expected an error")
+
+	// Expectation split into two to remove flakiness. The context being canceled can trigger errors from different places
+	// either directly within yoke or within client-go, hence we capture the cause and the top level message only
+	require.Contains(t, err.Error(), "release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default.apps.v1.deployment.sample-app")
+	require.Contains(t, err.Error(), "1ns timeout reached")
 
 	require.NoError(t, mayday())
 }

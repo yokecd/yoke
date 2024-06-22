@@ -2,10 +2,13 @@ package internal
 
 import (
 	"cmp"
+	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,10 +16,28 @@ import (
 )
 
 type Revisions struct {
-	Release     string     `json:"release"`
-	Total       int        `json:"total"`
-	ActiveIndex int        `json:"activeIndex"`
-	History     []Revision `json:"history"`
+	Release string     `json:"release"`
+	History []Revision `json:"history"`
+}
+
+func (revisions Revisions) Active() Revision {
+	var active Revision
+	for _, revision := range revisions.History {
+		if revision.ActiveAt.After(active.ActiveAt) {
+			active = revision
+		}
+	}
+	return active
+}
+
+func (revisions Revisions) ActiveIndex() int {
+	var active int
+	for i, revision := range revisions.History {
+		if revision.ActiveAt.After(revisions.History[i].ActiveAt) {
+			active = i
+		}
+	}
+	return active
 }
 
 type Source struct {
@@ -34,36 +55,33 @@ func SourceFrom(ref string, wasm []byte) (src Source) {
 		if u.Scheme != "" {
 			src.Ref = u.String()
 		} else {
-			src.Ref = path.Clean(ref)
+			src.Ref = "file://" + path.Clean(ref)
 		}
 	}
 
 	return
 }
 
-func (revisions *Revisions) Add(resources []*unstructured.Unstructured, ref string, wasm []byte) {
-	revisions.History = append(revisions.History, Revision{
-		ID:        revisions.Total + 1,
-		Source:    SourceFrom(ref, wasm),
-		CreatedAt: time.Now(),
-		Resources: resources,
+func (revisions *Revisions) Add(revision Revision) {
+	idx, _ := slices.BinarySearchFunc(revisions.History, revision, func(a, b Revision) int {
+		switch {
+		case a.CreatedAt.Before(b.CreatedAt):
+			return -1
+		case a.CreatedAt.After(b.CreatedAt):
+			return 1
+		default:
+			return 0
+		}
 	})
-	revisions.ActiveIndex = len(revisions.History) - 1
-	revisions.Total++
-}
-
-func (revisions Revisions) CurrentResources() []*unstructured.Unstructured {
-	if len(revisions.History) == 0 {
-		return nil
-	}
-	return revisions.History[revisions.ActiveIndex].Resources
+	revisions.History = slices.Insert(revisions.History, idx, revision)
 }
 
 type Revision struct {
-	ID        int                          `json:"id"`
-	Source    Source                       `json:"source"`
-	CreatedAt time.Time                    `json:"createdAt"`
-	Resources []*unstructured.Unstructured `json:"resources"`
+	Name      string    `json:"-"`
+	Source    Source    `json:"source"`
+	CreatedAt time.Time `json:"createdAt"`
+	ActiveAt  time.Time `json:"-"`
+	Resources int       `json:"resources"`
 }
 
 func AddYokeMetadata(resources []*unstructured.Unstructured, release string) {
@@ -119,4 +137,34 @@ func CanonicalObjectMap(resources []*unstructured.Unstructured) map[string]any {
 		result[Canonical(resource)] = resource.Object
 	}
 	return result
+}
+
+const (
+	LabelKind                = "internal.yoke/kind"
+	LabelRelease             = "internal.yoke/release"
+	AnnotationSourceURL      = "internal.yoke/source-url"
+	AnnotationSourceChecksum = "internal.yoke/source-checksum"
+	AnnotationCreatedAt      = "internal.yoke/created-at"
+	AnnotationActiveAt       = "internal.yoke/active-at"
+	AnnotationResourceCount  = "internal.yoke/resources"
+	KeyResources             = "resources"
+)
+
+func MustParseTime(value string) time.Time {
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func MustParseInt(value string) int {
+	i, _ := strconv.Atoi(value)
+	return i
+}
+
+func RandomString() string {
+	buf := make([]byte, 6)
+	rand.Read(buf)
+	return fmt.Sprintf("%x", buf)
 }

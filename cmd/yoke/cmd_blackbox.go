@@ -109,7 +109,7 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 
 		tbl.AppendHeader(table.Row{"release", "revision id"})
 		for _, revisions := range allReleases {
-			tbl.AppendRow(table.Row{revisions.Release, revisions.History[revisions.ActiveIndex].ID})
+			tbl.AppendRow(table.Row{revisions.Release, revisions.ActiveIndex() + 1})
 		}
 
 		_, err = io.WriteString(os.Stdout, tbl.Render()+"\n")
@@ -131,22 +131,24 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		slices.Reverse(history)
 
 		tbl.AppendHeader(table.Row{"id", "resources", "flight", "sha", "created at"})
-		for _, version := range history {
-			tbl.AppendRow(table.Row{version.ID, len(version.Resources), version.Source.Ref, version.Source.Checksum, version.CreatedAt})
+		for i, version := range history {
+			tbl.AppendRow(table.Row{len(history) - i, version.Resources, version.Source.Ref, version.Source.Checksum, version.CreatedAt})
 		}
 
 		_, err = io.WriteString(os.Stdout, tbl.Render()+"\n")
 		return err
 	}
 
-	revision, ok := internal.Find(revisions.History, func(revision internal.Revision) bool {
-		return revision.ID == params.RevisionID
-	})
-	if !ok {
+	if params.RevisionID > len(revisions.History) {
 		return fmt.Errorf("revision %d not found", params.RevisionID)
 	}
 
-	primaryRevision := internal.CanonicalObjectMap(revision.Resources)
+	resources, err := client.GetRevisionResources(ctx, revisions.History[params.RevisionID-1])
+	if err != nil {
+		return fmt.Errorf("failed to get resources for revision %d: %w", params.RevisionID, err)
+	}
+
+	primaryRevision := internal.CanonicalObjectMap(resources)
 
 	if params.DiffRevisionID == 0 {
 		encoder := yaml.NewEncoder(os.Stdout)
@@ -158,14 +160,16 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return nil
 	}
 
-	revision, ok = internal.Find(revisions.History, func(revision internal.Revision) bool {
-		return revision.ID == params.DiffRevisionID
-	})
-	if !ok {
+	if params.DiffRevisionID > len(revisions.History) {
 		return fmt.Errorf("revision %d not found", params.DiffRevisionID)
 	}
 
-	diffRevision := internal.CanonicalObjectMap(revision.Resources)
+	resources, err = client.GetRevisionResources(ctx, revisions.History[params.DiffRevisionID-1])
+	if err != nil {
+		return fmt.Errorf("failed to get resources for revision %d: %w", params.DiffRevisionID, err)
+	}
+
+	diffRevision := internal.CanonicalObjectMap(resources)
 
 	a, err := text.ToYamlFile(fmt.Sprintf("revision %d", params.RevisionID), primaryRevision)
 	if err != nil {

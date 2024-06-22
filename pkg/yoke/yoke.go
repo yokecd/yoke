@@ -44,46 +44,42 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	if err != nil {
 		return fmt.Errorf("failed to get revisions: %w", err)
 	}
-	if revisions.History == nil {
-		return fmt.Errorf("release %s not found", params.Release)
+
+	if id := params.RevisionID; id < 1 || id > len(revisions.History) {
+		return fmt.Errorf("requested revision id %d is not within valid range 1 to %d", id, len(revisions.History))
 	}
 
-	index, next := func() (int, *internal.Revision) {
-		for i, revision := range revisions.History {
-			if revision.ID == params.RevisionID {
-				return i, &revision
-			}
-		}
-		return 0, nil
-	}()
+	targetRevision := revisions.History[params.RevisionID-1]
 
-	if next == nil {
-		return fmt.Errorf("revision %d is not within history", params.RevisionID)
+	next, err := commander.k8s.GetRevisionResources(ctx, targetRevision)
+	if err != nil {
+		return fmt.Errorf("failed to lookup target revision resources: %w", err)
 	}
 
-	if err := commander.k8s.ValidateOwnership(ctx, params.Release, next.Resources); err != nil {
+	if err := commander.k8s.ValidateOwnership(ctx, params.Release, next); err != nil {
 		return fmt.Errorf("failed to validate ownership: %w", err)
 	}
 
-	previous := revisions.CurrentResources()
+	previous, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+	if err != nil {
+		return fmt.Errorf("failed to lookup current revision resources: %w", err)
+	}
 
-	if err := commander.k8s.ApplyResources(ctx, next.Resources, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
+	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
 		return fmt.Errorf("failed to apply resources: %w", err)
 	}
 
-	revisions.ActiveIndex = index
-
-	if err := commander.k8s.UpsertRevisions(ctx, params.Release, revisions); err != nil {
+	if err := commander.k8s.UpdateRevisionActiveState(ctx, targetRevision.Name); err != nil {
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
-	removed, err := commander.k8s.RemoveOrphans(ctx, previous, next.Resources)
+	removed, err := commander.k8s.RemoveOrphans(ctx, previous, next)
 	if err != nil {
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
 	}
 
 	var (
-		createdNames = internal.CanonicalNameList(next.Resources)
+		createdNames = internal.CanonicalNameList(next)
 		removedNames = internal.CanonicalNameList(removed)
 	)
 
@@ -92,7 +88,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	}
 
 	if params.Wait > 0 {
-		if err := commander.k8s.WaitForReadyMany(ctx, next.Resources, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
+		if err := commander.k8s.WaitForReadyMany(ctx, next, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
 			return fmt.Errorf("release did not become ready within wait period: %w", err)
 		}
 	}
@@ -108,7 +104,12 @@ func (client Commander) Mayday(ctx context.Context, release string) error {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
 
-	removed, err := client.k8s.RemoveOrphans(ctx, revisions.CurrentResources(), nil)
+	resources, err := client.k8s.GetRevisionResources(ctx, revisions.Active())
+	if err != nil {
+		return fmt.Errorf("failed to get resources for current revision: %w", err)
+	}
+
+	removed, err := client.k8s.RemoveOrphans(ctx, resources, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
@@ -117,7 +118,7 @@ func (client Commander) Mayday(ctx context.Context, release string) error {
 		return fmt.Errorf("failed to update resource to release mapping: %w", err)
 	}
 
-	if err := client.k8s.DeleteRevisions(ctx, release); err != nil {
+	if err := client.k8s.DeleteRevisions(ctx, *revisions); err != nil {
 		return fmt.Errorf("failed to delete revision history: %w", err)
 	}
 
@@ -139,10 +140,11 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %s: %w", params.Release, err)
 	}
-	if revisions.History == nil {
-		return fmt.Errorf("release %s not found", params.Release)
+
+	resources, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+	if err != nil {
+		return fmt.Errorf("failed to get current resources: %w", err)
 	}
-	resources := revisions.CurrentResources()
 
 	expected := internal.CanonicalMap(resources)
 

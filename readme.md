@@ -26,6 +26,12 @@ go install github.com/davidmdm/yoke/cmd/yoke@latest
 
 Official documentation can be found [here](https://davidmdm.github.io/yoke-website)
 
+## Versioning
+
+This project is still pre version 1.0.0
+
+The project uses semantic versioning but due to is pre 1.0.0 state, breaking changes are represented as minor bumps and all other changes patches until the release of yoke v1.0.0
+
 ## Contributions
 
 Contributions are welcome! If you encounter any issues or have suggestions, please open an issue on the yoke GitHub repository.
