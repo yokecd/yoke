@@ -40,10 +40,10 @@ const (
 func yokePrefix(release string) string { return yoke + "-" + release }
 
 type Client struct {
-	dynamic   *dynamic.DynamicClient
-	clientset *kubernetes.Clientset
-	meta      metadata.Interface
-	mapper    *restmapper.DeferredDiscoveryRESTMapper
+	Dynamic   *dynamic.DynamicClient
+	Clientset *kubernetes.Clientset
+	Meta      metadata.Interface
+	Mapper    *restmapper.DeferredDiscoveryRESTMapper
 }
 
 func NewClientFromKubeConfig(path string) (*Client, error) {
@@ -73,10 +73,10 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 	}
 
 	return &Client{
-		dynamic:   dynamicClient,
-		clientset: clientset,
-		meta:      meta,
-		mapper:    restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
+		Dynamic:   dynamicClient,
+		Clientset: clientset,
+		Meta:      meta,
+		Mapper:    restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
 	}, nil
 }
 
@@ -220,7 +220,7 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current []*uns
 func (client Client) GetRevisions(ctx context.Context, release string) (*internal.Revisions, error) {
 	defer internal.DebugTimer(ctx, "get revisions for "+release)
 
-	mapping, err := client.mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
+	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource mapping for Secret: %w", err)
 	}
@@ -228,7 +228,7 @@ func (client Client) GetRevisions(ctx context.Context, release string) (*interna
 	var labelSelector metav1.LabelSelector
 	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, release)
 
-	list, err := client.meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
+	list, err := client.Meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
@@ -255,7 +255,7 @@ func (client Client) GetRevisions(ctx context.Context, release string) (*interna
 func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Revisions) error {
 	defer internal.DebugTimer(ctx, "delete revision history "+revisions.Release)()
 
-	secrets := client.clientset.CoreV1().Secrets(NSKubeSystem)
+	secrets := client.Clientset.CoreV1().Secrets(NSKubeSystem)
 
 	var errs []error
 	for _, revision := range revisions.History {
@@ -268,7 +268,7 @@ func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Rev
 }
 
 func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions, error) {
-	mapping, err := client.mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
+	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource mapping for Secret: %w", err)
 	}
@@ -276,7 +276,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 	var selector metav1.LabelSelector
 	metav1.AddLabelToSelector(&selector, internal.LabelKind, "revision")
 
-	list, err := client.meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
+	list, err := client.Meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&selector),
 	})
 	if err != nil {
@@ -308,7 +308,7 @@ func (client Client) CreateRevision(ctx context.Context, release string, revisio
 		return fmt.Errorf("failed to marshal resources: %w", err)
 	}
 
-	_, err = client.clientset.CoreV1().Secrets(NSKubeSystem).Create(
+	_, err = client.Clientset.CoreV1().Secrets(NSKubeSystem).Create(
 		ctx,
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -336,7 +336,7 @@ func (client Client) CreateRevision(ctx context.Context, release string, revisio
 }
 
 func (client Client) UpdateRevisionActiveState(ctx context.Context, name string) error {
-	secrets := client.clientset.CoreV1().Secrets(NSKubeSystem)
+	secrets := client.Clientset.CoreV1().Secrets(NSKubeSystem)
 
 	secret, err := secrets.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -350,7 +350,7 @@ func (client Client) UpdateRevisionActiveState(ctx context.Context, name string)
 }
 
 func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) ([]*unstructured.Unstructured, error) {
-	secret, err := client.clientset.CoreV1().Secrets(NSKubeSystem).Get(ctx, revision.Name, metav1.GetOptions{})
+	secret, err := client.Clientset.CoreV1().Secrets(NSKubeSystem).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -367,17 +367,17 @@ func (client Client) GetDynamicResourceInterface(resource *unstructured.Unstruct
 		return nil, err
 	}
 	if apiResource.Scope.Name() == meta.RESTScopeNameNamespace {
-		return client.dynamic.Resource(apiResource.Resource).Namespace(resource.GetNamespace()), nil
+		return client.Dynamic.Resource(apiResource.Resource).Namespace(resource.GetNamespace()), nil
 	}
-	return client.dynamic.Resource(apiResource.Resource), nil
+	return client.Dynamic.Resource(apiResource.Resource), nil
 }
 
 func (client *Client) LookupResourceMapping(resource *unstructured.Unstructured) (*meta.RESTMapping, error) {
 	gvk := schema.FromAPIVersionAndKind(resource.GetAPIVersion(), resource.GetKind())
-	mapping, err := client.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	mapping, err := client.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil && meta.IsNoMatchError(err) {
-		client.mapper.Reset()
-		mapping, err = client.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		client.Mapper.Reset()
+		mapping, err = client.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	}
 	return mapping, err
 }
@@ -385,7 +385,7 @@ func (client *Client) LookupResourceMapping(resource *unstructured.Unstructured)
 func (client Client) UpdateResourceReleaseMapping(ctx context.Context, release string, create, remove []string) error {
 	defer internal.DebugTimer(ctx, "update resource to release mapping")()
 
-	configMaps := client.clientset.CoreV1().ConfigMaps(NSKubeSystem)
+	configMaps := client.Clientset.CoreV1().ConfigMaps(NSKubeSystem)
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		configMap, err := configMaps.Get(ctx, ResourceReleaseMapping, metav1.GetOptions{})
@@ -430,7 +430,7 @@ func (client Client) UpdateResourceReleaseMapping(ctx context.Context, release s
 }
 
 func (client Client) GetResourceReleaseMapping(ctx context.Context) (map[string]string, error) {
-	configMaps := client.clientset.CoreV1().ConfigMaps(NSKubeSystem)
+	configMaps := client.Clientset.CoreV1().ConfigMaps(NSKubeSystem)
 
 	configMap, err := configMaps.Get(ctx, ResourceReleaseMapping, metav1.GetOptions{})
 	if err != nil {
@@ -467,12 +467,12 @@ func (client Client) ValidateOwnership(ctx context.Context, release string, reso
 func (client Client) EnsureNamespace(ctx context.Context, namespace string) error {
 	defer internal.DebugTimer(ctx, "ensuring namespace: "+namespace)()
 
-	if _, err := client.clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{}); err != nil {
+	if _, err := client.Clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{}); err != nil {
 		if !kerrors.IsNotFound(err) {
 			return err
 		}
 
-		if _, err := client.clientset.CoreV1().Namespaces().Create(
+		if _, err := client.Clientset.CoreV1().Namespaces().Create(
 			ctx,
 			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}},
 			metav1.CreateOptions{},
