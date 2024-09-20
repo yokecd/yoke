@@ -46,8 +46,8 @@ func run() error {
 
 	flag.Parse()
 
-	ctx, done := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
-	defer done()
+	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
+	defer cancel()
 
 	ctx = internal.WithDebugFlag(ctx, settings.Debug)
 
