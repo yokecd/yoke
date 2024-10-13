@@ -15,11 +15,12 @@ import (
 )
 
 type ExecParams struct {
-	Wasm    []byte
-	Release string
-	Stdin   io.Reader
-	Args    []string
-	Env     map[string]string
+	Wasm     []byte
+	Release  string
+	Stdin    io.Reader
+	Args     []string
+	Env      map[string]string
+	CacheDir string
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
@@ -28,6 +29,14 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 	cfg := wazero.
 		NewRuntimeConfig().
 		WithCloseOnContextDone(true)
+
+	if params.CacheDir != "" {
+		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to instantiate compilation cache: %w", err)
+		}
+		cfg = cfg.WithCompilationCache(cache)
+	}
 
 	runtime := wazero.NewRuntimeWithConfig(ctx, cfg)
 	defer func() {

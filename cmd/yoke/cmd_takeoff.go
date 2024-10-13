@@ -67,6 +67,8 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to be ready")
 	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
 
+	flagset.StringVar(&params.Flight.CompilationCacheDir, "compilation-cache", "", "location to cache wasm compilations")
+
 	args, params.Flight.Args = internal.CutArgs(args)
 
 	flagset.Parse(args)

@@ -23,10 +23,11 @@ import (
 )
 
 type FlightParams struct {
-	Path      string
-	Input     io.Reader
-	Args      []string
-	Namespace string
+	Path                string
+	Input               io.Reader
+	Args                []string
+	Namespace           string
+	CompilationCacheDir string
 }
 
 type TakeoffParams struct {

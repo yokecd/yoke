@@ -112,6 +112,7 @@ func EvalFlight(ctx context.Context, release string, flight FlightParams) ([]byt
 			"YOKE_NAMESPACE": flight.Namespace,
 			"NAMESPACE":      flight.Namespace,
 		},
+		CacheDir: flight.CompilationCacheDir,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
