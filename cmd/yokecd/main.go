@@ -1,18 +1,24 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
+	"text/template"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
-
+	"github.com/davidmdm/x/xcontext"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/yoke"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func main() {
@@ -29,9 +35,34 @@ func main() {
 }
 
 func run(cfg Config) (err error) {
+	rest, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get in cluster config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(rest)
+	if err != nil {
+		return fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
+	}
+
+	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	secrets := make(map[string]string, len(cfg.Flight.Refs))
+	for name, ref := range cfg.Flight.Refs {
+		secret, err := clientset.CoreV1().Secrets(cmp.Or(ref.Namespace, cfg.Namespace)).Get(ctx, ref.Secret, v1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get secret reference %q: %w", ref.Secret, err)
+		}
+		value, ok := secret.Data[ref.Key]
+		if !ok {
+			return fmt.Errorf("key %q not present in secret %q", ref.Key, ref.Secret)
+		}
+		secrets[name] = string(value)
+	}
+
 	data, err := func() ([]byte, error) {
 		if cfg.Flight.Build {
-			debug("building wasm")
 			cfg.Flight.Wasm, err = Build()
 			if err != nil {
 				return nil, fmt.Errorf("failed to build binary: %w", err)
@@ -39,10 +70,28 @@ func run(cfg Config) (err error) {
 			defer os.Remove(cfg.Flight.Wasm)
 		}
 
-		debug("loading wasm: %s", cfg.Flight.Wasm)
+		wasm, err := func() (string, error) {
+			if !strings.HasPrefix(cfg.Flight.Wasm, "http://") && !strings.HasPrefix(cfg.Flight.Wasm, "https://") {
+				return cfg.Flight.Wasm, nil
+			}
+
+			tpl, err := template.New("").Parse(cfg.Flight.Wasm)
+			if err != nil {
+				return "", fmt.Errorf("invalid template: %w", err)
+			}
+
+			tpl.Option("missingkey=error")
+
+			var builder strings.Builder
+			if err := tpl.Execute(&builder, secrets); err != nil {
+				return "", fmt.Errorf("failed to execute template: %w", err)
+			}
+
+			return builder.String(), nil
+		}()
 
 		data, _, err := yoke.EvalFlight(context.Background(), cfg.Application.Name, yoke.FlightParams{
-			Path:      cfg.Flight.Wasm,
+			Path:      wasm,
 			Input:     strings.NewReader(cfg.Flight.Input),
 			Args:      cfg.Flight.Args,
 			Namespace: cfg.Application.Namespace,
@@ -58,27 +107,18 @@ func run(cfg Config) (err error) {
 }
 
 func EncodeResources(out *json.Encoder, data []byte) error {
-	debug("encoding resources")
-
 	var resources internal.List[*unstructured.Unstructured]
 	if err := yaml.Unmarshal(data, &resources); err != nil {
 		return fmt.Errorf("failed to unmarshal executed flight data: %w", err)
 	}
 
 	for _, resource := range resources {
-		debug("encoding: %s/%s", resource.GetKind(), resource.GetName())
 		if err := out.Encode(resource); err != nil {
 			return err
 		}
 	}
 
-	debug("resources: %d", len(resources))
-
 	return nil
-}
-
-func debug(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
 func Build() (string, error) {

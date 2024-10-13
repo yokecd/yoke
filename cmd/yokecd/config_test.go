@@ -70,6 +70,19 @@ func TestConfigUnmarshalling(t *testing.T) {
 				Args:  []string{"-flag"},
 			},
 		},
+		{
+			Name: "secret refs",
+			Input: `[
+				{ name: build,  string: 1 },
+        { name: refs, map: { password: { secret: secret, key: key } } }
+      ]`,
+			Expected: Parameters{
+				Build: true,
+				Refs: map[string]Ref{
+					"password": {Secret: "secret", Key: "key"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
