@@ -1,12 +1,12 @@
 package main
 
 import (
+	"cmp"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"slices"
 
 	"golang.org/x/term"
 	appsv1 "k8s.io/api/apps/v1"
@@ -69,6 +69,13 @@ func run() error {
 		Image:           "yokecd/yokecd:" + values.Version,
 		ImagePullPolicy: corev1.PullAlways,
 
+		Env: []corev1.EnvVar{
+			{
+				Name:  "ARGOCD_NAMESPACE",
+				Value: cmp.Or(deployment.Namespace, flight.Namespace()),
+			},
+		},
+
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "var-files",
@@ -108,25 +115,6 @@ func run() error {
 	}
 
 	resources[i] = resource
-
-	slices.SortFunc(resources, func(a, b *unstructured.Unstructured) int {
-		const rbac = "rbac.authorization.k8s.io"
-		groupA := a.GroupVersionKind().Group
-		groupB := b.GroupVersionKind().Group
-
-		switch {
-		case groupA == "" && a.GetKind() == "ServiceAccount":
-			return -1
-		case groupB == "" && b.GetKind() == "ServiceAccount":
-			return 1
-		case groupA == rbac && groupB != rbac:
-			return -1
-		case groupA != rbac && groupB == rbac:
-			return 1
-		default:
-			return 0
-		}
-	})
 
 	return json.NewEncoder(os.Stdout).Encode(resources)
 }

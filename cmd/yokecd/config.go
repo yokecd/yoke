@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,10 +14,17 @@ import (
 	"github.com/yokecd/yoke/internal"
 )
 
+type Ref struct {
+	Secret    string `json:"secret"`
+	Namespace string `json:"namespace"`
+	Key       string `json:"key"`
+}
+
 type Parameters struct {
 	Build bool
 	Wasm  string
 	Input string
+	Refs  map[string]Ref
 	Args  []string
 }
 
@@ -30,9 +38,10 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 	}()
 
 	type Param struct {
-		Name   string   `json:"name"`
-		String string   `json:"string"`
-		Array  []string `json:"array"`
+		Name   string          `json:"name"`
+		String string          `json:"string"`
+		Array  []string        `json:"array"`
+		Map    json.RawMessage `json:"map"`
 	}
 
 	var elems []Param
@@ -66,6 +75,14 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 	args, _ := internal.Find(elems, func(param Param) bool { return param.Name == "args" })
 	parameters.Args = args.Array
 
+	refs, _ := internal.Find(elems, func(param Param) bool { return param.Name == "refs" })
+
+	if refs.Map != nil {
+		if err := json.Unmarshal(refs.Map, &parameters.Refs); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -74,10 +91,12 @@ type Config struct {
 		Name      string
 		Namespace string
 	}
-	Flight Parameters
+	Flight    Parameters
+	Namespace string
 }
 
 func getConfig() (cfg Config, err error) {
+	conf.Var(conf.Environ, &cfg.Namespace, "ARGOCD_NAMESPACE", conf.Default("default"))
 	conf.Var(conf.Environ, &cfg.Application.Name, "ARGOCD_APP_NAME", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
