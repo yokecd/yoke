@@ -1,4 +1,4 @@
-package flight
+ackage flight
 
 import (
 	"cmp"
