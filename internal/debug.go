@@ -26,5 +26,5 @@ func DebugTimer(ctx context.Context, msg string) func() {
 	start := time.Now()
 	terminal := Debug(ctx)
 	terminal.Printf("start: %s\n", msg)
-	return func() { terminal.Printf("done:  %s: %s\n", msg, time.Since(start)) }
+	return func() { terminal.Printf("done:  %s: %s\n", msg, time.Since(start).Round(time.Millisecond)) }
 }

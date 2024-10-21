@@ -66,8 +66,8 @@ func run() error {
 	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
-		Image:           "yokecd/yokecd:" + values.Version,
-		ImagePullPolicy: corev1.PullAlways,
+		Image:           "davidmdm/yokecd:" + values.Version,
+		ImagePullPolicy: corev1.PullIfNotPresent,
 
 		Env: []corev1.EnvVar{
 			{

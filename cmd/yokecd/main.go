@@ -28,13 +28,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := run(cfg); err != nil {
+	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	ctx = internal.WithDebugFlag(ctx, func(value bool) *bool { return &value }(true))
+
+	if err := run(ctx, cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(cfg Config) (err error) {
+func run(ctx context.Context, cfg Config) (err error) {
+	defer internal.DebugTimer(ctx, fmt.Sprintf("evaluating application %s/%s", cfg.Application.Name, cfg.Flight.Wasm))()
+
 	rest, err := rest.InClusterConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get in cluster config: %w", err)
@@ -44,9 +51,6 @@ func run(cfg Config) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
 	}
-
-	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	secrets := make(map[string]string, len(cfg.Flight.Refs))
 	for name, ref := range cfg.Flight.Refs {
@@ -90,7 +94,7 @@ func run(cfg Config) (err error) {
 			return builder.String(), nil
 		}()
 
-		data, _, err := yoke.EvalFlight(context.Background(), cfg.Application.Name, yoke.FlightParams{
+		data, _, err := yoke.EvalFlight(ctx, cfg.Application.Name, yoke.FlightParams{
 			Path:      wasm,
 			Input:     strings.NewReader(cfg.Flight.Input),
 			Args:      cfg.Flight.Args,
