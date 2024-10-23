@@ -17,9 +17,9 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/davidmdm/x/xerr"
-	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/internal/k8s"
-	"github.com/davidmdm/yoke/internal/text"
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/text"
 )
 
 type FlightParams struct {

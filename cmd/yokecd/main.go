@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/pkg/yoke"
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func main() {

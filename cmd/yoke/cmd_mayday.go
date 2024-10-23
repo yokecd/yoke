@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/pkg/yoke"
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 type MaydayParams struct {

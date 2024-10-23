@@ -14,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/davidmdm/x/xerr"
-	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/wasi"
 )
 
 func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {

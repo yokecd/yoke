@@ -9,9 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/davidmdm/x/xerr"
-	"github.com/davidmdm/yoke/internal"
-	"github.com/davidmdm/yoke/internal/k8s"
-	"github.com/davidmdm/yoke/internal/text"
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/text"
 )
 
 type Commander struct {

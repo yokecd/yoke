@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/davidmdm/yoke/pkg/helm"
+	"github.com/yokecd/yoke/pkg/helm"
 )
 
 //go:embed argo-cd-6.6.0.tgz

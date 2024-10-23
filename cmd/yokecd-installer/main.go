@@ -15,8 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/davidmdm/yoke/cmd/yokecd-installer/argocd"
-	"github.com/davidmdm/yoke/pkg/flight"
+	"github.com/yokecd/yoke/cmd/yokecd-installer/argocd"
+	"github.com/yokecd/yoke/pkg/flight"
 )
 
 func main() {
@@ -66,7 +66,7 @@ func run() error {
 	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
-		Image:           "davidmdm/yokecd:" + values.Version,
+		Image:           "yokecd/yokecd:" + values.Version,
 		ImagePullPolicy: corev1.PullAlways,
 
 		VolumeMounts: []corev1.VolumeMount{

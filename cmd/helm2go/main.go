@@ -17,8 +17,8 @@ import (
 
 	"github.com/davidmdm/ansi"
 	"github.com/davidmdm/x/xcontext"
-	"github.com/davidmdm/yoke/internal/home"
-	"github.com/davidmdm/yoke/pkg/helm"
+	"github.com/yokecd/yoke/internal/home"
+	"github.com/yokecd/yoke/pkg/helm"
 )
 
 var yellow = ansi.MakeStyle(ansi.FgYellow)

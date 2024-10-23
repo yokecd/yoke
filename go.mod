@@ -1,4 +1,4 @@
-module github.com/davidmdm/yoke
+module github.com/yokecd/yoke
 
 go 1.23.0
 

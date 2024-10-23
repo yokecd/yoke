@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/davidmdm/x/xerr"
-	"github.com/davidmdm/yoke/internal"
+	"github.com/yokecd/yoke/internal"
 )
 
 func LoadChartFromZippedArchive(data []byte) (chart *Chart, err error) {

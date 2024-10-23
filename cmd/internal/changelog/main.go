@@ -131,7 +131,7 @@ func (changelog Changelog) String() string {
 		}
 
 		for _, commit := range entry.Commits {
-			builder.WriteString(fmt.Sprintf("* %s ([%s](https://github.com/davidmdm/yoke/commit/%s))\n", commit.Msg, commit.Sha[:7], commit.Sha))
+			builder.WriteString(fmt.Sprintf("* %s ([%s](https://github.com/yokecd/yoke/commit/%s))\n", commit.Msg, commit.Sha[:7], commit.Sha))
 		}
 		builder.WriteByte('\n')
 	}

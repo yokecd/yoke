@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/davidmdm/x/xerr"
-	"github.com/davidmdm/yoke/internal"
+	"github.com/yokecd/yoke/internal"
 )
 
 const (

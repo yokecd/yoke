@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/davidmdm/conf"
-	"github.com/davidmdm/yoke/internal"
+	"github.com/yokecd/yoke/internal"
 )
 
 type Parameters struct {

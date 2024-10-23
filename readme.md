@@ -19,7 +19,7 @@ Every Kubernetes related project needs a theme. Although K8 has historically ins
 From source:
 
 ```bash
-go install github.com/davidmdm/yoke/cmd/yoke@latest
+go install github.com/yokecd/yoke/cmd/yoke@latest
 ```
 
 ## Documentation

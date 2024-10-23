@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/davidmdm/yoke/cmd/examples/internal/flights/mongodb"
+	"github.com/yokecd/yoke/cmd/examples/internal/flights/mongodb"
 )
 
 func main() {
