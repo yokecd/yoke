@@ -70,6 +70,9 @@ func run() error {
 		if len(changelog) == 0 {
 			return nil
 		}
+		if strings.HasPrefix(c.Message, "changelog:") {
+			return nil
+		}
 		changelog[len(changelog)-1].Commits = append(changelog[len(changelog)-1].Commits, Commit{
 			Msg: strings.TrimSpace(c.Message),
 			Sha: c.Hash.String(),
@@ -131,7 +134,7 @@ func (changelog Changelog) String() string {
 		}
 
 		for _, commit := range entry.Commits {
-			builder.WriteString(fmt.Sprintf("* %s ([%s](https://github.com/yokecd/yoke/commit/%s))\n", commit.Msg, commit.Sha[:7], commit.Sha))
+			builder.WriteString(fmt.Sprintf("- %s ([%s](https://github.com/yokecd/yoke/commit/%s))\n", commit.Msg, commit.Sha[:7], commit.Sha))
 		}
 		builder.WriteByte('\n')
 	}

@@ -4,6 +4,20 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## v0.1.2 (2024-10-23) - yokecd-installer/v0.0.8 (2024-10-23)
+
+- yokecd-installer: update installer to use argo-helm/argo-cd chart 7.6.12 ([e1085cb](https://github.com/yokecd/yoke/commit/e1085cb914413051ac204af837b7f391620c09ad))
+- yokecd-installer: use IfNotPresent for image pull policy ([14e5554](https://github.com/yokecd/yoke/commit/14e555467b07d7fa7971d56ab78e7ee929fcd3e0))
+- yokecd: add secret reference templating support for wasm urls ([66b6437](https://github.com/yokecd/yoke/commit/66b6437048aaefefbae4aa43e15434505f30a67d))
+
+## yokecd-installer/v0.0.7 (2024-10-23)
+
+- ownership: update org from davidmdm to yokecd ([3a08306](https://github.com/yokecd/yoke/commit/3a08306ca923078e8cec667d99ed223957633d5b))
+- yoke/takeoff: add compilation cache flag ([1c05468](https://github.com/yokecd/yoke/commit/1c054686a2fcb3e57a99c167d66d5aa7c521c724))
+- deps: use wazero v1.6.0 for fast wasm compile times ([457dbe8](https://github.com/yokecd/yoke/commit/457dbe8cd08f5923c4c5baf1eaafece4f500322a))
+- chore: update module version to go1.23.0 ([65dca73](https://github.com/yokecd/yoke/commit/65dca739e76dbe5a344b716e4cd370b8d01fc709))
+- chore: update dependencies ([c99881a](https://github.com/yokecd/yoke/commit/c99881abf7cffd494ad1daf8711bfc3d7a12f157))
+
 ## v0.1.1 (2024-08-22)
 
 - cmd/blackbox: fix active revision when listing release revisions ([e08dd7f](https://github.com/yokecd/yoke/commit/e08dd7fb82cf2c611c20687770097c39aebda056))
@@ -52,8 +66,8 @@
 
 - cmd/yoke: add create namespace and crd logic to takeoff (#20)
 
-- cmd/yoke: add create namespace and crd logic to takeoff
-- pkg/yoke: refactor move all takeoff command logic into commander.Takeoff ([5aebdcc](https://github.com/yokecd/yoke/commit/5aebdccb99ccf63a595052b269598756c4d83faf))
+* cmd/yoke: add create namespace and crd logic to takeoff
+* pkg/yoke: refactor move all takeoff command logic into commander.Takeoff ([5aebdcc](https://github.com/yokecd/yoke/commit/5aebdccb99ccf63a595052b269598756c4d83faf))
 
 ## yokecd-installer/v0.0.4 (2024-05-29)
 
@@ -310,3 +324,4 @@
 - first haloumi binary working ([08bfa45](https://github.com/yokecd/yoke/commit/08bfa45dca5f21d1d8875962f1531838337e96da))
 - starting haloumi ([47b28fc](https://github.com/yokecd/yoke/commit/47b28fcfc3766575eab80a1c9e640bc33d5ffa28))
 - initial wazero runtime ([ac081a8](https://github.com/yokecd/yoke/commit/ac081a89136e9e57abb27ac3797fc72095db6af9))
+
