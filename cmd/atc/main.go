@@ -8,15 +8,13 @@ import (
 	"os"
 	"reflect"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/davidmdm/x/xcontext"
-	"github.com/davidmdm/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/k8s"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -108,30 +106,18 @@ func WrapWithCanceled(err error) error {
 }
 
 type Event struct {
-	Type         watch.EventType
-	ResourceName string
+	Name      string
+	Namespace string
+
+	attempts int
 }
 
-type EventState struct {
-	ShouldRequeue *atomic.Bool
-}
-
-type SyncMap[K, V any] sync.Map
-
-func (m *SyncMap[K, V]) LoadAndDelete(key K) (value V, loaded bool) {
-	val, loaded := (*sync.Map)(m).LoadAndDelete(key)
-	v, _ := val.(V)
-	return v, loaded
-}
-
-func (m *SyncMap[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
-	val, loaded := (*sync.Map)(m).LoadOrStore(key, value)
-	v, _ := val.(V)
-	return v, loaded
+func (event Event) String() string {
+	return event.Namespace + "/" + event.Name
 }
 
 type Worker struct {
-	State       *SyncMap[Event, EventState]
+	queue       *Queue[Event]
 	Concurrency int
 	Logger      *slog.Logger
 }
@@ -144,21 +130,15 @@ func (worker Worker) Process(events chan Event, handle HandleFunc) {
 
 	defer wg.Wait()
 
+	queue := QueueFromChannel(events).C()
+
 	for range worker.Concurrency {
 		go func() {
 			defer wg.Done()
 
-			for event := range events {
-				state, loaded := worker.State.LoadOrStore(event, EventState{ShouldRequeue: new(atomic.Bool)})
-				if loaded {
-					state.ShouldRequeue.Store(true)
-					continue
-				}
+			for event := range queue {
 
 				requeue, err := handle(event)
-
-				state, _ = worker.State.LoadAndDelete(event)
-
 				if err != nil {
 					if requeue == nil {
 						requeue = new(time.Duration)
@@ -166,28 +146,12 @@ func (worker Worker) Process(events chan Event, handle HandleFunc) {
 					}
 					worker.Logger.Error(
 						"error processing event",
-						slog.String("type", string(event.Type)),
-						slog.String("resourceName", event.ResourceName),
+						slog.String("resourceName", event.String()),
 						slog.String("error", err.Error()),
 						slog.String("retryAfter", (*requeue).String()),
 					)
 				}
 
-				if requeue == nil {
-					if state.ShouldRequeue.Load() {
-						// Do this in a separate goroutine so as to not potentially lock workers.
-						// Imagine if all workers were waiting to requeue and there was no consumers left?
-						// That would not be good!
-						wg.Add(1)
-						go func() {
-							events <- event
-							wg.Done()
-						}()
-					}
-					continue
-				}
-
-				time.AfterFunc(*requeue, func() { events <- event })
 			}
 		}()
 	}
