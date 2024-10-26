@@ -1,39 +1,42 @@
 package main
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
-type queue[T any] struct {
+type buffer[T any] struct {
 	mu   sync.Mutex
 	data []T
 }
 
-func (queue *queue[T]) push(value T) {
-	queue.mu.Lock()
-	defer queue.mu.Unlock()
-	queue.data = append(queue.data, value)
+func (buffer *buffer[T]) push(value T) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	buffer.data = append(buffer.data, value)
 }
 
-func (queue *queue[T]) pop() (value T, ok bool) {
-	queue.mu.Lock()
-	defer queue.mu.Unlock()
+func (buffer *buffer[T]) pop() (value T, ok bool) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
 
-	if len(queue.data) == 0 {
+	if len(buffer.data) == 0 {
 		return
 	}
 
-	value = queue.data[0]
-	queue.data = queue.data[1:]
+	value, ok = buffer.data[0], true
+	buffer.data = buffer.data[1:]
 	return
 }
 
-type Queue[T comparable] struct {
+type Queue[T fmt.Stringer] struct {
 	barrier *sync.Map
-	buffer  *queue[T]
+	buffer  *buffer[T]
 	pipe    chan T
 }
 
 func (queue *Queue[T]) Push(value T) {
-	if _, loaded := queue.barrier.LoadOrStore(queue, struct{}{}); loaded {
+	if _, loaded := queue.barrier.LoadOrStore(value.String(), struct{}{}); loaded {
 		return
 	}
 
@@ -46,15 +49,19 @@ func (queue *Queue[T]) Push(value T) {
 
 func (queue *Queue[T]) Pop() (value T) {
 	defer func() {
-		queue.barrier.Delete(value)
+		queue.barrier.Delete(value.String())
 	}()
 
-	value, ok := queue.buffer.pop()
-	if ok {
+	select {
+	case value := <-queue.pipe:
 		return value
+	default:
+		value, ok := queue.buffer.pop()
+		if ok {
+			return value
+		}
+		return <-queue.pipe
 	}
-
-	return <-queue.pipe
 }
 
 func (queue *Queue[T]) C() chan T {
@@ -69,14 +76,18 @@ func (queue *Queue[T]) C() chan T {
 	return result
 }
 
-func QueueFromChannel[T comparable](c chan T) *Queue[T] {
+// QueueFromChannel returns a queue that will dedup events based on its string representation as
+// determined by fmt.Stringer. The queue needs to know ahead of time the amount of concurrent readers
+// that will be pulling from it. This ensures that workers can never deadlock as it will always provide
+// enough space for the workers to pull from before writing events to its internal buffer.
+func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) *Queue[T] {
 	queue := Queue[T]{
 		barrier: &sync.Map{},
-		buffer: &queue[T]{
+		buffer: &buffer[T]{
 			mu:   sync.Mutex{},
 			data: []T{},
 		},
-		pipe: make(chan T),
+		pipe: make(chan T, max(concurrency, 1)),
 	}
 
 	go func() {
