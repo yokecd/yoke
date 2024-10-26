@@ -5,33 +5,10 @@ import (
 	"sync"
 )
 
-type buffer[T any] struct {
-	mu   sync.Mutex
-	data []T
-}
-
-func (buffer *buffer[T]) push(value T) {
-	buffer.mu.Lock()
-	defer buffer.mu.Unlock()
-	buffer.data = append(buffer.data, value)
-}
-
-func (buffer *buffer[T]) pop() (value T, ok bool) {
-	buffer.mu.Lock()
-	defer buffer.mu.Unlock()
-
-	if len(buffer.data) == 0 {
-		return
-	}
-
-	value, ok = buffer.data[0], true
-	buffer.data = buffer.data[1:]
-	return
-}
-
 type Queue[T fmt.Stringer] struct {
 	barrier *sync.Map
-	buffer  *buffer[T]
+	buffer  []T
+	lock    *sync.Mutex
 	pipe    chan T
 }
 
@@ -40,10 +17,22 @@ func (queue *Queue[T]) Push(value T) {
 		return
 	}
 
-	select {
-	case queue.pipe <- value:
-	default:
-		queue.buffer.push(value)
+	queue.lock.Lock()
+	defer queue.lock.Unlock()
+
+	queue.buffer = append(queue.buffer, value)
+	for {
+		if len(queue.buffer) == 0 {
+			break
+		}
+
+		next := queue.buffer[0]
+		select {
+		case queue.pipe <- next:
+			queue.buffer = queue.buffer[1:]
+		default:
+			break
+		}
 	}
 }
 
@@ -52,16 +41,7 @@ func (queue *Queue[T]) Pop() (value T) {
 		queue.barrier.Delete(value.String())
 	}()
 
-	select {
-	case value := <-queue.pipe:
-		return value
-	default:
-		value, ok := queue.buffer.pop()
-		if ok {
-			return value
-		}
-		return <-queue.pipe
-	}
+	return <-queue.pipe
 }
 
 func (queue *Queue[T]) C() chan T {
@@ -83,11 +63,9 @@ func (queue *Queue[T]) C() chan T {
 func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) *Queue[T] {
 	queue := Queue[T]{
 		barrier: &sync.Map{},
-		buffer: &buffer[T]{
-			mu:   sync.Mutex{},
-			data: []T{},
-		},
-		pipe: make(chan T, max(concurrency, 1)),
+		buffer:  []T{},
+		lock:    &sync.Mutex{},
+		pipe:    make(chan T, max(concurrency, 1)),
 	}
 
 	go func() {
