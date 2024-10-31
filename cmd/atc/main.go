@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"syscall"
 	"time"
@@ -55,6 +56,12 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
+
+	go func() {
+		// Listen on a port and simply return 200 too all requests. This will allow a Liveness and Readiness checks on the atc deployment.
+		// TODO: make checks more sophisticated?
+		http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	}()
 
 	controller := Controller{
 		client:      client,

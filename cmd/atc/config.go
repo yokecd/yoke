@@ -9,6 +9,7 @@ import (
 type Config struct {
 	KubeConfig  string
 	Concurrency int
+	Port        int
 }
 
 func LoadConfig() (*Config, error) {
@@ -16,6 +17,7 @@ func LoadConfig() (*Config, error) {
 
 	parser := conf.MakeParser(conf.CommandLineArgs(), os.LookupEnv)
 
+	conf.Var(parser, &cfg.Port, "PORT", conf.Default(3000))
 	conf.Var(parser, &cfg.KubeConfig, "KUBE")
 	conf.Var(parser, &cfg.Concurrency, "CONCURRENCY")
 
