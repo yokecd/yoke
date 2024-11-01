@@ -61,7 +61,7 @@ func run() error {
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: group,
 			Names: names,
-			Scope: apiextensionsv1.NamespaceScoped,
+			Scope: apiextensionsv1.ClusterScoped,
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",
