@@ -1,4 +1,4 @@
-package main
+package ctrl
 
 import (
 	"context"
@@ -8,10 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yokecd/yoke/internal/k8s"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+
+	"github.com/yokecd/yoke/internal/k8s"
 )
 
 type Event struct {
@@ -32,32 +33,32 @@ func (event Event) String() string {
 
 type HandleFunc func(Event) (Result, error)
 
-type Controller struct {
-	client      *k8s.Client
-	logger      *slog.Logger
+type Instance struct {
+	Client      *k8s.Client
+	Logger      *slog.Logger
 	Concurrency int
 }
 
-func (ctrl Controller) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, handler HandleFunc) error {
-	mapping, err := ctrl.client.Mapper.RESTMapping(gk)
+func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, handler HandleFunc) error {
+	mapping, err := ctrl.Client.Mapper.RESTMapping(gk)
 	if err != nil {
 		return fmt.Errorf("failed to get mapping for %s: %w", gk, err)
 	}
 
-	watcher, err := ctrl.client.Meta.Resource(mapping.Resource).Watch(context.Background(), v1.ListOptions{})
+	watcher, err := ctrl.Client.Meta.Resource(mapping.Resource).Watch(context.Background(), v1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to watch resources: %w", err)
 	}
 	defer watcher.Stop()
 
-	ctrl.logger.Info("watching resources", slog.String("groupkind", gk.String()))
+	ctrl.Logger.Info("watching resources", slog.String("groupkind", gk.String()))
 
 	events := ctrl.eventsFromWatcher(ctx, watcher)
 
 	return ctrl.process(ctx, events, handler)
 }
 
-func (ctrl Controller) process(ctx context.Context, events chan Event, handle HandleFunc) error {
+func (ctrl Instance) process(ctx context.Context, events chan Event, handle HandleFunc) error {
 	var activeMap sync.Map
 
 	var wg sync.WaitGroup
@@ -80,7 +81,7 @@ func (ctrl Controller) process(ctx context.Context, events chan Event, handle Ha
 						return
 					}
 
-					logger := ctrl.logger.With(
+					logger := ctrl.Logger.With(
 						slog.String("event", event.String()),
 						slog.Int("attempt", event.attempts),
 					)
@@ -118,7 +119,7 @@ func (ctrl Controller) process(ctx context.Context, events chan Event, handle Ha
 	return context.Cause(ctx)
 }
 
-func (ctrl Controller) eventsFromWatcher(ctx context.Context, watcher watch.Interface) chan Event {
+func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interface) chan Event {
 	events := make(chan Event)
 
 	go func() {
@@ -133,7 +134,7 @@ func (ctrl Controller) eventsFromWatcher(ctx context.Context, watcher watch.Inte
 			case event := <-kubeEvents:
 				metadata, ok := event.Object.(*v1.PartialObjectMetadata)
 				if !ok {
-					ctrl.logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Object).String())
+					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Object).String())
 					continue
 				}
 
