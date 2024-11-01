@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/yokecd/yoke/pkg/flight"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,6 +15,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/yokecd/yoke/pkg/flight"
 )
 
 type Config struct {

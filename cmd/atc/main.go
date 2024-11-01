@@ -10,11 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/davidmdm/x/xcontext"
-	"github.com/yokecd/yoke/internal/k8s"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/davidmdm/x/xcontext"
+	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/k8s/ctrl"
 )
 
 func main() {
@@ -63,13 +65,13 @@ func run() (err error) {
 		http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	}()
 
-	controller := Controller{
-		client:      client,
-		logger:      logger,
+	controller := ctrl.Instance{
+		Client:      client,
+		Logger:      logger,
 		Concurrency: cfg.Concurrency,
 	}
 
-	return controller.ProcessGroupKind(ctx, schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}, func(event Event) (Result, error) {
-		return Result{RequeueAfter: 3 * time.Second}, nil
+	return controller.ProcessGroupKind(ctx, schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}, func(event ctrl.Event) (ctrl.Result, error) {
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
 	})
 }
