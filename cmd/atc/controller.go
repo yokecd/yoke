@@ -76,42 +76,38 @@ func (ctrl Controller) process(ctx context.Context, events chan Event, handle Ha
 					return
 				case event := <-queueCh:
 					if _, loaded := activeMap.LoadOrStore(event.String(), struct{}{}); loaded {
-						queue.Push(event)
+						queue.Enqueue(event)
 						return
 					}
 
-					func() {
-						defer activeMap.Delete(event.String())
+					logger := ctrl.logger.With(
+						slog.String("event", event.String()),
+						slog.Int("attempt", event.attempts),
+					)
 
-						logger := ctrl.logger.With(
-							slog.String("event", event.String()),
-							slog.Int("attempt", event.attempts),
-						)
+					result, err := handle(event)
 
-						result, err := handle(event)
+					shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
 
-						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
+					if shouldRequeue && result.RequeueAfter == 0 {
+						result.RequeueAfter = min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute)
+					}
 
-						if shouldRequeue && result.RequeueAfter == 0 {
-							result.RequeueAfter = min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute)
-						}
+					if shouldRequeue {
+						logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
+						time.AfterFunc(result.RequeueAfter, func() {
+							event.attempts++
+							queue.Enqueue(event)
+						})
+					}
 
-						if shouldRequeue {
-							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
-							time.AfterFunc(result.RequeueAfter, func() {
-								event.attempts++
-								queue.Push(event)
-							})
-						}
-
-						if err != nil {
-							logger.Error("error processing event", slog.String("error", err.Error()))
-							return
-						}
-
+					if err != nil {
+						logger.Error("error processing event", slog.String("error", err.Error()))
+					} else {
 						logger.Info("reconcile successfull")
-						return
-					}()
+					}
+
+					activeMap.Delete(event.String())
 				}
 			}
 		}()

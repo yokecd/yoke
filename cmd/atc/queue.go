@@ -12,7 +12,7 @@ type Queue[T fmt.Stringer] struct {
 	pipe    chan T
 }
 
-func (queue *Queue[T]) Push(value T) {
+func (queue *Queue[T]) Enqueue(value T) {
 	if _, loaded := queue.barrier.LoadOrStore(value.String(), struct{}{}); loaded {
 		return
 	}
@@ -36,7 +36,7 @@ func (queue *Queue[T]) Push(value T) {
 	}
 }
 
-func (queue *Queue[T]) Pop() (value T) {
+func (queue *Queue[T]) Dequeue() (value T) {
 	defer func() {
 		queue.barrier.Delete(value.String())
 	}()
@@ -49,7 +49,7 @@ func (queue *Queue[T]) C() chan T {
 
 	go func() {
 		for {
-			result <- queue.Pop()
+			result <- queue.Dequeue()
 		}
 	}()
 
@@ -70,7 +70,7 @@ func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) *Queue[T] {
 
 	go func() {
 		for value := range c {
-			queue.Push(value)
+			queue.Enqueue(value)
 		}
 	}()
 

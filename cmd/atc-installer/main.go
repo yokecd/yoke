@@ -69,12 +69,18 @@ func run() error {
 					Schema: &apiextensionsv1.CustomResourceValidation{
 						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 							Type:     "object",
-							Required: []string{"wasmUrl", "template"},
+							Required: []string{"spec"},
 							Properties: apiextensionsv1.JSONSchemaDefinitions{
-								"wasmUrl": {
-									Type: "string",
+								"spec": apiextensionsv1.JSONSchemaProps{
+									Type:     "object",
+									Required: []string{"wasmUrl", "template"},
+									Properties: apiextensionsv1.JSONSchemaDefinitions{
+										"wasmUrl": {
+											Type: "string",
+										},
+										"template": crdSpecSchema,
+									},
 								},
-								"template": crdSpecSchema,
 							},
 						},
 					},
