@@ -78,3 +78,41 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 
 	return stdout.Bytes(), nil
 }
+
+type CompileParams struct {
+	Wasm     []byte
+	CacheDir string
+}
+
+func Compile(ctx context.Context, params CompileParams) (err error) {
+	defer internal.DebugTimer(ctx, "wasm compile")()
+
+	cfg := wazero.
+		NewRuntimeConfig().
+		WithCloseOnContextDone(true)
+
+	if params.CacheDir != "" {
+		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
+		if err != nil {
+			return fmt.Errorf("failed to instantiate compilation cache: %w", err)
+		}
+		cfg = cfg.WithCompilationCache(cache)
+	}
+
+	runtime := wazero.NewRuntimeWithConfig(ctx, cfg)
+	defer func() {
+		err = xerr.MultiErrFrom("", err, runtime.Close(ctx))
+	}()
+
+	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
+
+	module, err := runtime.CompileModule(ctx, params.Wasm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = xerr.MultiErrFrom("", err, module.Close(ctx))
+	}()
+
+	return nil
+}

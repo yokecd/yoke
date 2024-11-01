@@ -7,3 +7,5 @@
 *.out
 
 test_output
+
+cache
