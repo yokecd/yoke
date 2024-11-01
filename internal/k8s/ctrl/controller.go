@@ -31,7 +31,7 @@ func (event Event) String() string {
 	return event.Namespace + "/" + event.Name
 }
 
-type HandleFunc func(Event) (Result, error)
+type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
 	Client      *k8s.Client
@@ -42,7 +42,11 @@ type Instance struct {
 func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, handler HandleFunc) error {
 	mapping, err := ctrl.Client.Mapper.RESTMapping(gk)
 	if err != nil {
-		return fmt.Errorf("failed to get mapping for %s: %w", gk, err)
+		ctrl.Client.Mapper.Reset()
+		mapping, err = ctrl.Client.Mapper.RESTMapping(gk)
+		if err != nil {
+			return fmt.Errorf("failed to get mapping for %s: %w", gk, err)
+		}
 	}
 
 	watcher, err := ctrl.Client.Meta.Resource(mapping.Resource).Watch(context.Background(), v1.ListOptions{})
@@ -51,7 +55,10 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 	}
 	defer watcher.Stop()
 
-	ctrl.Logger.Info("watching resources", slog.String("groupkind", gk.String()))
+	logger := ctrl.Logger.With(slog.String("groupKind", gk.String()))
+	logger.Info("watching resources")
+
+	ctx = context.WithValue(ctx, loggerKey{}, logger)
 
 	events := ctrl.eventsFromWatcher(ctx, watcher)
 
@@ -76,39 +83,45 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 				case <-ctx.Done():
 					return
 				case event := <-queueCh:
-					if _, loaded := activeMap.LoadOrStore(event.String(), struct{}{}); loaded {
-						queue.Enqueue(event)
-						return
-					}
-
-					logger := ctrl.Logger.With(
-						slog.String("event", event.String()),
-						slog.Int("attempt", event.attempts),
-					)
-
-					result, err := handle(event)
-
-					shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
-
-					if shouldRequeue && result.RequeueAfter == 0 {
-						result.RequeueAfter = min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute)
-					}
-
-					if shouldRequeue {
-						logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
-						time.AfterFunc(result.RequeueAfter, func() {
-							event.attempts++
+					{
+						if _, loaded := activeMap.LoadOrStore(event.String(), struct{}{}); loaded {
 							queue.Enqueue(event)
-						})
-					}
+							return
+						}
 
-					if err != nil {
-						logger.Error("error processing event", slog.String("error", err.Error()))
-					} else {
-						logger.Info("reconcile successfull")
-					}
+						logger := Logger(ctx).With(
+							slog.String("event", event.String()),
+							slog.Int("attempt", event.attempts),
+						)
 
-					activeMap.Delete(event.String())
+						ctx := context.WithValue(ctx, loggerKey{}, logger)
+
+						logger.Info("processing event")
+
+						result, err := handle(ctx, event)
+
+						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
+
+						if shouldRequeue && result.RequeueAfter == 0 {
+							result.RequeueAfter = min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute)
+						}
+
+						if shouldRequeue {
+							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
+							time.AfterFunc(result.RequeueAfter, func() {
+								event.attempts++
+								queue.Enqueue(event)
+							})
+						}
+
+						if err != nil {
+							logger.Error("error processing event", slog.String("error", err.Error()))
+						} else {
+							logger.Info("reconcile successfull")
+						}
+
+						activeMap.Delete(event.String())
+					}
 				}
 			}
 		}()
@@ -155,4 +168,11 @@ func powInt(base int, up int) int {
 		result *= base
 	}
 	return result
+}
+
+type loggerKey struct{}
+
+func Logger(ctx context.Context) *slog.Logger {
+	logger, _ := ctx.Value(loggerKey{}).(*slog.Logger)
+	return logger
 }
