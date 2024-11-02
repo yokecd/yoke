@@ -68,6 +68,7 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 
 func (ctrl Instance) process(ctx context.Context, events chan Event, handle HandleFunc) error {
 	var activeMap sync.Map
+	var timers sync.Map
 
 	var wg sync.WaitGroup
 	wg.Add(ctrl.Concurrency)
@@ -90,12 +91,19 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 							return
 						}
 
+						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
+							timer.(*time.Timer).Stop()
+						}
+
 						logger := Logger(ctx).With(
 							slog.String("event", event.String()),
 							slog.Int("attempt", event.attempts),
 						)
 
-						ctx := context.WithValue(ctx, loggerKey{}, logger)
+						// It is important that we do not cancel the handler mid-execution.
+						// Rather we only exit once the loop is idle.
+						ctx := context.WithoutCancel(ctx)
+						ctx = context.WithValue(ctx, loggerKey{}, logger)
 						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
 
 						logger.Info("processing event")
@@ -110,10 +118,11 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 						if shouldRequeue {
 							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
-							time.AfterFunc(result.RequeueAfter, func() {
+							timers.Store(event.String(), time.AfterFunc(result.RequeueAfter, func() {
 								event.attempts++
+								timers.Delete(event.String())
 								queue.Enqueue(event)
-							})
+							}))
 						}
 
 						if err != nil {

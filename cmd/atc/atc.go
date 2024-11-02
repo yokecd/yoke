@@ -47,9 +47,6 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 		return ctrl.Result{}, fmt.Errorf("failed to get airway %s: %w", event.Name, err)
 	}
 
-	if airway.GetDeletionTimestamp() != nil {
-	}
-
 	wasmURL, _, _ := unstructured.NestedString(airway.Object, "spec", "wasmUrl")
 
 	cacheDir := filepath.Join("./cache", airway.GetName())
