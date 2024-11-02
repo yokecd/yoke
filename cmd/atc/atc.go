@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -139,6 +140,31 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 					return ctrl.Result{}, nil
 				}
 				return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
+			}
+
+			if finalizers := resource.GetFinalizers(); resource.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, "yoke.cd/atc.cleanup.flight") {
+				resource.SetFinalizers(append(finalizers, "yoke.cd/atc.cleanup.flight"))
+				if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to set cleanup finalizer: %w", err)
+				}
+				return ctrl.Result{}, nil
+			}
+
+			if !resource.GetDeletionTimestamp().IsZero() {
+
+				if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.Name); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
+				}
+
+				finalizers := resource.GetFinalizers()
+				if idx := slices.Index(finalizers, "yoke.cd/atc.cleanup.flight"); idx != -1 {
+					resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
+					if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
+						return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
+					}
+				}
+
+				return ctrl.Result{}, nil
 			}
 
 			data, err := json.Marshal(resource.Object["spec"])
