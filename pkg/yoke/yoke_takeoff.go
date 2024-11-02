@@ -13,6 +13,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/meta"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -44,6 +46,7 @@ type TakeoffParams struct {
 	CreateCRDs       bool
 	Wait             time.Duration
 	Poll             time.Duration
+	OwnerReferences  []metav1.OwnerReference
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -84,6 +87,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		if mapping.Scope.Name() == meta.RESTScopeNameNamespace && resource.GetNamespace() == "" {
 			resource.SetNamespace(cmp.Or(params.Flight.Namespace, "default"))
 		}
+		resource.SetOwnerReferences(params.OwnerReferences)
 	}
 
 	complete()
