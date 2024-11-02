@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"syscall"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -71,11 +72,9 @@ func run() (err error) {
 	}
 
 	atc := ATC{
-		Airway: schema.GroupKind{
-			Group: "yoke.cd",
-			Kind:  "Airway",
-		},
+		Airway:      schema.GroupKind{Group: "yoke.cd", Kind: "Airway"},
 		Concurrency: cfg.Concurrency,
+		Locks:       &sync.Map{},
 	}
 
 	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)

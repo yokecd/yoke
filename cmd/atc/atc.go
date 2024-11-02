@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,7 @@ import (
 type ATC struct {
 	Airway      schema.GroupKind
 	Concurrency int
+	Locks       *sync.Map
 }
 
 func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
@@ -56,14 +58,28 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 		return ctrl.Result{}, fmt.Errorf("failed to load wasm: %w", err)
 	}
 
-	if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to compile wasm: %w", err)
-	}
+	mutex := func() *sync.RWMutex {
+		value, _ := atc.Locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
+		return value.(*sync.RWMutex)
+	}()
 
 	wasmPath := filepath.Join(cacheDir, "source.wasm")
 
-	if err := os.WriteFile(wasmPath, wasm, 0o644); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to cache wasm asset: %w", err)
+	if err := func() error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
+			return fmt.Errorf("failed to compile wasm: %w", err)
+		}
+
+		if err := os.WriteFile(wasmPath, wasm, 0o644); err != nil {
+			return fmt.Errorf("failed to cache wasm asset: %w", err)
+		}
+
+		return nil
+	}(); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to setup cache: %w", err)
 	}
 
 	spec, _, _ := unstructured.NestedMap(airway.Object, "spec", "template")
@@ -143,11 +159,13 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 				Poll:       0,
 			}
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Takeoff(ctx, params); err != nil && !internal.IsWarning(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
-			}
+			mutex.RLock()
+			defer mutex.RUnlock()
 
-			if internal.IsWarning(err) {
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Takeoff(ctx, params); err != nil {
+				if !internal.IsWarning(err) {
+					return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
+				}
 				ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 			}
 
