@@ -59,6 +59,7 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 	logger.Info("watching resources")
 
 	ctx = context.WithValue(ctx, loggerKey{}, logger)
+	ctx = context.WithValue(ctx, rootLoggerKey{}, ctrl.Logger)
 
 	events := ctrl.eventsFromWatcher(ctx, watcher)
 
@@ -95,6 +96,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 						)
 
 						ctx := context.WithValue(ctx, loggerKey{}, logger)
+						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
 
 						logger.Info("processing event")
 
@@ -175,4 +177,18 @@ type loggerKey struct{}
 func Logger(ctx context.Context) *slog.Logger {
 	logger, _ := ctx.Value(loggerKey{}).(*slog.Logger)
 	return logger
+}
+
+type rootLoggerKey struct{}
+
+func RootLogger(ctx context.Context) *slog.Logger {
+	logger, _ := ctx.Value(rootLoggerKey{}).(*slog.Logger)
+	return logger
+}
+
+type clientKey struct{}
+
+func Client(ctx context.Context) *k8s.Client {
+	client, _ := ctx.Value(clientKey{}).(*k8s.Client)
+	return client
 }
