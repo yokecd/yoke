@@ -183,6 +183,14 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 				CreateCRDs: false,
 				Wait:       0,
 				Poll:       0,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: resource.GetAPIVersion(),
+						Kind:       resource.GetKind(),
+						Name:       resource.GetName(),
+						UID:        resource.GetUID(),
+					},
+				},
 			}
 
 			mutex.RLock()
