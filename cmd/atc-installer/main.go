@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"golang.org/x/term"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
