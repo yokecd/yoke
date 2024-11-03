@@ -78,6 +78,7 @@ func run() (err error) {
 	atc := ATC{
 		Airway:      schema.GroupKind{Group: "yoke.cd", Kind: "Airway"},
 		Concurrency: cfg.Concurrency,
+		Cleanups:    &sync.Map{},
 		Locks:       &sync.Map{},
 	}
 

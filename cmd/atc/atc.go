@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 type ATC struct {
 	Airway      schema.GroupKind
 	Concurrency int
+	Cleanups    *sync.Map
 	Locks       *sync.Map
 }
 
@@ -203,7 +205,25 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 	}
 
 	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		done := make(chan struct{})
+		defer close(done)
+
+		if cleanup, loaded := atc.Cleanups.Swap(airway.GetName(), func() {
+			cancel()
+			ctrl.Logger(ctx).Info("waiting for previous flight controller to shutdown")
+			<-done
+		}); loaded {
+			cleanup.(func())()
+		}
+
 		if err := flightController.ProcessGroupKind(ctx, flightGK, flightHander); err != nil {
+			if errors.Is(err, context.Canceled) {
+				ctrl.Logger(ctx).Info("flight controller canceled", "groupKind", flightGK.String())
+				return
+			}
 			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
 		}
 	}()
