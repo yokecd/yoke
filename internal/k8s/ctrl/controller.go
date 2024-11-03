@@ -2,8 +2,10 @@ package ctrl
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"reflect"
 	"sync"
 	"time"
@@ -96,6 +98,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 						}
 
 						logger := Logger(ctx).With(
+							slog.String("loopId", randHex()),
 							slog.String("event", event.String()),
 							slog.Int("attempt", event.attempts),
 						)
@@ -158,7 +161,12 @@ func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interf
 			case event := <-kubeEvents:
 				metadata, ok := event.Object.(*v1.PartialObjectMetadata)
 				if !ok {
-					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Object).String())
+					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Type), "runtimeObject", func() string {
+						if event.Object == nil {
+							return "<nil>"
+						}
+						return reflect.TypeOf(event.Object).String()
+					}())
 					continue
 				}
 
@@ -179,6 +187,14 @@ func powInt(base int, up int) int {
 		result *= base
 	}
 	return result
+}
+
+func randHex() string {
+	data := make([]byte, 4)
+	for i := range len(data) {
+		data[i] = byte(rand.UintN(256))
+	}
+	return hex.EncodeToString(data)
 }
 
 type loggerKey struct{}
