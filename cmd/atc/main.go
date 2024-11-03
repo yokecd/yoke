@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -53,6 +54,9 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
+
+	rest.Burst = cmp.Or(rest.Burst, 300)
+	rest.QPS = cmp.Or(rest.QPS, 50)
 
 	client, err := k8s.NewClient(rest)
 	if err != nil {

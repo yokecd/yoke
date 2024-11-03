@@ -101,108 +101,108 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
 	}
 
-	go func() {
-		flightController := ctrl.Instance{
-			Client:      ctrl.Client(ctx),
-			Logger:      ctrl.RootLogger(ctx),
-			Concurrency: max(atc.Concurrency, 1),
+	flightController := ctrl.Instance{
+		Client:      ctrl.Client(ctx),
+		Logger:      ctrl.RootLogger(ctx),
+		Concurrency: max(atc.Concurrency, 1),
+	}
+
+	group, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "group")
+	kind, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "names", "kind")
+
+	flightGK := schema.GroupKind{
+		Group: group,
+		Kind:  kind,
+	}
+
+	flightHander := func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
+		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(flightGK)
+		if err != nil {
+			ctrl.Client(ctx).Mapper.Reset()
+			return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)
 		}
 
-		group, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "group")
-		kind, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "names", "kind")
+		resourceIntf := func() dynamic.ResourceInterface {
+			if mapping.Scope == meta.RESTScopeNamespace {
+				return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource).Namespace(event.Namespace)
+			}
+			return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
+		}()
 
-		flightGK := schema.GroupKind{
-			Group: group,
-			Kind:  kind,
+		resource, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				ctrl.Logger(ctx).Info("resource not found")
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
-		flightHander := func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
-			mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(flightGK)
-			if err != nil {
-				ctrl.Client(ctx).Mapper.Reset()
-				return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)
+		if finalizers := resource.GetFinalizers(); resource.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, "yoke.cd/atc.cleanup.flight") {
+			resource.SetFinalizers(append(finalizers, "yoke.cd/atc.cleanup.flight"))
+			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to set cleanup finalizer: %w", err)
+			}
+			return ctrl.Result{}, nil
+		}
+
+		if !resource.GetDeletionTimestamp().IsZero() {
+
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.Name); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 			}
 
-			resourceIntf := func() dynamic.ResourceInterface {
-				if mapping.Scope == meta.RESTScopeNamespace {
-					return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource).Namespace(event.Namespace)
-				}
-				return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
-			}()
-
-			resource, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
-			if err != nil {
-				if kerrors.IsNotFound(err) {
-					ctrl.Logger(ctx).Info("resource not found")
-					return ctrl.Result{}, nil
-				}
-				return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
-			}
-
-			if finalizers := resource.GetFinalizers(); resource.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, "yoke.cd/atc.cleanup.flight") {
-				resource.SetFinalizers(append(finalizers, "yoke.cd/atc.cleanup.flight"))
+			finalizers := resource.GetFinalizers()
+			if idx := slices.Index(finalizers, "yoke.cd/atc.cleanup.flight"); idx != -1 {
+				resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
 				if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to set cleanup finalizer: %w", err)
+					return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 				}
-				return ctrl.Result{}, nil
-			}
-
-			if !resource.GetDeletionTimestamp().IsZero() {
-
-				if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.Name); err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
-				}
-
-				finalizers := resource.GetFinalizers()
-				if idx := slices.Index(finalizers, "yoke.cd/atc.cleanup.flight"); idx != -1 {
-					resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
-					if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
-						return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
-					}
-				}
-
-				return ctrl.Result{}, nil
-			}
-
-			data, err := json.Marshal(resource.Object["spec"])
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
-			}
-
-			params := yoke.TakeoffParams{
-				Release: event.Name,
-				Flight: yoke.FlightParams{
-					Path:                wasmPath,
-					Input:               bytes.NewReader(data),
-					Namespace:           event.Namespace,
-					CompilationCacheDir: cacheDir,
-				},
-				CreateCRDs: false,
-				Wait:       0,
-				Poll:       0,
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion: resource.GetAPIVersion(),
-						Kind:       resource.GetKind(),
-						Name:       resource.GetName(),
-						UID:        resource.GetUID(),
-					},
-				},
-			}
-
-			mutex.RLock()
-			defer mutex.RUnlock()
-
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Takeoff(ctx, params); err != nil {
-				if !internal.IsWarning(err) {
-					return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
-				}
-				ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 			}
 
 			return ctrl.Result{}, nil
 		}
 
+		data, err := json.Marshal(resource.Object["spec"])
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
+		}
+
+		params := yoke.TakeoffParams{
+			Release: event.Name,
+			Flight: yoke.FlightParams{
+				Path:                wasmPath,
+				Input:               bytes.NewReader(data),
+				Namespace:           event.Namespace,
+				CompilationCacheDir: cacheDir,
+			},
+			CreateCRDs: false,
+			Wait:       0,
+			Poll:       0,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: resource.GetAPIVersion(),
+					Kind:       resource.GetKind(),
+					Name:       resource.GetName(),
+					UID:        resource.GetUID(),
+				},
+			},
+		}
+
+		mutex.RLock()
+		defer mutex.RUnlock()
+
+		if err := yoke.FromK8Client(ctrl.Client(ctx)).Takeoff(ctx, params); err != nil {
+			if !internal.IsWarning(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
+			}
+			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
+		}
+
+		return ctrl.Result{}, nil
+	}
+
+	go func() {
 		if err := flightController.ProcessGroupKind(ctx, flightGK, flightHander); err != nil {
 			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
 		}
