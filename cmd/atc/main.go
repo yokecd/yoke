@@ -78,9 +78,11 @@ func run() (err error) {
 	atc := ATC{
 		Airway:      schema.GroupKind{Group: "yoke.cd", Kind: "Airway"},
 		Concurrency: cfg.Concurrency,
-		Cleanups:    &sync.Map{},
+		Cleanups:    map[string]func(){},
 		Locks:       &sync.Map{},
 	}
+
+  defer atc.Teardown()
 
 	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)
 }

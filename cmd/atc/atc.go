@@ -29,7 +29,7 @@ import (
 type ATC struct {
 	Airway      schema.GroupKind
 	Concurrency int
-	Cleanups    *sync.Map
+	Cleanups    map[string]func()
 	Locks       *sync.Map
 }
 
@@ -204,24 +204,27 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 		return ctrl.Result{}, nil
 	}
 
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+	if cleanup := atc.Cleanups[airway.GetName()]; cleanup != nil {
+		cleanup()
+	}
 
-		done := make(chan struct{})
+	flightCtx, cancel := context.WithCancel(ctx)
+
+	done := make(chan struct{})
+
+	atc.Cleanups[airway.GetName()] = func() {
+		cancel()
+		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
+		<-done
+	}
+
+	go func() {
+		defer cancel()
 		defer close(done)
 
-		if cleanup, loaded := atc.Cleanups.Swap(airway.GetName(), func() {
-			cancel()
-			ctrl.Logger(ctx).Info("waiting for previous flight controller to shutdown")
-			<-done
-		}); loaded {
-			cleanup.(func())()
-		}
-
-		if err := flightController.ProcessGroupKind(ctx, flightGK, flightHander); err != nil {
+		if err := flightController.ProcessGroupKind(flightCtx, flightGK, flightHander); err != nil {
 			if errors.Is(err, context.Canceled) {
-				ctrl.Logger(ctx).Info("flight controller canceled", "groupKind", flightGK.String())
+				ctrl.Logger(ctx).Info("Flight controller cancled. Shutdown complete.", "groupKind", flightGK.String())
 				return
 			}
 			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
@@ -229,4 +232,10 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (ctrl.Result, er
 	}()
 
 	return ctrl.Result{}, nil
+}
+
+func (atc ATC) Teardown() {
+	for _, cleanup := range atc.Cleanups {
+		cleanup()
+	}
 }
