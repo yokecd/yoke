@@ -78,7 +78,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 	queue := QueueFromChannel(events, ctrl.Concurrency)
 	queueCh := queue.C()
 
-	for range ctrl.Concurrency {
+	for range max(ctrl.Concurrency, 1) {
 		go func() {
 			defer wg.Done()
 

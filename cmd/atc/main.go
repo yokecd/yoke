@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sync"
 	"syscall"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -37,8 +36,8 @@ func run() (err error) {
 		}
 	}()
 
-	ctx, stop := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -75,15 +74,8 @@ func run() (err error) {
 		Concurrency: cfg.Concurrency,
 	}
 
-	atc := ATC{
-		Airway:      schema.GroupKind{Group: "yoke.cd", Kind: "Airway"},
-		Concurrency: cfg.Concurrency,
-		Cleanups:    map[string]func(){},
-		Locks:       &sync.Map{},
-		Prev:        map[string]any{},
-	}
-
-	defer atc.Teardown()
+	atc, teardown := MakeATC(schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}, cfg.Concurrency)
+	defer teardown()
 
 	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)
 }

@@ -35,6 +35,17 @@ type ATC struct {
 	Prev        map[string]any
 }
 
+func MakeATC(airway schema.GroupKind, concurrency int) (ATC, func()) {
+	atc := ATC{
+		Airway:      airway,
+		Concurrency: concurrency,
+		Cleanups:    map[string]func(){},
+		Locks:       &sync.Map{},
+		Prev:        map[string]any{},
+	}
+	return atc, atc.Teardown
+}
+
 func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 	mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(atc.Airway)
 	if err != nil {
@@ -137,7 +148,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	flightController := ctrl.Instance{
 		Client:      ctrl.Client(ctx),
 		Logger:      ctrl.RootLogger(ctx),
-		Concurrency: max(atc.Concurrency, 1),
+		Concurrency: atc.Concurrency,
 	}
 
 	group, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "group")
