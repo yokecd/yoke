@@ -87,11 +87,17 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 				case <-ctx.Done():
 					return
 				case event := <-queueCh:
-					{
-						if _, loaded := activeMap.LoadOrStore(event.String(), struct{}{}); loaded {
-							queue.Enqueue(event)
+					func() {
+						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
+						if loaded {
+							go func() {
+								<-done.(chan struct{})
+								queue.Enqueue(event)
+							}()
 							return
 						}
+						defer close(done.(chan struct{}))
+						defer activeMap.Delete(event.String())
 
 						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
 							timer.(*time.Timer).Stop()
@@ -130,12 +136,10 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 						if err != nil {
 							logger.Error("error processing event", slog.String("error", err.Error()))
-						} else {
-							logger.Info("reconcile successfull")
+							return
 						}
-
-						activeMap.Delete(event.String())
-					}
+						logger.Info("reconcile successfull")
+					}()
 				}
 			}
 		}()

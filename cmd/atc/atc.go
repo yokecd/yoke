@@ -23,7 +23,6 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
-	"github.com/yokecd/yoke/internal/text"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -57,10 +56,6 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	if prevSpec := atc.Prev[airway.GetName()]; prevSpec != nil && reflect.DeepEqual(airwaySpec(airway), prevSpec) {
 		ctrl.Logger(ctx).Info("airway status update: skip reconcile loop")
 		return ctrl.Result{}, nil
-	} else {
-		p, _ := text.ToYamlFile("prev", prevSpec)
-		n, _ := text.ToYamlFile("next", airwaySpec(airway))
-		fmt.Println(text.DiffColorized(p, n, 8))
 	}
 
 	defer func() {
