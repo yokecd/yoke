@@ -74,7 +74,11 @@ func run() (err error) {
 		Concurrency: cfg.Concurrency,
 	}
 
-	atc, teardown := MakeATC(schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}, cfg.Concurrency)
+	atc, teardown := MakeATC(
+		schema.GroupKind{Kind: "Airway", Group: "yoke.cd"},
+		cfg.CacheDir,
+		cfg.Concurrency,
+	)
 	defer teardown()
 
 	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)
