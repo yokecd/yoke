@@ -67,6 +67,9 @@ func run() error {
 					Name:    "v1alpha1",
 					Served:  true,
 					Storage: true,
+					Subresources: &apiextensionsv1.CustomResourceSubresources{
+						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+					},
 					Schema: &apiextensionsv1.CustomResourceValidation{
 						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 							Type:     "object",
@@ -80,6 +83,14 @@ func run() error {
 											Type: "string",
 										},
 										"template": crdSpecSchema,
+									},
+								},
+								"status": apiextensionsv1.JSONSchemaProps{
+									Type:     "object",
+									Required: []string{"Status", "Msg"},
+									Properties: apiextensionsv1.JSONSchemaDefinitions{
+										"Status": {Type: "string"},
+										"Msg":    {Type: "string"},
 									},
 								},
 							},

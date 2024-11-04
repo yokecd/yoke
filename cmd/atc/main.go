@@ -80,9 +80,10 @@ func run() (err error) {
 		Concurrency: cfg.Concurrency,
 		Cleanups:    map[string]func(){},
 		Locks:       &sync.Map{},
+		Prev:        map[string]any{},
 	}
 
-  defer atc.Teardown()
+	defer atc.Teardown()
 
 	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)
 }
