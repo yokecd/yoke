@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
@@ -29,15 +30,17 @@ import (
 
 type ATC struct {
 	Airway      schema.GroupKind
+	CacheDir    string
 	Concurrency int
 	Cleanups    map[string]func()
 	Locks       *sync.Map
 	Prev        map[string]any
 }
 
-func MakeATC(airway schema.GroupKind, concurrency int) (ATC, func()) {
+func MakeATC(airway schema.GroupKind, cacheDir string, concurrency int) (ATC, func()) {
 	atc := ATC{
 		Airway:      airway,
+		CacheDir:    cacheDir,
 		Concurrency: concurrency,
 		Cleanups:    map[string]func(){},
 		Locks:       &sync.Map{},
@@ -70,7 +73,9 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	defer func() {
-		atc.Prev[airway.GetName()] = airwaySpec(airway)
+		if err == nil {
+			atc.Prev[airway.GetName()] = airwaySpec(airway)
+		}
 	}()
 
 	airwayStatus := func(status, msg string) {
@@ -91,11 +96,15 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}()
 
-	wasmURL, _, _ := unstructured.NestedString(airway.Object, "spec", "wasmUrl")
+	var typedAirway Airway
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	cacheDir := filepath.Join("./cache", airway.GetName())
+	wasmPath := filepath.Join(cacheDir, "source.wasm")
 
-	wasm, err := yoke.LoadWasm(ctx, wasmURL)
+	wasm, err := yoke.LoadWasm(ctx, typedAirway.Spec.WasmURL)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to load wasm: %w", err)
 	}
@@ -104,8 +113,6 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		value, _ := atc.Locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
 		return value.(*sync.RWMutex)
 	}()
-
-	wasmPath := filepath.Join(cacheDir, "source.wasm")
 
 	if err := func() error {
 		mutex.Lock()
@@ -151,12 +158,9 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		Concurrency: atc.Concurrency,
 	}
 
-	group, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "group")
-	kind, _, _ := unstructured.NestedString(airway.Object, "spec", "template", "names", "kind")
-
 	flightGK := schema.GroupKind{
-		Group: group,
-		Kind:  kind,
+		Group: typedAirway.Spec.Template.Group,
+		Kind:  typedAirway.Spec.Template.Names.Kind,
 	}
 
 	flightHander := func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
