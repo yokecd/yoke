@@ -8,13 +8,13 @@ import (
 	"strconv"
 
 	"golang.org/x/term"
-	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/pkg/flight"
 )
@@ -37,7 +37,7 @@ func run() error {
 		Port:    3000,
 	}
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		if err := yaml.NewDecoder(os.Stdin).Decode(&cfg); err != nil && err != io.EOF {
+		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&cfg); err != nil && err != io.EOF {
 			return fmt.Errorf("failed to decode stdin: %w", err)
 		}
 	}

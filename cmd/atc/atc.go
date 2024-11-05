@@ -25,8 +25,8 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
-	"github.com/yokecd/yoke/pkg/yoke"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 type ATC struct {
