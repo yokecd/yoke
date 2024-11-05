@@ -26,6 +26,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/yoke"
+	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
 type ATC struct {
@@ -96,7 +97,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}()
 
-	var typedAirway Airway
+	var typedAirway v1alpha1.Airway
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 		return ctrl.Result{}, err
 	}

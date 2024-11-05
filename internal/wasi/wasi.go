@@ -68,7 +68,11 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		moduleCfg = moduleCfg.WithEnv(key, value)
 	}
 
-	if _, err := runtime.InstantiateWithConfig(ctx, params.Wasm, moduleCfg); err != nil {
+	module, err := runtime.InstantiateWithConfig(ctx, params.Wasm, moduleCfg)
+	defer func() {
+		err = xerr.MultiErrFrom("", err, module.Close(ctx))
+	}()
+	if err != nil {
 		details := stderr.String()
 		if details == "" {
 			details = "(no output captured on stderr)"
