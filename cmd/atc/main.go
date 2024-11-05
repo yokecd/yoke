@@ -10,11 +10,12 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/davidmdm/x/xcontext"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/davidmdm/x/xcontext"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 )

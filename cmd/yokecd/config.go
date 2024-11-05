@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davidmdm/conf"
+
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/davidmdm/conf"
 	"github.com/yokecd/yoke/internal"
 )
 

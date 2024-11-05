@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"text/template"
 
+	"github.com/davidmdm/x/xcontext"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/davidmdm/x/xcontext"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/yoke"
 )

@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
-	"k8s.io/apimachinery/pkg/api/meta"
 
+	"github.com/davidmdm/x/xerr"
+
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/davidmdm/x/xerr"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/text"
