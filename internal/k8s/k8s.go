@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davidmdm/x/xerr"
+
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,7 +29,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/davidmdm/x/xerr"
 	"github.com/yokecd/yoke/internal"
 )
 

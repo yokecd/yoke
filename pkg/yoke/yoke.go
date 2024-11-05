@@ -6,9 +6,10 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/davidmdm/x/xerr"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/davidmdm/x/xerr"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/text"

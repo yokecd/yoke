@@ -11,6 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/davidmdm/x/xerr"
+
 	"github.com/yokecd/yoke/internal"
 )
 

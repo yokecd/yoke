@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/davidmdm/x/xerr"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/wasi"
 )
