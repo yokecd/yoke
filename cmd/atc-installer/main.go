@@ -82,6 +82,9 @@ func run() error {
 										"wasmUrl": {
 											Type: "string",
 										},
+										"createCrds": {
+											Type: "boolean",
+										},
 										"template": crdSpecSchema,
 									},
 								},

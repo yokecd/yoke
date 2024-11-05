@@ -1,4 +1,4 @@
-package main
+package v1alpha1
 
 import (
 	"encoding/json"
@@ -11,8 +11,9 @@ type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              struct {
-		WasmURL  string                                       `json:"wasmUrl"`
-		Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+		WasmURL    string                                       `json:"wasmUrl"`
+		CreateCRDs bool                                         `json:"createCrds"`
+		Template   apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 	} `json:"spec"`
 	Status struct {
 		Status string
