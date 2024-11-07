@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
@@ -74,33 +75,7 @@ func run() error {
 						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
 					},
 					Schema: &apiextensionsv1.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-							Type:     "object",
-							Required: []string{"spec"},
-							Properties: apiextensionsv1.JSONSchemaDefinitions{
-								"spec": apiextensionsv1.JSONSchemaProps{
-									Type:     "object",
-									Required: []string{"wasmUrl", "template"},
-									Properties: apiextensionsv1.JSONSchemaDefinitions{
-										"wasmUrl": {
-											Type: "string",
-										},
-										"createCrds": {
-											Type: "boolean",
-										},
-										"template": *openapi.SchemaFrom(reflect.TypeOf(apiextensionsv1.CustomResourceDefinitionSpec{})),
-									},
-								},
-								"status": apiextensionsv1.JSONSchemaProps{
-									Type:     "object",
-									Required: []string{"Status", "Msg"},
-									Properties: apiextensionsv1.JSONSchemaDefinitions{
-										"Status": {Type: "string"},
-										"Msg":    {Type: "string"},
-									},
-								},
-							},
-						},
+						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeOf(v1alpha1.Airway{})),
 					},
 				},
 			},
