@@ -12,7 +12,7 @@ type Airway struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              struct {
 		WasmURL    string                                       `json:"wasmUrl"`
-		CreateCRDs bool                                         `json:"createCrds"`
+		CreateCRDs bool                                         `json:"createCrds,omitempty"`
 		Template   apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 	} `json:"spec"`
 	Status struct {
