@@ -7,9 +7,9 @@ import (
 	"os"
 	"strconv"
 
-	appsv1 "k8s.io/client-go/applyconfigurations/apps/v1"
-	corev1 "k8s.io/client-go/applyconfigurations/core/v1"
-	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func main() {
@@ -30,24 +30,34 @@ func run() error {
 		replicas = 2
 	}
 
-	dep := appsv1.Deployment(name, "").
-		WithLabels(labels).
-		WithSpec(
-			appsv1.DeploymentSpec().
-				WithReplicas(int32(replicas)).
-				WithSelector(metav1.LabelSelector().WithMatchLabels(labels)).
-				WithTemplate(
-					corev1.PodTemplateSpec().
-						WithLabels(labels).
-						WithSpec(
-							corev1.PodSpec().WithContainers(
-								corev1.Container().
-									WithName(name).
-									WithImage("alpine:latest").
-									WithCommand("watch", "echo", "hello", "world"),
-							)),
-				),
-		)
+	dep := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: ptr(int32(replicas)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    name,
+							Image:   "alpine:latest",
+							Command: []string{"watch", "echo", "hello", "world"},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	return json.NewEncoder(os.Stdout).Encode([]any{dep})
 }
+
+func ptr[T any](value T) *T { return &value }
