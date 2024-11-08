@@ -10,15 +10,19 @@ import (
 type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              struct {
-		WasmURL    string                                       `json:"wasmUrl"`
-		CreateCRDs bool                                         `json:"createCrds,omitempty"`
-		Template   apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
-	} `json:"spec"`
-	Status struct {
-		Status string
-		Msg    string
-	} `json:"status,omitempty"`
+	Spec              AirwaySpec   `json:"spec"`
+	Status            AirwayStatus `json:"status,omitempty"`
+}
+
+type AirwaySpec struct {
+	WasmURL    string                                       `json:"wasmUrl"`
+	CreateCRDs bool                                         `json:"createCrds,omitempty"`
+	Template   apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+}
+
+type AirwayStatus struct {
+	Status string
+	Msg    string
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {
