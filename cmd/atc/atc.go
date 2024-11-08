@@ -256,7 +256,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		if typedAirway.Spec.FixDriftAfterSeconds > 0 {
+		if typedAirway.Spec.FixDriftInterval > 0 {
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release: event.String(),
 				Fix:     true,
@@ -266,7 +266,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 		}
 
-		return ctrl.Result{RequeueAfter: time.Duration(typedAirway.Spec.FixDriftAfterSeconds) * time.Second}, nil
+		return ctrl.Result{RequeueAfter: typedAirway.Spec.FixDriftInterval.Duration()}, nil
 	}
 
 	if cleanup := atc.cleanups[airway.GetName()]; cleanup != nil {
