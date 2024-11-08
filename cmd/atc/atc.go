@@ -233,9 +233,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				Namespace:           event.Namespace,
 				CompilationCacheDir: cacheDir,
 			},
-			CreateCRDs: false,
-			Wait:       0,
-			Poll:       0,
+			CreateCRDs: typedAirway.Spec.CreateCRDs,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: flight.GetAPIVersion(),
