@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -33,9 +34,10 @@ type ATC struct {
 	Airway      schema.GroupKind
 	CacheDir    string
 	Concurrency int
-	Cleanups    map[string]func()
-	Locks       *sync.Map
-	Prev        map[string]any
+
+	cleanups map[string]func()
+	locks    *sync.Map
+	prev     map[string]any
 }
 
 func MakeATC(airway schema.GroupKind, cacheDir string, concurrency int) (ATC, func()) {
@@ -43,9 +45,9 @@ func MakeATC(airway schema.GroupKind, cacheDir string, concurrency int) (ATC, fu
 		Airway:      airway,
 		CacheDir:    cacheDir,
 		Concurrency: concurrency,
-		Cleanups:    map[string]func(){},
-		Locks:       &sync.Map{},
-		Prev:        map[string]any{},
+		cleanups:    map[string]func(){},
+		locks:       &sync.Map{},
+		prev:        map[string]any{},
 	}
 	return atc, atc.Teardown
 }
@@ -68,19 +70,28 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to get airway %s: %w", event.Name, err)
 	}
 
-	if prevSpec := atc.Prev[airway.GetName()]; prevSpec != nil && reflect.DeepEqual(airwaySpec(airway), prevSpec) {
+	if prevSpec := atc.prev[airway.GetName()]; prevSpec != nil && reflect.DeepEqual(airwaySpec(airway), prevSpec) {
 		ctrl.Logger(ctx).Info("airway status update: skip reconcile loop")
 		return ctrl.Result{}, nil
 	}
 
 	defer func() {
 		if err == nil {
-			atc.Prev[airway.GetName()] = airwaySpec(airway)
+			atc.prev[airway.GetName()] = airwaySpec(airway)
 		}
 	}()
 
 	airwayStatus := func(status, msg string) {
-		_ = unstructured.SetNestedMap(airway.Object, map[string]any{"Status": status, "Msg": msg}, "status")
+		prev := airway.Object["status"]
+		next := map[string]any{"Status": status, "Msg": msg}
+		if reflect.DeepEqual(prev, next) {
+			return
+		}
+
+		ctrl.Logger(ctx).Info("updating status", slog.Any("prev", prev), slog.Any("next", next))
+
+		_ = unstructured.SetNestedMap(airway.Object, next, "status")
+
 		updated, err := airwayIntf.UpdateStatus(ctx, airway.DeepCopy(), metav1.UpdateOptions{FieldManager: "yoke.cd/atc"})
 		if err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
@@ -88,8 +99,6 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 		airway = updated
 	}
-
-	airwayStatus("InProgress", "Reconciliation started")
 
 	defer func() {
 		if err != nil {
@@ -111,7 +120,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	mutex := func() *sync.RWMutex {
-		value, _ := atc.Locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
+		value, _ := atc.locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
 		return value.(*sync.RWMutex)
 	}()
 
@@ -250,7 +259,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
-	if cleanup := atc.Cleanups[airway.GetName()]; cleanup != nil {
+	if cleanup := atc.cleanups[airway.GetName()]; cleanup != nil {
 		cleanup()
 	}
 
@@ -258,7 +267,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	done := make(chan struct{})
 
-	atc.Cleanups[airway.GetName()] = func() {
+	atc.cleanups[airway.GetName()] = func() {
 		cancel()
 		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
 		<-done
@@ -284,7 +293,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 }
 
 func (atc ATC) Teardown() {
-	for _, cleanup := range atc.Cleanups {
+	for _, cleanup := range atc.cleanups {
 		cleanup()
 	}
 }
