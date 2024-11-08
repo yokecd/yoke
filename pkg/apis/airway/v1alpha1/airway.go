@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"encoding/json"
 
+	"github.com/yokecd/yoke/pkg/openapi"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -15,10 +16,10 @@ type Airway struct {
 }
 
 type AirwaySpec struct {
-	WasmURL              string                                       `json:"wasmUrl"`
-	Template             apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
-	FixDriftAfterSeconds int                                          `json:"fixDriftAfterSeconds,omitempty"`
-	CreateCRDs           bool                                         `json:"createCrds,omitempty"`
+	WasmURL          string                                       `json:"wasmUrl"`
+	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+	FixDriftInterval openapi.Duration                             `json:"fixDriftInterval,omitempty"`
+	CreateCRDs       bool                                         `json:"createCrds,omitempty"`
 }
 
 type AirwayStatus struct {
