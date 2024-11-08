@@ -40,6 +40,6 @@ func TestGenerateSchema(t *testing.T) {
 			},
 			Required: []string{"name", "age", "active"},
 		},
-		GenerateSchema(reflect.TypeOf(S{})),
+		SchemaFrom(reflect.TypeOf(S{})),
 	)
 }
