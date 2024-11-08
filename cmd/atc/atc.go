@@ -226,7 +226,7 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 
 		params := yoke.TakeoffParams{
-			Release: event.Name,
+			Release: event.String(),
 			Flight: yoke.FlightParams{
 				Path:                wasmPath,
 				Input:               bytes.NewReader(data),
@@ -247,14 +247,25 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		mutex.RLock()
 		defer mutex.RUnlock()
 
-		if err := yoke.FromK8Client(ctrl.Client(ctx)).Takeoff(ctx, params); err != nil {
+		commander := yoke.FromK8Client(ctrl.Client(ctx))
+
+		if err := commander.Takeoff(ctx, params); err != nil {
 			if !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
 			}
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		return ctrl.Result{}, nil
+		if typedAirway.Spec.FixDriftAfterSeconds > 0 {
+			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
+				Release: event.String(),
+				Fix:     true,
+			}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to fix drift: %w", err)
+			}
+		}
+
+		return ctrl.Result{RequeueAfter: time.Duration(typedAirway.Spec.FixDriftAfterSeconds) * time.Second}, nil
 	}
 
 	if cleanup := atc.cleanups[airway.GetName()]; cleanup != nil {
