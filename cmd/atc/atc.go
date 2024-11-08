@@ -260,7 +260,8 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release: event.String(),
 				Fix:     true,
-			}); err != nil {
+				Silent:  true,
+			}); err != nil && !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to fix drift: %w", err)
 			}
 		}

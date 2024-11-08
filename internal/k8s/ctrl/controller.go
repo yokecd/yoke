@@ -30,7 +30,10 @@ type Result struct {
 }
 
 func (event Event) String() string {
-	return event.Namespace + "/" + event.Name
+	if event.Namespace == "" {
+		return event.Name
+	}
+	return event.Namespace + "-" + event.Name
 }
 
 type HandleFunc func(context.Context, Event) (Result, error)
@@ -128,7 +131,11 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 						if shouldRequeue {
 							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
 							timers.Store(event.String(), time.AfterFunc(result.RequeueAfter, func() {
-								event.attempts++
+								if err != nil {
+									event.attempts++
+								} else {
+									event.attempts = 0
+								}
 								timers.Delete(event.String())
 								queue.Enqueue(event)
 							}))

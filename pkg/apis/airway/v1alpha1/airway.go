@@ -17,7 +17,7 @@ type Airway struct {
 type AirwaySpec struct {
 	WasmURL              string                                       `json:"wasmUrl"`
 	Template             apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
-	FixDriftAfterSeconds int                                          `json:"fixDuration,omitempty"`
+	FixDriftAfterSeconds int                                          `json:"fixDriftAfterSeconds,omitempty"`
 	CreateCRDs           bool                                         `json:"createCrds,omitempty"`
 }
 
