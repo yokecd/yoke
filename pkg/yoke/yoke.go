@@ -3,6 +3,7 @@ package yoke
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 
@@ -132,10 +133,15 @@ type TurbulenceParams struct {
 	ConflictsOnly bool
 	Fix           bool
 	Color         bool
+	Silent        bool
 }
 
 func (commander Commander) Turbulence(ctx context.Context, params TurbulenceParams) error {
 	defer internal.DebugTimer(ctx, "turbulence")()
+
+	if params.Silent {
+		ctx = internal.WithStderr(ctx, io.Discard)
+	}
 
 	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
 	if err != nil {
