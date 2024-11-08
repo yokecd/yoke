@@ -125,7 +125,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
 
 						if shouldRequeue && result.RequeueAfter == 0 {
-							result.RequeueAfter = min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute)
+							result.RequeueAfter = withJitter(min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute), 0.10)
 						}
 
 						if shouldRequeue {
@@ -227,4 +227,10 @@ type clientKey struct{}
 func Client(ctx context.Context) *k8s.Client {
 	client, _ := ctx.Value(clientKey{}).(*k8s.Client)
 	return client
+}
+
+func withJitter(duration time.Duration, percent float64) time.Duration {
+	offset := float64(duration) * percent
+	jitter := 2 * offset * rand.Float64()
+	return time.Duration(float64(duration) - offset + jitter).Round(time.Second)
 }
