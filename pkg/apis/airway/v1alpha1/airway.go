@@ -3,9 +3,10 @@ package v1alpha1
 import (
 	"encoding/json"
 
-	"github.com/yokecd/yoke/pkg/openapi"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 type Airway struct {
@@ -23,8 +24,8 @@ type AirwaySpec struct {
 }
 
 type AirwayStatus struct {
-	Status string
-	Msg    string
+	Status string `json:"status"`
+	Msg    string `json:"msg"`
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {

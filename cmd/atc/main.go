@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 )
@@ -75,12 +76,10 @@ func run() (err error) {
 		Concurrency: cfg.Concurrency,
 	}
 
-	atc, teardown := MakeATC(
-		schema.GroupKind{Kind: "Airway", Group: "yoke.cd"},
-		cfg.CacheDir,
-		cfg.Concurrency,
-	)
+	airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
+
+	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.CacheDir, cfg.Concurrency)
 	defer teardown()
 
-	return controller.ProcessGroupKind(ctx, atc.Airway, atc.Reconcile)
+	return controller.ProcessGroupKind(ctx, airwayGK, reconciler)
 }
