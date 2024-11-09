@@ -120,6 +120,8 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 						logger.Info("processing event")
 
+						start := time.Now()
+
 						result, err := handle(ctx, event)
 
 						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
@@ -145,7 +147,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 							logger.Error("error processing event", slog.String("error", err.Error()))
 							return
 						}
-						logger.Info("reconcile successfull")
+						logger.Info("reconcile successfull", "elapsed", time.Since(start).Round(time.Millisecond).String())
 					}()
 				}
 			}

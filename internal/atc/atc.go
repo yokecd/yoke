@@ -1,4 +1,4 @@
-package main
+package atc
 
 import (
 	"bytes"
@@ -30,29 +30,34 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-type ATC struct {
+const (
+	fieldManager     = "yoke.cd/atc"
+	cleanupFinalizer = "yoke.cd/mayday.flight"
+)
+
+func GetReconciler(airway schema.GroupKind, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
+	atc := atc{
+		Airway:      airway,
+		CacheDir:    cacheDir,
+		Concurrency: concurrency,
+		cleanups:    map[string]func(){},
+		locks:       &sync.Map{},
+		prevSpec:    map[string]v1alpha1.AirwaySpec{},
+	}
+	return atc.Reconcile, atc.Teardown
+}
+
+type atc struct {
 	Airway      schema.GroupKind
 	CacheDir    string
 	Concurrency int
 
 	cleanups map[string]func()
 	locks    *sync.Map
-	prev     map[string]any
+	prevSpec map[string]v1alpha1.AirwaySpec
 }
 
-func MakeATC(airway schema.GroupKind, cacheDir string, concurrency int) (ATC, func()) {
-	atc := ATC{
-		Airway:      airway,
-		CacheDir:    cacheDir,
-		Concurrency: concurrency,
-		cleanups:    map[string]func(){},
-		locks:       &sync.Map{},
-		prev:        map[string]any{},
-	}
-	return atc, atc.Teardown
-}
-
-func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 	mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(atc.Airway)
 	if err != nil {
 		ctrl.Client(ctx).Mapper.Reset()
@@ -70,46 +75,54 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to get airway %s: %w", event.Name, err)
 	}
 
-	if prevSpec := atc.prev[airway.GetName()]; prevSpec != nil && reflect.DeepEqual(airwaySpec(airway), prevSpec) {
+	var typedAirway v1alpha1.Airway
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if reflect.DeepEqual(atc.prevSpec[typedAirway.Name], typedAirway.Spec) {
 		ctrl.Logger(ctx).Info("airway status update: skip reconcile loop")
 		return ctrl.Result{}, nil
 	}
 
 	defer func() {
 		if err == nil {
-			atc.prev[airway.GetName()] = airwaySpec(airway)
+			atc.prevSpec[typedAirway.Name] = typedAirway.Spec
 		}
 	}()
 
-	airwayStatus := func(status, msg string) {
-		prev := airway.Object["status"]
-		next := map[string]any{"Status": status, "Msg": msg}
+	airwayStatus := func(next v1alpha1.AirwayStatus) {
+		prev := typedAirway.Status
 		if reflect.DeepEqual(prev, next) {
 			return
 		}
 
 		ctrl.Logger(ctx).Info("updating status", slog.Any("prev", prev), slog.Any("next", next))
 
-		_ = unstructured.SetNestedMap(airway.Object, next, "status")
+		_ = unstructured.SetNestedMap(airway.Object, unstructuredObject(next).(map[string]any), "status")
 
-		updated, err := airwayIntf.UpdateStatus(ctx, airway.DeepCopy(), metav1.UpdateOptions{FieldManager: "yoke.cd/atc"})
+		updated, err := airwayIntf.UpdateStatus(ctx, airway.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
 			return
 		}
+
 		airway = updated
+
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
+			return
+		}
 	}
 
 	defer func() {
 		if err != nil {
-			airwayStatus("Error", err.Error())
+			airwayStatus(v1alpha1.AirwayStatus{
+				Status: "Error",
+				Msg:    err.Error(),
+			})
 		}
 	}()
-
-	var typedAirway v1alpha1.Airway
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
-		return ctrl.Result{}, err
-	}
 
 	cacheDir := filepath.Join("./cache", airway.GetName())
 	wasmPath := filepath.Join(cacheDir, "source.wasm")
@@ -141,16 +154,14 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to setup cache: %w", err)
 	}
 
-	spec, _, _ := unstructured.NestedMap(airway.Object, "spec", "template")
-
 	crd := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "apiextensions.k8s.io/v1",
 			"kind":       "CustomResourceDefinition",
 			"metadata": map[string]interface{}{
-				"name": airway.GetName(),
+				"name": typedAirway.Name,
 			},
-			"spec": spec,
+			"spec": unstructuredObject(typedAirway.Spec.Template),
 		},
 	}
 
@@ -160,6 +171,20 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	if err := ctrl.Client(ctx).WaitForReady(ctx, crd, k8s.WaitOptions{Timeout: time.Minute, Interval: time.Second}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
+	}
+
+	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
+		cleanup()
+	}
+
+	flightCtx, cancel := context.WithCancel(ctx)
+
+	done := make(chan struct{})
+
+	atc.cleanups[typedAirway.Name] = func() {
+		cancel()
+		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
+		<-done
 	}
 
 	flightController := ctrl.Instance{
@@ -173,8 +198,55 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		Kind:  typedAirway.Spec.Template.Names.Kind,
 	}
 
-	flightHander := func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
-		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(flightGK)
+	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
+		GK:               flightGK,
+		WasmPath:         wasmPath,
+		CacheDir:         cacheDir,
+		Lock:             mutex,
+		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
+		CreateCrds:       typedAirway.Spec.CreateCRDs,
+	})
+
+	go func() {
+		defer cancel()
+		defer close(done)
+
+		airwayStatus(v1alpha1.AirwayStatus{Status: "Ready", Msg: "Flight-Controller launched"})
+
+		if err := flightController.ProcessGroupKind(flightCtx, flightGK, flightReconciler); err != nil {
+			airwayStatus(v1alpha1.AirwayStatus{
+				Status: "Error",
+				Msg:    "Flight-Controller: " + err.Error(),
+			})
+			if errors.Is(err, context.Canceled) {
+				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
+				return
+			}
+			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
+		}
+	}()
+
+	return ctrl.Result{}, nil
+}
+
+func (atc atc) Teardown() {
+	for _, cleanup := range atc.cleanups {
+		cleanup()
+	}
+}
+
+type FlightReconcilerParams struct {
+	GK               schema.GroupKind
+	WasmPath         string
+	CacheDir         string
+	Lock             *sync.RWMutex
+	FixDriftInterval time.Duration
+	CreateCrds       bool
+}
+
+func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
+	return func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
+		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK)
 		if err != nil {
 			ctrl.Client(ctx).Mapper.Reset()
 			return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)
@@ -196,9 +268,9 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
-		if finalizers := flight.GetFinalizers(); flight.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, "yoke.cd/atc.cleanup.flight") {
-			flight.SetFinalizers(append(finalizers, "yoke.cd/atc.cleanup.flight"))
-			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
+		if finalizers := flight.GetFinalizers(); flight.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, cleanupFinalizer) {
+			flight.SetFinalizers(append(finalizers, cleanupFinalizer))
+			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to set cleanup finalizer: %w", err)
 			}
 			return ctrl.Result{}, nil
@@ -210,9 +282,9 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 
 			finalizers := flight.GetFinalizers()
-			if idx := slices.Index(finalizers, "yoke.cd/atc.cleanup.flight"); idx != -1 {
+			if idx := slices.Index(finalizers, cleanupFinalizer); idx != -1 {
 				flight.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
-				if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: "yoke.cd/atc"}); err != nil {
+				if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 					return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 				}
 			}
@@ -225,15 +297,20 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
 
-		params := yoke.TakeoffParams{
+		params.Lock.RLock()
+		defer params.Lock.RUnlock()
+
+		commander := yoke.FromK8Client(ctrl.Client(ctx))
+
+		takeoffParams := yoke.TakeoffParams{
 			Release: event.String(),
 			Flight: yoke.FlightParams{
-				Path:                wasmPath,
+				Path:                params.WasmPath,
 				Input:               bytes.NewReader(data),
 				Namespace:           event.Namespace,
-				CompilationCacheDir: cacheDir,
+				CompilationCacheDir: params.CacheDir,
 			},
-			CreateCRDs: typedAirway.Spec.CreateCRDs,
+			CreateCRDs: params.CreateCrds,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: flight.GetAPIVersion(),
@@ -244,19 +321,14 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			},
 		}
 
-		mutex.RLock()
-		defer mutex.RUnlock()
-
-		commander := yoke.FromK8Client(ctrl.Client(ctx))
-
-		if err := commander.Takeoff(ctx, params); err != nil {
+		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
 			if !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
 			}
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		if typedAirway.Spec.FixDriftInterval > 0 {
+		if params.FixDriftInterval > 0 {
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release: event.String(),
 				Fix:     true,
@@ -266,49 +338,13 @@ func (atc ATC) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 		}
 
-		return ctrl.Result{RequeueAfter: typedAirway.Spec.FixDriftInterval.Duration()}, nil
-	}
-
-	if cleanup := atc.cleanups[airway.GetName()]; cleanup != nil {
-		cleanup()
-	}
-
-	flightCtx, cancel := context.WithCancel(ctx)
-
-	done := make(chan struct{})
-
-	atc.cleanups[airway.GetName()] = func() {
-		cancel()
-		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
-		<-done
-	}
-
-	go func() {
-		defer cancel()
-		defer close(done)
-
-		airwayStatus("Ready", "Flight-Controller launched")
-
-		if err := flightController.ProcessGroupKind(flightCtx, flightGK, flightHander); err != nil {
-			airwayStatus("Error", "Flight-Controller: "+err.Error())
-			if errors.Is(err, context.Canceled) {
-				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
-				return
-			}
-			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
-		}
-	}()
-
-	return ctrl.Result{}, nil
-}
-
-func (atc ATC) Teardown() {
-	for _, cleanup := range atc.cleanups {
-		cleanup()
+		return ctrl.Result{RequeueAfter: params.FixDriftInterval}, nil
 	}
 }
 
-func airwaySpec(resource *unstructured.Unstructured) any {
-	spec, _, _ := unstructured.NestedFieldCopy(resource.Object, "spec")
-	return spec
+func unstructuredObject(value any) any {
+	data, _ := json.Marshal(value)
+	var result any
+	_ = json.Unmarshal(data, &result)
+	return result
 }
