@@ -24,8 +24,10 @@ import (
 )
 
 type Config struct {
-	Version string `json:"version"`
-	Port    int    `json:"port"`
+	Version     string            `json:"version"`
+	Port        int               `json:"port"`
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
 }
 
 func main() {
@@ -116,7 +118,11 @@ func run() error {
 		},
 	}
 
-	labels := map[string]string{"yoke.cd/app": "atc"}
+	labels := map[string]string{}
+	for k, v := range cfg.Labels {
+		labels[k] = v
+	}
+	labels["yoke.cd/app"] = "atc"
 
 	deploment := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -134,7 +140,8 @@ func run() error {
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels:      labels,
+					Annotations: cfg.Annotations,
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: account.Name,
