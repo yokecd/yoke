@@ -1,6 +1,7 @@
 package ctrl
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -44,23 +45,37 @@ func (queue *Queue[T]) Dequeue() (value T) {
 	return <-queue.pipe
 }
 
-func (queue *Queue[T]) C() chan T {
+func (queue *Queue[T]) C() (chan T, func()) {
 	result := make(chan T)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
 	go func() {
+		defer close(done)
+
 		for {
-			result <- queue.Dequeue()
+			select {
+			case <-ctx.Done():
+				return
+			case result <- queue.Dequeue():
+			}
 		}
 	}()
 
-	return result
+	stop := once(func() {
+		cancel()
+		<-done
+	})
+
+	return result, stop
 }
 
 // QueueFromChannel returns a queue that will dedup events based on its string representation as
 // determined by fmt.Stringer. The queue needs to know ahead of time the amount of concurrent readers
 // that will be pulling from it. This ensures that workers can never deadlock as it will always provide
 // enough space for the workers to pull from before writing events to its internal buffer.
-func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) *Queue[T] {
+func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) (*Queue[T], func()) {
 	queue := Queue[T]{
 		barrier: &sync.Map{},
 		buffer:  []T{},
@@ -68,11 +83,30 @@ func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) *Queue[T] {
 		pipe:    make(chan T, max(concurrency, 1)),
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
 	go func() {
-		for value := range c {
-			queue.Enqueue(value)
+		defer close(done)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case value := <-c:
+				queue.Enqueue(value)
+			}
 		}
 	}()
 
-	return &queue
+	stop := once(func() {
+		cancel()
+		<-done
+	})
+
+	return &queue, stop
+}
+
+func once(fn func()) func() {
+	var once sync.Once
+	return func() { once.Do(fn) }
 }

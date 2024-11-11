@@ -81,8 +81,11 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 	var wg sync.WaitGroup
 	wg.Add(ctrl.Concurrency)
 
-	queue := QueueFromChannel(events, ctrl.Concurrency)
-	queueCh := queue.C()
+	queue, stop := QueueFromChannel(events, ctrl.Concurrency)
+	defer stop()
+
+	queueCh, stop := queue.C()
+	defer stop()
 
 	for range max(ctrl.Concurrency, 1) {
 		go func() {
@@ -96,9 +99,15 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 					func() {
 						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
 						if loaded {
+							wg.Add(1)
 							go func() {
-								<-done.(chan struct{})
-								queue.Enqueue(event)
+								defer wg.Done()
+								select {
+								case <-ctx.Done():
+									return
+								case <-done.(chan struct{}):
+									queue.Enqueue(event)
+								}
 							}()
 							return
 						}
