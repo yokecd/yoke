@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,7 +41,6 @@ func GetReconciler(airway schema.GroupKind, cacheDir string, concurrency int) (c
 		Concurrency: concurrency,
 		cleanups:    map[string]func(){},
 		locks:       &sync.Map{},
-		prevSpec:    map[string]v1alpha1.AirwaySpec{},
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -54,7 +52,6 @@ type atc struct {
 
 	cleanups map[string]func()
 	locks    *sync.Map
-	prevSpec map[string]v1alpha1.AirwaySpec
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -80,24 +77,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, err
 	}
 
-	if reflect.DeepEqual(atc.prevSpec[typedAirway.Name], typedAirway.Spec) {
-		ctrl.Logger(ctx).Info("airway status update: skip reconcile loop")
-		return ctrl.Result{}, nil
-	}
-
-	defer func() {
-		if err == nil {
-			atc.prevSpec[typedAirway.Name] = typedAirway.Spec
-		}
-	}()
-
 	airwayStatus := func(next v1alpha1.AirwayStatus) {
 		prev := typedAirway.Status
 		if reflect.DeepEqual(prev, next) {
 			return
 		}
-
-		ctrl.Logger(ctx).Info("updating status", slog.Any("prev", prev), slog.Any("next", next))
 
 		_ = unstructured.SetNestedMap(airway.Object, unstructuredObject(next).(map[string]any), "status")
 
@@ -117,10 +101,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	defer func() {
 		if err != nil {
-			airwayStatus(v1alpha1.AirwayStatus{
-				Status: "Error",
-				Msg:    err.Error(),
-			})
+			airwayStatus(v1alpha1.AirwayStatus{Status: "Error", Msg: err.Error()})
 		}
 	}()
 

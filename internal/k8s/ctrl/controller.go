@@ -10,9 +10,12 @@ import (
 	"sync"
 	"time"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal/k8s"
 )
@@ -54,7 +57,7 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 		}
 	}
 
-	watcher, err := ctrl.Client.Meta.Resource(mapping.Resource).Watch(context.Background(), v1.ListOptions{})
+	watcher, err := ctrl.Client.Meta.Resource(mapping.Resource).Watch(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to watch resources: %w", err)
 	}
@@ -66,7 +69,7 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 	ctx = context.WithValue(ctx, loggerKey{}, logger)
 	ctx = context.WithValue(ctx, rootLoggerKey{}, ctrl.Logger)
 
-	events := ctrl.eventsFromWatcher(ctx, watcher)
+	events := ctrl.eventsFromWatcher(ctx, watcher, mapping)
 
 	return ctrl.process(ctx, events, handler)
 }
@@ -159,8 +162,9 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 	return context.Cause(ctx)
 }
 
-func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interface) chan Event {
+func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interface, mapping *meta.RESTMapping) chan Event {
 	events := make(chan Event)
+	cache := make(map[Event]*unstructured.Unstructured)
 
 	go func() {
 		kubeEvents := watcher.ResultChan()
@@ -172,7 +176,7 @@ func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interf
 				close(events)
 				return
 			case event := <-kubeEvents:
-				metadata, ok := event.Object.(*v1.PartialObjectMetadata)
+				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
 				if !ok {
 					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Type), "runtimeObject", func() string {
 						if event.Object == nil {
@@ -183,10 +187,30 @@ func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interf
 					continue
 				}
 
-				events <- Event{
+				intf := func() dynamic.ResourceInterface {
+					if mapping.Scope == meta.RESTScopeRoot {
+						return ctrl.Client.Dynamic.Resource(mapping.Resource)
+					}
+					return ctrl.Client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
+				}()
+
+				evt := Event{
 					Name:      metadata.Name,
 					Namespace: metadata.Namespace,
 				}
+
+				if event.Type == watch.Modified || event.Type == watch.Added {
+					current, err := intf.Get(ctx, metadata.Name, metav1.GetOptions{})
+					if err == nil {
+						prev := cache[evt]
+						cache[evt] = current
+						if resourcesAreEqual(prev, current) {
+							continue
+						}
+					}
+				}
+
+				events <- evt
 			}
 		}
 	}()
@@ -235,4 +259,24 @@ func withJitter(duration time.Duration, percent float64) time.Duration {
 	offset := float64(duration) * percent
 	jitter := 2 * offset * rand.Float64()
 	return time.Duration(float64(duration) - offset + jitter).Round(time.Second)
+}
+
+func resourcesAreEqual(a, b *unstructured.Unstructured) bool {
+	if (a == nil) || (b == nil) {
+		return false
+	}
+
+	dropKeys := [][]string{
+		{"metadata", "generation"},
+		{"metadata", "resourceVersion"},
+		{"metadata", "managedFields"},
+		{"status"},
+	}
+
+	for _, keys := range dropKeys {
+		unstructured.RemoveNestedField(a.Object, keys...)
+		unstructured.RemoveNestedField(b.Object, keys...)
+	}
+
+	return reflect.DeepEqual(a.Object, b.Object)
 }
