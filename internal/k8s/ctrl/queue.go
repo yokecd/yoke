@@ -17,31 +17,15 @@ func (queue *Queue[T]) Enqueue(value T) {
 	if _, loaded := queue.barrier.LoadOrStore(value.String(), struct{}{}); loaded {
 		return
 	}
-
-	queue.lock.Lock()
-	defer queue.lock.Unlock()
-
-	queue.buffer = append(queue.buffer, value)
-	for {
-		if len(queue.buffer) == 0 {
-			break
-		}
-
-		next := queue.buffer[0]
-		select {
-		case queue.pipe <- next:
-			queue.buffer = queue.buffer[1:]
-		default:
-			break
-		}
-	}
+	queue.append(value)
+	queue.tryUnshift()
 }
 
 func (queue *Queue[T]) Dequeue() (value T) {
 	defer func() {
+		queue.tryUnshift()
 		queue.barrier.Delete(value.String())
 	}()
-
 	return <-queue.pipe
 }
 
@@ -53,7 +37,6 @@ func (queue *Queue[T]) C() (chan T, func()) {
 
 	go func() {
 		defer close(done)
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -69,6 +52,32 @@ func (queue *Queue[T]) C() (chan T, func()) {
 	})
 
 	return result, stop
+}
+
+func (queue *Queue[T]) append(value T) {
+	queue.lock.Lock()
+	defer queue.lock.Unlock()
+
+	queue.buffer = append(queue.buffer, value)
+}
+
+func (queue *Queue[t]) tryUnshift() {
+	queue.lock.Lock()
+	defer queue.lock.Unlock()
+
+	for {
+		if len(queue.buffer) == 0 {
+			return
+		}
+
+		next := queue.buffer[0]
+		select {
+		case queue.pipe <- next:
+			queue.buffer = queue.buffer[1:]
+		default:
+			return
+		}
+	}
 }
 
 // QueueFromChannel returns a queue that will dedup events based on its string representation as
