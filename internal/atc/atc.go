@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +27,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -135,6 +137,27 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to setup cache: %w", err)
 	}
 
+	for i := range typedAirway.Spec.Template.Versions {
+		version := &typedAirway.Spec.Template.Versions[i]
+		if !version.Storage {
+			continue
+		}
+		version.Subresources = &apiextv1.CustomResourceSubresources{
+			Status: &apiextv1.CustomResourceSubresourceStatus{},
+		}
+		if version.Schema == nil {
+			version.Schema = &apiextv1.CustomResourceValidation{}
+		}
+		if version.Schema.OpenAPIV3Schema == nil {
+			version.Schema.OpenAPIV3Schema = &apiextv1.JSONSchemaProps{
+				Type:       "object",
+				Properties: apiextv1.JSONSchemaDefinitions{},
+			}
+		}
+		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[FlightStatus]())
+		break
+	}
+
 	crd := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "apiextensions.k8s.io/v1",
@@ -226,7 +249,7 @@ type FlightReconcilerParams struct {
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
-	return func(ctx context.Context, event ctrl.Event) (ctrl.Result, error) {
+	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK)
 		if err != nil {
 			ctrl.Client(ctx).Mapper.Reset()
@@ -249,6 +272,28 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
+		flightStatus := func(status string, msg any) {
+			_ = unstructured.SetNestedMap(
+				flight.Object,
+				unstructuredObject(FlightStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
+				"status",
+			)
+
+			updated, err := resourceIntf.UpdateStatus(ctx, flight.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
+			if err != nil {
+				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
+				return
+			}
+
+			flight = updated
+		}
+
+		defer func() {
+			if err != nil {
+				flightStatus("Error", err.Error())
+			}
+		}()
+
 		if finalizers := flight.GetFinalizers(); flight.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, cleanupFinalizer) {
 			flight.SetFinalizers(append(finalizers, cleanupFinalizer))
 			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
@@ -258,6 +303,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		if !flight.GetDeletionTimestamp().IsZero() {
+			flightStatus("Terminating", "Mayday: Flight is being removed")
+
 			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.Name); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 			}
@@ -302,6 +349,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			},
 		}
 
+		flightStatus("InProgress", "Flight is taking off")
+
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
 			if !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
@@ -310,6 +359,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		if params.FixDriftInterval > 0 {
+			flightStatus("InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release: event.String(),
 				Fix:     true,
@@ -318,6 +368,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				return ctrl.Result{}, fmt.Errorf("failed to fix drift: %w", err)
 			}
 		}
+
+		flightStatus("Ready", "Successfully deployed")
 
 		return ctrl.Result{RequeueAfter: params.FixDriftInterval}, nil
 	}
@@ -328,4 +380,9 @@ func unstructuredObject(value any) any {
 	var result any
 	_ = json.Unmarshal(data, &result)
 	return result
+}
+
+type FlightStatus struct {
+	Status string `json:"status"`
+	Msg    string `json:"msg"`
 }
