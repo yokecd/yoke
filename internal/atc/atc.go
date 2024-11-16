@@ -79,13 +79,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, err
 	}
 
-	airwayStatus := func(next v1alpha1.AirwayStatus) {
-		prev := typedAirway.Status
-		if reflect.DeepEqual(prev, next) {
-			return
-		}
-
-		_ = unstructured.SetNestedMap(airway.Object, unstructuredObject(next).(map[string]any), "status")
+	airwayStatus := func(status string, msg any) {
+		_ = unstructured.SetNestedMap(
+			airway.Object,
+			unstructuredObject(v1alpha1.AirwayStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
+			"status",
+		)
 
 		updated, err := airwayIntf.UpdateStatus(ctx, airway.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
@@ -103,7 +102,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	defer func() {
 		if err != nil {
-			airwayStatus(v1alpha1.AirwayStatus{Status: "Error", Msg: err.Error()})
+			airwayStatus("Error", err)
 		}
 	}()
 
@@ -215,13 +214,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		defer cancel()
 		defer close(done)
 
-		airwayStatus(v1alpha1.AirwayStatus{Status: "Ready", Msg: "Flight-Controller launched"})
+		airwayStatus("Ready", "Flight-Controller launched")
 
 		if err := flightController.ProcessGroupKind(flightCtx, flightGK, flightReconciler); err != nil {
-			airwayStatus(v1alpha1.AirwayStatus{
-				Status: "Error",
-				Msg:    "Flight-Controller: " + err.Error(),
-			})
+			airwayStatus("Error", fmt.Sprintf("Flight-Controller: %v", err))
 			if errors.Is(err, context.Canceled) {
 				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
 				return
