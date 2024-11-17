@@ -1,0 +1,16 @@
+FROM oven/bun:1
+
+WORKDIR /app
+
+COPY c4ts/bun.lockb c4ts/package.json ./
+
+RUN bun install --production
+
+COPY c4ts/src src
+
+ENV PORT=3000
+
+ENTRYPOINT ["bun"]
+
+CMD [ "run", "./src/main.ts" ]
+

@@ -1,0 +1,20 @@
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+COPY ./wasmcache ./wasmcache 
+COPY ./apis/backend/flight ./apis/backend/flight
+
+RUN \
+  go mod init temp && \
+  go get github.com/yokecd/yoke@atc && \
+  go mod tidy && \
+  GOOS=wasip1 GOARCH=wasm go build -o ./wasmcache/flight.wasm ./apis/backend/flight && \
+  go build -o ./bin/server ./wasmcache
+
+FROM alpine
+
+COPY --from=builder /app/bin/server ./server
+
+ENTRYPOINT ["./server"]
+
