@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 )
 
 type Config struct {
+	Image       string            `json:"image"`
 	Version     string            `json:"version"`
 	Port        int               `json:"port"`
 	Labels      map[string]string `json:"labels"`
@@ -148,7 +150,7 @@ func run() error {
 					Containers: []corev1.Container{
 						{
 							Name:  "yokecd-atc",
-							Image: "davidmdm/atc:" + cfg.Version,
+							Image: cmp.Or(cfg.Image, "davidmdm/atc") + ":" + cfg.Version,
 							Env:   []corev1.EnvVar{{Name: "PORT", Value: strconv.Itoa(cfg.Port)}},
 							Ports: []corev1.ContainerPort{
 								{

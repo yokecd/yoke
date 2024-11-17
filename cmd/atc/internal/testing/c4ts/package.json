@@ -1,0 +1,16 @@
+{
+  "name": "c4ts",
+  "version": "1.0.0",
+  "author": "",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.4.1",
+    "typescript": "^5.5.4"
+  },
+  "description": "",
+  "license": "ISC",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module"
+}
