@@ -81,15 +81,13 @@ func (queue *Queue[t]) tryUnshift() {
 }
 
 // QueueFromChannel returns a queue that will dedup events based on its string representation as
-// determined by fmt.Stringer. The queue needs to know ahead of time the amount of concurrent readers
-// that will be pulling from it. This ensures that workers can never deadlock as it will always provide
-// enough space for the workers to pull from before writing events to its internal buffer.
-func QueueFromChannel[T fmt.Stringer](c chan T, concurrency int) (*Queue[T], func()) {
+// determined by fmt.Stringer.
+func QueueFromChannel[T fmt.Stringer](c chan T) (*Queue[T], func()) {
 	queue := Queue[T]{
 		barrier: &sync.Map{},
 		buffer:  []T{},
 		lock:    &sync.Mutex{},
-		pipe:    make(chan T, max(concurrency, 1)),
+		pipe:    make(chan T, 1),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
