@@ -75,19 +75,22 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 }
 
 func (ctrl Instance) process(ctx context.Context, events chan Event, handle HandleFunc) error {
-	var activeMap sync.Map
-	var timers sync.Map
+	var (
+		activeMap   sync.Map
+		timers      sync.Map
+		concurrency = max(ctrl.Concurrency, 1)
+	)
 
 	var wg sync.WaitGroup
-	wg.Add(ctrl.Concurrency)
+	wg.Add(concurrency)
 
-	queue, stop := QueueFromChannel(events, ctrl.Concurrency)
+	queue, stop := QueueFromChannel(events)
 	defer stop()
 
 	queueCh, stop := queue.C()
 	defer stop()
 
-	for range max(ctrl.Concurrency, 1) {
+	for range concurrency {
 		go func() {
 			defer wg.Done()
 
