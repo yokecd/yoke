@@ -52,7 +52,7 @@ func TestAirTrafficController(t *testing.T) {
 	))
 	require.NoError(t, x("kind load --name=atc-test docker-image yokecd/atc:test"))
 
-	require.NoError(t, x("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ./internal/testing"))
+	require.NoError(t, x("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
 	require.NoError(t, x("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
 
 	require.NoError(t, x("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
