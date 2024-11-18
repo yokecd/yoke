@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/term"
 
+	v1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
 	"github.com/yokecd/yoke/pkg/flight"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,14 +26,6 @@ var (
 	defaultLabels = map[string]string{"app": release}
 )
 
-type Config struct {
-	Image       string            `json:"image"`
-	Replicas    int32             `json:"replicas"`
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
-	NodePort    int               `json:"nodePort"`
-}
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -41,7 +34,7 @@ func main() {
 }
 
 func run() error {
-	var cfg Config
+	var cfg v1.BackendSpec
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&cfg); err != nil && err != io.EOF {
 			return err
@@ -60,7 +53,7 @@ func run() error {
 	})
 }
 
-func createDeployment(cfg Config) *appsv1.Deployment {
+func createDeployment(cfg v1.BackendSpec) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
@@ -106,7 +99,7 @@ func createDeployment(cfg Config) *appsv1.Deployment {
 	}
 }
 
-func createService(cfg Config) *corev1.Service {
+func createService(cfg v1.BackendSpec) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.Identifier(),

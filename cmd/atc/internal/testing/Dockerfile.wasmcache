@@ -2,15 +2,11 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-COPY ./wasmcache ./wasmcache 
-COPY ./apis/backend/flight ./apis/backend/flight
+COPY . .
 
 RUN \
-  go mod init temp && \
-  go get github.com/yokecd/yoke@atc && \
-  go mod tidy && \
-  GOOS=wasip1 GOARCH=wasm go build -o ./wasmcache/flight.wasm ./apis/backend/flight && \
-  go build -o ./bin/server ./wasmcache
+  GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/flight.wasm ./cmd/atc/internal/testing/apis/backend/flight && \
+  go build -o ./bin/server ./cmd/atc/internal/testing/wasmcache
 
 FROM alpine
 
