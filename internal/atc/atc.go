@@ -80,6 +80,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	airwayStatus := func(status string, msg any) {
+		airway, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+		if err != nil {
+			ctrl.Logger(ctx).Error("failed to update airway status", "error", fmt.Errorf("failed to get airway: %v", err))
+			return
+		}
+
 		_ = unstructured.SetNestedMap(
 			airway.Object,
 			unstructuredObject(v1alpha1.AirwayStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
@@ -269,6 +275,12 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		flightStatus := func(status string, msg any) {
+			flight, err := resourceIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
+			if err != nil {
+				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
+				return
+			}
+
 			_ = unstructured.SetNestedMap(
 				flight.Object,
 				unstructuredObject(FlightStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
