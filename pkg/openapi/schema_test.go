@@ -11,8 +11,8 @@ import (
 
 func TestGenerateSchema(t *testing.T) {
 	type S struct {
-		Name   string            `json:"name"`
-		Age    int               `json:"age"`
+		Name   string            `json:"name" MinLength:"3"`
+		Age    int               `json:"age" Minimum:"18"`
 		Labels map[string]string `json:"labels,omitempty"`
 		Active bool              `json:"active"`
 	}
@@ -23,10 +23,12 @@ func TestGenerateSchema(t *testing.T) {
 			Type: "object",
 			Properties: apiext.JSONSchemaDefinitions{
 				"name": apiext.JSONSchemaProps{
-					Type: "string",
+					Type:      "string",
+					MinLength: ptr[int64](3),
 				},
 				"age": apiext.JSONSchemaProps{
-					Type: "integer",
+					Type:    "integer",
+					Minimum: ptr[float64](18),
 				},
 				"active": apiext.JSONSchemaProps{
 					Type: "boolean",

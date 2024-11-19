@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -97,7 +98,70 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 				schema.Required = append(schema.Required, key)
 			}
 
-			schema.Properties[key] = *generateSchema(f.Type, false)
+			fieldSchema := generateSchema(f.Type, false)
+			fieldValue := reflect.ValueOf(fieldSchema).Elem()
+
+			for _, name := range []string{
+				"Maximum",
+				"Minimum",
+				"MaxLength",
+				"MinLength",
+				"MaxItems",
+				"MinItems",
+				"UniqueItems",
+				// "Enum",
+				"Pattern",
+				"ExclusiveMaximum",
+				"ExclusiveMinimum",
+				"MultipleOf",
+				"Format",
+			} {
+				tag, ok := f.Tag.Lookup(name)
+				if !ok {
+					continue
+				}
+
+				fv := fieldValue.FieldByName(name)
+				ft := fv.Type()
+				if ft == nil {
+					continue
+				}
+
+				for ft.Kind() == reflect.Pointer {
+					if fv.IsNil() {
+						fv.Set(reflect.New(ft.Elem()))
+					}
+					fv = fv.Elem()
+					ft = ft.Elem()
+				}
+
+				// Limited type switch as these are the only types used for the above properties.
+				switch ft.Kind() {
+				case reflect.Int64:
+					val, err := strconv.ParseInt(tag, 0, ft.Bits())
+					if err != nil {
+						panic(fmt.Errorf("generate schema: property %q: %v", name, err))
+					}
+					fv.SetInt(val)
+				case reflect.Float64:
+					val, err := strconv.ParseFloat(tag, ft.Bits())
+					if err != nil {
+						panic(fmt.Errorf("generate schema: property %q: %v", name, err))
+					}
+					fv.SetFloat(val)
+				case reflect.Bool:
+					val, err := strconv.ParseBool(tag)
+					if err != nil {
+						panic(fmt.Errorf("generate schema: property %q: %v", name, err))
+					}
+					fv.SetBool(val)
+				case reflect.String:
+					fv.SetString(tag)
+				}
+
+			}
+
+			schema.Properties[key] = *fieldSchema
 		}
 
 		cache[typ] = schema
