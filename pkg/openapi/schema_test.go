@@ -15,6 +15,8 @@ func TestGenerateSchema(t *testing.T) {
 		Age    int               `json:"age" Minimum:"18"`
 		Labels map[string]string `json:"labels,omitempty"`
 		Active bool              `json:"active"`
+		Choice string            `json:"choice" Enum:"yes,no,toaster"`
+		Rule   string            `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
 	}
 
 	require.EqualValues(
@@ -22,25 +24,42 @@ func TestGenerateSchema(t *testing.T) {
 		&apiext.JSONSchemaProps{
 			Type: "object",
 			Properties: apiext.JSONSchemaDefinitions{
-				"name": apiext.JSONSchemaProps{
+				"name": {
 					Type:      "string",
 					MinLength: ptr[int64](3),
 				},
-				"age": apiext.JSONSchemaProps{
+				"age": {
 					Type:    "integer",
 					Minimum: ptr[float64](18),
 				},
-				"active": apiext.JSONSchemaProps{
+				"active": {
 					Type: "boolean",
 				},
-				"labels": apiext.JSONSchemaProps{
+				"labels": {
 					Type: "object",
 					AdditionalProperties: &apiext.JSONSchemaPropsOrBool{
 						Schema: &apiext.JSONSchemaProps{Type: "string"},
 					},
 				},
+				"choice": {
+					Type: "string",
+					Enum: []apiext.JSON{
+						{Raw: []byte(`"yes"`)},
+						{Raw: []byte(`"no"`)},
+						{Raw: []byte(`"toaster"`)},
+					},
+				},
+				"rule": {
+					Type: "string",
+					XValidations: apiext.ValidationRules{
+						{
+							Rule:    "has(self)",
+							Message: "something",
+						},
+					},
+				},
 			},
-			Required: []string{"name", "age", "active"},
+			Required: []string{"name", "age", "active", "choice", "rule"},
 		},
 		SchemaFrom(reflect.TypeOf(S{})),
 	)

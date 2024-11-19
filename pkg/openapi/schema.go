@@ -99,6 +99,28 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 			}
 
 			fieldSchema := generateSchema(f.Type, false)
+
+			if enum, ok := f.Tag.Lookup("Enum"); ok {
+				elems := strings.Split(enum, ",")
+				jsonElems := make([]apiext.JSON, len(elems))
+				for i, elem := range elems {
+					data, err := json.Marshal(elem)
+					if err != nil {
+						panic(fmt.Errorf("generate schema: field %q: %v", f.Name, err))
+					}
+					jsonElems[i].Raw = data
+				}
+				fieldSchema.Enum = jsonElems
+			}
+
+			if xvalidations, ok := f.Tag.Lookup("XValidations"); ok {
+				var rules apiext.ValidationRules
+				if err := json.Unmarshal([]byte(xvalidations), &rules); err != nil {
+					panic(fmt.Errorf("generate schema: field %q: %v", f.Name, err))
+				}
+				fieldSchema.XValidations = rules
+			}
+
 			fieldValue := reflect.ValueOf(fieldSchema).Elem()
 
 			for _, name := range []string{
@@ -109,7 +131,6 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 				"MaxItems",
 				"MinItems",
 				"UniqueItems",
-				// "Enum",
 				"Pattern",
 				"ExclusiveMaximum",
 				"ExclusiveMinimum",
