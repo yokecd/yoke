@@ -114,12 +114,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}()
 
 	cacheDir := filepath.Join("./cache", airway.GetName())
-	wasmPath := filepath.Join(cacheDir, "source.wasm")
-
-	wasm, err := yoke.LoadWasm(ctx, typedAirway.Spec.WasmURL)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to load wasm: %w", err)
-	}
 
 	mutex := func() *sync.RWMutex {
 		value, _ := atc.locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
@@ -130,14 +124,19 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		mutex.Lock()
 		defer mutex.Unlock()
 
-		if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
-			return fmt.Errorf("failed to compile wasm: %w", err)
+		for version, url := range typedAirway.Spec.WasmURLs {
+			wasm, err := yoke.LoadWasm(ctx, url)
+			if err != nil {
+				return fmt.Errorf("failed to load wasm: %w", err)
+			}
+			if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
+				return fmt.Errorf("failed to compile wasm: %w", err)
+			}
+			path := filepath.Join(cacheDir, fmt.Sprintf("%s.wasm", version))
+			if err := os.WriteFile(path, wasm, 0o644); err != nil {
+				return fmt.Errorf("failed to cache wasm asset: %w", err)
+			}
 		}
-
-		if err := os.WriteFile(wasmPath, wasm, 0o644); err != nil {
-			return fmt.Errorf("failed to cache wasm asset: %w", err)
-		}
-
 		return nil
 	}(); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to setup cache: %w", err)
@@ -145,9 +144,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	for i := range typedAirway.Spec.Template.Versions {
 		version := &typedAirway.Spec.Template.Versions[i]
-		if !version.Storage {
-			continue
-		}
 		version.Subresources = &apiextv1.CustomResourceSubresources{
 			Status: &apiextv1.CustomResourceSubresourceStatus{},
 		}
@@ -210,7 +206,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
 		GK:               flightGK,
-		WasmPath:         wasmPath,
 		CacheDir:         cacheDir,
 		Lock:             mutex,
 		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
@@ -244,7 +239,6 @@ func (atc atc) Teardown() {
 
 type FlightReconcilerParams struct {
 	GK               schema.GroupKind
-	WasmPath         string
 	CacheDir         string
 	Lock             *sync.RWMutex
 	FixDriftInterval time.Duration
@@ -352,7 +346,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		takeoffParams := yoke.TakeoffParams{
 			Release: event.String(),
 			Flight: yoke.FlightParams{
-				Path:                params.WasmPath,
+				Path:                filepath.Join(params.CacheDir, fmt.Sprintf("%s.wasm", flight.GroupVersionKind().Version)),
 				Input:               bytes.NewReader(data),
 				Namespace:           event.Namespace,
 				CompilationCacheDir: params.CacheDir,

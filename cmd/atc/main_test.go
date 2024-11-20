@@ -113,7 +113,9 @@ func TestAirTrafficController(t *testing.T) {
 					Name: "backends.examples.com",
 				},
 				Spec: v1alpha1.AirwaySpec{
-					WasmURL:          "http://wasmcache",
+					WasmURLs: map[string]string{
+						"v1": "http://wasmcache",
+					},
 					FixDriftInterval: openapi.Duration(30 * time.Second),
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",

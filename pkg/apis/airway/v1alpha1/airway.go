@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"reflect"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,14 +17,22 @@ type Airway struct {
 	Status            AirwayStatus `json:"status,omitempty"`
 }
 
-// TODO:
-// 1) wasmURL should be map between the crd version and the wasmURL.
 type AirwaySpec struct {
-	WasmURL          string                                       `json:"wasmUrl"`
+	WasmURLs         map[string]string                            `json:"wasmUrls"`
 	ObjectPath       []string                                     `json:"objectPath,omitempty"`
 	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 	FixDriftInterval openapi.Duration                             `json:"fixDriftInterval,omitempty"`
 	CreateCRDs       bool                                         `json:"createCrds,omitempty"`
+}
+
+func (airway AirwaySpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	type Spec AirwaySpec
+	schema := openapi.SchemaFrom(reflect.TypeFor[Spec]())
+	schema.XValidations = append(schema.XValidations, apiextensionsv1.ValidationRule{
+		Rule:    "self.template.versions.map(v, v.served, v.name).all(v, v in self.wasmUrls)",
+		Message: "all served versions must have a wasmUrl associated",
+	})
+	return schema
 }
 
 type AirwayStatus struct {
