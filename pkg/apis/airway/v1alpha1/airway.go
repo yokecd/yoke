@@ -20,18 +20,20 @@ type Airway struct {
 type AirwaySpec struct {
 	WasmURLs         map[string]string                            `json:"wasmUrls"`
 	ObjectPath       []string                                     `json:"objectPath,omitempty"`
-	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 	FixDriftInterval openapi.Duration                             `json:"fixDriftInterval,omitempty"`
 	CreateCRDs       bool                                         `json:"createCrds,omitempty"`
+	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 }
 
 func (airway AirwaySpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type Spec AirwaySpec
 	schema := openapi.SchemaFrom(reflect.TypeFor[Spec]())
-	schema.XValidations = append(schema.XValidations, apiextensionsv1.ValidationRule{
-		Rule:    "self.template.versions.map(v, v.served, v.name).all(v, v in self.wasmUrls)",
-		Message: "all served versions must have a wasmUrl associated",
-	})
+	schema.XValidations = apiextensionsv1.ValidationRules{
+		{
+			Rule:    "self.template.versions.map(v, v.served, v.name).all(v, v in self.wasmUrls)",
+			Message: "all served versions must have a wasmUrl associated",
+		},
+	}
 	return schema
 }
 
