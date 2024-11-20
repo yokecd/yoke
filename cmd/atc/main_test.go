@@ -88,8 +88,13 @@ func TestAirTrafficController(t *testing.T) {
 		Flight: yoke.FlightParams{
 			Path: "./test_output/backend.wasm",
 			Input: strings.NewReader(`{
-        "image": "yokecd/wasmcache:test",
-        "replicas": 1
+        "metadata": {
+          "name": "wasmcache"
+        },
+        "spec": {
+          "image": "yokecd/wasmcache:test",
+          "replicas": 1
+        }
       }`),
 			Namespace: "atc",
 		},

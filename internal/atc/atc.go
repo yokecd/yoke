@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -248,6 +249,7 @@ type FlightReconcilerParams struct {
 	Lock             *sync.RWMutex
 	FixDriftInterval time.Duration
 	CreateCrds       bool
+	ObjectPath       []string
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -328,7 +330,12 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, nil
 		}
 
-		data, err := json.Marshal(flight.Object["spec"])
+		object, _, err := unstructured.NestedFieldNoCopy(flight.Object, params.ObjectPath...)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.ObjectPath, ","), err)
+		}
+
+		data, err := json.Marshal(object)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
