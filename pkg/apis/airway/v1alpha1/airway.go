@@ -18,7 +18,6 @@ type Airway struct {
 
 // TODO:
 // 1) wasmURL should be map between the crd version and the wasmURL.
-// 2) We should have a field to define the path of the object we want to serialize as the input to the flight otherwise defaulting to root.
 type AirwaySpec struct {
 	WasmURL          string                                       `json:"wasmUrl"`
 	ObjectPath       []string                                     `json:"objectPath,omitempty"`
