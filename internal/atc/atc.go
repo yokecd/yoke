@@ -276,6 +276,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
+		if flight.GetNamespace() == "" && mapping.Scope == meta.RESTScopeNamespace {
+			flight.SetNamespace("default")
+		}
+
 		flightStatus := func(status string, msg any) {
 			flight, err := resourceIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
 			if err != nil {
