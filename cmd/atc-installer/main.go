@@ -79,7 +79,7 @@ func run() error {
 						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
 					},
 					Schema: &apiextensionsv1.CustomResourceValidation{
-						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeOf(v1alpha1.Airway{})),
+						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Airway]()),
 					},
 				},
 			},

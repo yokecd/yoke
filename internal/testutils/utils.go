@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davidmdm/ansi"
 	"github.com/stretchr/testify/require"
+
+	"github.com/davidmdm/ansi"
 )
 
 var cyan = ansi.MakeStyle(ansi.FgCyan)
