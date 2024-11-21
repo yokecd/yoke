@@ -509,7 +509,6 @@ type WaitOptions struct {
 func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Unstructured, opts WaitOptions) error {
 	defer internal.DebugTimer(ctx, fmt.Sprintf("waiting for %s to be ready", internal.Canonical(resource)))()
 
-	// TODO: let user configure these values?
 	var (
 		interval = cmp.Or(opts.Interval, time.Second)
 		timeout  = cmp.Or(opts.Timeout, 2*time.Minute)

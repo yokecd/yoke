@@ -140,7 +140,6 @@ func TestAirTrafficController(t *testing.T) {
 
 	require.NoError(t, commander.Takeoff(ctx, airwayTakeoffParams))
 
-	// TODO: remove eventually code once yoke has proper support for Airway readiness.
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
