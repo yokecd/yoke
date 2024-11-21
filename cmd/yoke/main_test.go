@@ -27,7 +27,7 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/testutils"
+	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -38,8 +38,8 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	must(testutils.X("kind delete clusters --all"))
-	must(testutils.X("kind create cluster --name=tests"))
+	must(x.X("kind delete clusters --all"))
+	must(x.X("kind create cluster --name=tests"))
 
 	os.Exit(m.Run())
 }
