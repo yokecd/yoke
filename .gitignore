@@ -4,6 +4,8 @@
 *.wasm
 *.wasm.gz
 
+!cmd/atc/internal/testing/wasmcache/flight.wasm
+
 *.out
 
 test_output
