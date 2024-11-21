@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/yokecd/yoke/internal/x"
 	"golang.org/x/mod/semver"
 
 	"github.com/davidmdm/x/xerr"
@@ -97,6 +99,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		}
 
 		if !diff {
+			fmt.Printf("no diff found for command %s with previous version: %s", name, version)
 			return nil
 		}
 	}
@@ -134,55 +137,53 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 func (releaser Releaser) HasDiff(name string) (bool, error) {
 	tag := path.Join(name, releaser.Versions[name])
 
-	hash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(tag)))
+	tagHash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(tag)))
 	if err != nil {
 		return false, fmt.Errorf("failed to resolve: %s: %w", tag, err)
 	}
 
-	commit, err := releaser.Repo.CommitObject(*hash)
+	mainHash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewBranchReferenceName("main")))
 	if err != nil {
-		return false, fmt.Errorf("failed to get commit for tag %s: %w", tag, err)
+		return false, fmt.Errorf("failed to resolve: %s: %w", tag, err)
 	}
 
-	h, err := releaser.Repo.Head()
+	wt, err := releaser.Repo.Worktree()
 	if err != nil {
-		return false, fmt.Errorf("failed to resolve head: %w", err)
+		return false, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
-	head, err := releaser.Repo.CommitObject(h.Hash())
+	if err := wt.Checkout(&git.CheckoutOptions{Hash: *tagHash}); err != nil {
+		return false, fmt.Errorf("failed to checkout %q: %w", tag, err)
+	}
+
+	var (
+		tagBinPath  = filepath.Join(os.TempDir(), tag, name+".out")
+		headBinPath = filepath.Join(os.TempDir(), "head", name+".out")
+	)
+
+	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", tagBinPath, name)); err != nil {
+		return false, fmt.Errorf("failed to build previous binary: %w", err)
+	}
+
+	if err := wt.Checkout(&git.CheckoutOptions{Hash: *mainHash}); err != nil {
+		return false, fmt.Errorf("failed to checkout head: %w", err)
+	}
+
+	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", headBinPath, name)); err != nil {
+		return false, fmt.Errorf("failed to build previous binary: %w", err)
+	}
+
+	tagData, err := os.ReadFile(tagBinPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to get head commit: %w", err)
+		return false, fmt.Errorf("failed to read tag binary: %w", err)
 	}
 
-	headTree, err := head.Tree()
+	headData, err := os.ReadFile(headBinPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to get tree for head commit: %w", err)
+		return false, fmt.Errorf("failed to read head binary path: %w", err)
 	}
 
-	commitTree, err := commit.Tree()
-	if err != nil {
-		return false, fmt.Errorf("failed to get tree for tag commit: %w", err)
-	}
-
-	changes, err := headTree.Diff(commitTree)
-	if err != nil {
-		return false, fmt.Errorf("failed to diff trees: %w", err)
-	}
-
-	var changed bool
-	for _, change := range changes {
-		var (
-			from = change.From.Name
-			to   = change.To.Name
-		)
-		if strings.HasPrefix(from, "cmd/"+name+"/") || strings.HasPrefix(to, "cmd/"+name+"/") {
-			fmt.Printf("detected change from %s to %s\n", from, to)
-			changed = true
-			break
-		}
-	}
-
-	return changed, nil
+	return !reflect.DeepEqual(tagData, headData), nil
 }
 
 func build(path string) (string, error) {
