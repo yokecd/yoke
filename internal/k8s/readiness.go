@@ -42,6 +42,12 @@ func isReady(_ context.Context, resource *unstructured.Unstructured) bool {
 		case "CustomResourceDefinition":
 			return meetsConditions(resource, "Established")
 		}
+	case "yoke.cd":
+		switch gvk.Kind {
+		case "Airway":
+			status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
+			return status == "Ready"
+		}
 	}
 
 	return true
