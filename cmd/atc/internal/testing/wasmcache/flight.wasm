@@ -1,0 +1,2 @@
+example flight: will be overridden during docker-build.
+File exists to allow wasmcache to compile via its go:embed pattern.
