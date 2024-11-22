@@ -207,11 +207,6 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return false, fmt.Errorf("failed to resolve: %s: %w", tag, err)
 	}
 
-	mainHash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewBranchReferenceName("main")))
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve: %s: %w", tag, err)
-	}
-
 	wt, err := releaser.Repo.Worktree()
 	if err != nil {
 		return false, fmt.Errorf("failed to get worktree: %w", err)
@@ -230,7 +225,7 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return false, fmt.Errorf("failed to build previous binary: %w", err)
 	}
 
-	if err := wt.Checkout(&git.CheckoutOptions{Hash: *mainHash}); err != nil {
+	if err := wt.Checkout(&git.CheckoutOptions{Branch: "main"}); err != nil {
 		return false, fmt.Errorf("failed to checkout head: %w", err)
 	}
 
