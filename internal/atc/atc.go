@@ -81,7 +81,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	airwayStatus := func(status string, msg any) {
-		airway, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+		var err error
+		airway, err = airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
 		if err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", fmt.Errorf("failed to get airway: %v", err))
 			return
@@ -272,10 +273,15 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		if flight.GetNamespace() == "" && mapping.Scope == meta.RESTScopeNamespace {
 			flight.SetNamespace("default")
+			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to set default namespace on flight: %w", err)
+			}
+			return ctrl.Result{}, nil
 		}
 
 		flightStatus := func(status string, msg any) {
-			flight, err := resourceIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
+			var err error
+			flight, err = resourceIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
 				return
@@ -313,8 +319,11 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if !flight.GetDeletionTimestamp().IsZero() {
 			flightStatus("Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.Name); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.String()); err != nil {
+				if !internal.IsWarning(err) {
+					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
+				}
+				ctrl.Logger(ctx).Warn("mayday succeeded despite a warning", "warning", err)
 			}
 
 			finalizers := flight.GetFinalizers()
