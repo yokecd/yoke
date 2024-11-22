@@ -10,19 +10,13 @@ import (
 
 	"golang.org/x/term"
 
-	v1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
-	"github.com/yokecd/yoke/pkg/flight"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
-)
 
-var (
-	release   = flight.Release()
-	namespace = flight.Namespace()
+	v1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
 )
 
 func main() {
@@ -68,13 +62,13 @@ func createDeployment(backend v1.Backend) *appsv1.Deployment {
 			Strategy: appsv1.DeploymentStrategy{
 				Type: appsv1.RollingUpdateDeploymentStrategyType,
 			},
-			Selector: &metav1.LabelSelector{MatchLabels: backend.Spec.Labels},
+			Selector: &metav1.LabelSelector{MatchLabels: selector(backend)},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: backend.Spec.Labels},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:            release,
+							Name:            backend.Name,
 							Image:           backend.Spec.Image,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Env: []corev1.EnvVar{
@@ -85,7 +79,7 @@ func createDeployment(backend v1.Backend) *appsv1.Deployment {
 							},
 							Ports: []corev1.ContainerPort{
 								{
-									Name:          release,
+									Name:          backend.Name,
 									Protocol:      corev1.ProtocolTCP,
 									ContainerPort: 3000,
 								},
@@ -121,7 +115,7 @@ func createService(backend v1.Backend) *corev1.Service {
 					Protocol:   corev1.ProtocolTCP,
 					NodePort:   int32(backend.Spec.NodePort),
 					Port:       80,
-					TargetPort: intstr.FromString(release),
+					TargetPort: intstr.FromString(backend.Name),
 				},
 			},
 		},
