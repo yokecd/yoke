@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -123,12 +122,12 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
 
-	outputPath, err := build(filepath.Join("cmd", name))
+	outputPath, err := buildWasm(filepath.Join("cmd", name))
 	if err != nil {
 		return fmt.Errorf("failed to build wasm: %w", err)
 	}
 
-	outputPath, err = compress(outputPath)
+	outputPath, err = compressFile(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to compress wasm: %w", err)
 	}
@@ -246,22 +245,14 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 	return !reflect.DeepEqual(tagData, headData), nil
 }
 
-func build(path string) (string, error) {
+func buildWasm(path string) (string, error) {
 	_, name := filepath.Split(path)
-
 	out := name + ".wasm"
-
-	cmd := exec.Command("go", "build", "-o", out, "./"+path)
-	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%w: %s", err, output)
-	}
-	return out, nil
+	err := x.Xf("go build -o %s ./%s", []any{out, path})
+	return out, err
 }
 
-func compress(path string) (out string, err error) {
+func compressFile(path string) (out string, err error) {
 	output := path + ".gz"
 
 	destination, err := os.Create(output)
