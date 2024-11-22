@@ -1,4 +1,4 @@
-name: release wasm
+name: test -> build -> release
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,6 +45,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           go run ./cmd/internal/releaser \
+            -cli \
             -wasm yokecd-installer \
             -wasm atc-installer \
             -docker atc \
