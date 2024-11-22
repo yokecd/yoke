@@ -40,6 +40,7 @@ func main() {
 
 func run() error {
 	dry := flag.Bool("dry", false, "dry-run")
+	cli := flag.Bool("cli", false, "release main yoke cli")
 
 	var wasms []string
 	flag.Func("wasm", "commands to buid as wasm and release", func(value string) error {
@@ -72,6 +73,13 @@ func run() error {
 	}
 
 	var errs []error
+
+	if *cli {
+		if err := releaser.ReleaseYokeCLI(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to release yoke cli: %w", err))
+		}
+	}
+
 	for _, cmd := range wasms {
 		if err := releaser.ReleaseWasmBinary(cmd); err != nil {
 			errs = append(errs, fmt.Errorf("failed to release wasm binary: %s: %v", cmd, err))
@@ -93,6 +101,36 @@ type Releaser struct {
 	DryRun   bool
 }
 
+func (releaser Releaser) ReleaseYokeCLI() error {
+	version := releaser.Versions["."]
+
+	diff, err := releaser.HasDiff("yoke", version)
+	if err != nil {
+		return fmt.Errorf("failed to check diff: %w", err)
+	}
+	if !diff {
+		fmt.Println("skipping release: no diff found")
+		return nil
+	}
+
+	nextVersion := bumpPatch(version)
+
+	if releaser.DryRun {
+		fmt.Println("dry-run: release yoke cli via tag:", nextVersion)
+		return nil
+	}
+
+	if err := x.Xf("git tag %s", []any{nextVersion}); err != nil {
+		return fmt.Errorf("failed to tag repository: %w", err)
+	}
+
+	if err := x.X("git push --tags"); err != nil {
+		return fmt.Errorf("failed to push tags: %w", err)
+	}
+
+	return nil
+}
+
 func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 	version := releaser.Versions[name]
 
@@ -112,12 +150,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := func() string {
-		patch := strings.TrimPrefix(semver.Canonical(version), semver.MajorMinor(version)+".")
-		patchNum, _ := strconv.Atoi(patch)
-		patchNum++
-		return fmt.Sprintf("v0.0.%d", patchNum)
-	}()
+	nextVersion := bumpPatch(version)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -165,12 +198,7 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := func() string {
-		patch := strings.TrimPrefix(semver.Canonical(version), semver.MajorMinor(version)+".")
-		patchNum, _ := strconv.Atoi(patch)
-		patchNum++
-		return fmt.Sprintf("v0.0.%d", patchNum)
-	}()
+	nextVersion := bumpPatch(version)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -307,4 +335,15 @@ func getTagVersions(repo *git.Repository) (map[string]string, error) {
 	})
 
 	return versions, nil
+}
+
+func bumpPatch(version string) string {
+	if version == "" {
+		return "v0.0.1"
+	}
+	canonical := semver.Canonical(version)
+	majorMinor := semver.MajorMinor(version)
+	patch := canonical[len(majorMinor)+1:]
+	patchNumber, _ := strconv.Atoi(patch)
+	return fmt.Sprintf("%s.%d", majorMinor, patchNumber)
 }
