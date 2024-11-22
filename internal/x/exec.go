@@ -1,10 +1,7 @@
 package x
 
 import (
-<<<<<<< Updated upstream
-=======
 	"fmt"
->>>>>>> Stashed changes
 	"os"
 	"os/exec"
 	"regexp"

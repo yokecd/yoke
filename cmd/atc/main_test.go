@@ -19,6 +19,7 @@ import (
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/testutils"
+	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
@@ -28,29 +29,29 @@ func TestAirTrafficController(t *testing.T) {
 	require.NoError(t, os.RemoveAll("./test_output"))
 	require.NoError(t, os.MkdirAll("./test_output", 0o755))
 
-	require.NoError(t, testutils.X("kind delete clusters --all"))
-	require.NoError(t, testutils.X("kind create cluster --name=atc-test"))
+	require.NoError(t, x.X("kind delete clusters --all"))
+	require.NoError(t, x.X("kind create cluster --name=atc-test"))
 
-	require.NoError(t, testutils.X(
+	require.NoError(t, x.X(
 		"go build -o ./test_output/atc-installer.wasm ../atc-installer",
-		testutils.Env("GOOS=wasip1", "GOARCH=wasm"),
+		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
-	require.NoError(t, testutils.X(
+	require.NoError(t, x.X(
 		"go build -o ./test_output/backend.wasm ./internal/testing/apis/backend/flight",
-		testutils.Env("GOOS=wasip1", "GOARCH=wasm"),
+		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
 
-	require.NoError(t, testutils.X(
+	require.NoError(t, x.X(
 		"docker build -t yokecd/atc:test -f Dockerfile.atc .",
-		testutils.Dir("../.."),
+		x.Dir("../.."),
 	))
-	require.NoError(t, testutils.X("kind load --name=atc-test docker-image yokecd/atc:test"))
+	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/atc:test"))
 
-	require.NoError(t, testutils.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
-	require.NoError(t, testutils.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
+	require.NoError(t, x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
+	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
 
-	require.NoError(t, testutils.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
-	require.NoError(t, testutils.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
+	require.NoError(t, x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
+	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
