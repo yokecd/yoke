@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	"github.com/stretchr/testify/require"
+
+	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 func TestGenerateSchema(t *testing.T) {

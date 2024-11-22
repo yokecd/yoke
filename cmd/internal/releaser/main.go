@@ -16,9 +16,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"golang.org/x/mod/semver"
 
-	"github.com/yokecd/yoke/internal/x"
-
 	"github.com/davidmdm/x/xerr"
+
+	"github.com/yokecd/yoke/internal/x"
 )
 
 func init() {
