@@ -227,7 +227,12 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return true, nil
 	}
 
-	tag := path.Join(name, version)
+	tag := func() string {
+		if name == "yoke" {
+			return version
+		}
+		return path.Join(name, version)
+	}()
 
 	tagHash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(tag)))
 	if err != nil {
@@ -252,8 +257,8 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return false, fmt.Errorf("failed to build previous binary: %w", err)
 	}
 
-	if err := wt.Checkout(&git.CheckoutOptions{Branch: "main"}); err != nil {
-		return false, fmt.Errorf("failed to checkout head: %w", err)
+	if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName("main")}); err != nil {
+		return false, fmt.Errorf("failed to checkout main: %w", err)
 	}
 
 	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", headBinPath, name)); err != nil {
@@ -345,5 +350,5 @@ func bumpPatch(version string) string {
 	majorMinor := semver.MajorMinor(version)
 	patch := canonical[len(majorMinor)+1:]
 	patchNumber, _ := strconv.Atoi(patch)
-	return fmt.Sprintf("%s.%d", majorMinor, patchNumber)
+	return fmt.Sprintf("%s.%d", majorMinor, patchNumber+1)
 }
