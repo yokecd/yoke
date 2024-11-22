@@ -106,6 +106,10 @@ func (client Commander) Mayday(ctx context.Context, release string) error {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
 
+	if len(revisions.History) == 0 {
+		return internal.Warning("mayday noop: no history found for release: " + release)
+	}
+
 	resources, err := client.k8s.GetRevisionResources(ctx, revisions.Active())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
