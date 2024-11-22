@@ -41,6 +41,11 @@ jobs:
         if: github.ref == 'refs/heads/main'
         shell: bash
         env:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          go run ./cmd/internal/releaser -cmd yokecd-installer
+          go run ./cmd/internal/releaser \
+            -wasm yokecd-installer \
+            -wasm atc-installer \
+            -docker atc \
+            -docker yokecd

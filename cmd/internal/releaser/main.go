@@ -21,6 +21,16 @@ import (
 	"github.com/davidmdm/x/xerr"
 )
 
+func init() {
+	dockerToken := os.Getenv("DOCKER_TOKEN")
+	if dockerToken == "" {
+		return
+	}
+	if err := x.X("docker login -u davidmdm -p " + dockerToken); err != nil {
+		panic(fmt.Errorf("failed to login to docker: %w", err))
+	}
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -31,9 +41,15 @@ func main() {
 func run() error {
 	dry := flag.Bool("dry", false, "dry-run")
 
-	var commands []string
-	flag.Func("cmd", "commands to buid as wasm and release", func(value string) error {
-		commands = append(commands, strings.Split(value, ",")...)
+	var wasms []string
+	flag.Func("wasm", "commands to buid as wasm and release", func(value string) error {
+		wasms = append(wasms, value)
+		return nil
+	})
+
+	var dockers []string
+	flag.Func("docker", "dockerfiles to build and release", func(value string) error {
+		dockers = append(dockers, value)
 		return nil
 	})
 
@@ -44,24 +60,10 @@ func run() error {
 		return fmt.Errorf("failed to open git repo: %w", err)
 	}
 
-	iter, err := repo.Tags()
+	versions, err := getTagVersions(repo)
 	if err != nil {
-		return fmt.Errorf("failed to read tags: %w", err)
+		return fmt.Errorf("failed to get repo's versions by tag: %w", err)
 	}
-
-	versions := map[string]string{}
-
-	iter.ForEach(func(r *plumbing.Reference) error {
-		release, version := path.Split(r.Name()[len("refs/tags/"):].String())
-		if !semver.IsValid(version) {
-			return nil
-		}
-		release = path.Clean(release)
-		if semver.Compare(version, versions[release]) > 0 {
-			versions[release] = version
-		}
-		return nil
-	})
 
 	releaser := Releaser{
 		Versions: versions,
@@ -70,9 +72,15 @@ func run() error {
 	}
 
 	var errs []error
-	for _, cmd := range commands {
+	for _, cmd := range wasms {
 		if err := releaser.ReleaseWasmBinary(cmd); err != nil {
-			errs = append(errs, fmt.Errorf("failed to release %s: %w", cmd, err))
+			errs = append(errs, fmt.Errorf("failed to release wasm binary: %s: %v", cmd, err))
+		}
+	}
+
+	for _, docker := range dockers {
+		if err := releaser.ReleaseDockerFile(docker); err != nil {
+			errs = append(errs, fmt.Errorf("failed to release dockerfile: %s: %v", docker, err))
 		}
 	}
 
@@ -88,21 +96,31 @@ type Releaser struct {
 func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 	version := releaser.Versions[name]
 
+	diff, err := releaser.HasDiff(name, version)
+	if err != nil {
+		return fmt.Errorf("failed to check for diff: %w", err)
+	}
+
+	if !diff {
+		fmt.Printf("skipping release: no diff found for command %s with previous version: %s\n", name, version)
+		return nil
+	}
+
 	if version == "" {
 		fmt.Println("No version found for", name)
 	} else if semver.Compare(version, "v0.0.1") < 0 {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
-	} else if version != "" {
-		diff, err := releaser.HasDiff(name)
-		if err != nil {
-			return fmt.Errorf("failed to check for diff: %w", err)
-		}
-
-		if !diff {
-			fmt.Printf("no diff found for command %s with previous version: %s", name, version)
-			return nil
-		}
 	}
+
+	nextVersion := func() string {
+		patch := strings.TrimPrefix(semver.Canonical(version), semver.MajorMinor(version)+".")
+		patchNum, _ := strconv.Atoi(patch)
+		patchNum++
+		return fmt.Sprintf("v0.0.%d", patchNum)
+	}()
+
+	fmt.Println("attempting to create release for version:", nextVersion)
+	fmt.Println("building assets...")
 
 	outputPath, err := build(filepath.Join("cmd", name))
 	if err != nil {
@@ -114,28 +132,74 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		return fmt.Errorf("failed to compress wasm: %w", err)
 	}
 
-	version = func() string {
+	tag := path.Join(name, version)
+
+	if releaser.DryRun {
+		fmt.Println("dry-run: create realease", tag)
+		return nil
+	}
+
+	if err := x.Xf("gh release create %s %s", []any{tag, outputPath}); err != nil {
+		return fmt.Errorf("failed to create github release: %w", err)
+	}
+
+	return nil
+}
+
+func (releaser Releaser) ReleaseDockerFile(name string) error {
+	version := releaser.Versions[name]
+
+	diff, err := releaser.HasDiff(name, version)
+	if err != nil {
+		return fmt.Errorf("failed to check for diff againt version: %s: %v", version, err)
+	}
+
+	if !diff {
+		fmt.Println("skipping release: no diff found against version:", version)
+		return nil
+	}
+
+	if version == "" {
+		fmt.Println("No version found for", name)
+	} else if semver.Compare(version, "v0.0.1") < 0 {
+		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
+	}
+
+	nextVersion := func() string {
 		patch := strings.TrimPrefix(semver.Canonical(version), semver.MajorMinor(version)+".")
 		patchNum, _ := strconv.Atoi(patch)
 		patchNum++
 		return fmt.Sprintf("v0.0.%d", patchNum)
 	}()
 
-	tag := fmt.Sprintf("%s/%s", name, version)
+	fmt.Println("attempting to create release for version:", nextVersion)
+	fmt.Println("building assets...")
 
 	if releaser.DryRun {
-		fmt.Println("dry-run: create realease", tag)
+		fmt.Println("dry run: create buildx, and build&push docker image")
 		return nil
 	}
-	if err := release(tag, outputPath); err != nil {
-		return fmt.Errorf("failed to release: %w", err)
+
+	if err := x.X("docker buildx create --use"); err != nil {
+		return fmt.Errorf("failed to create docker builder: %w", err)
+	}
+
+	if err := x.Xf(
+		"docker buildx build -f ./Dockerfile.%s --platform linux/amd64,linux/arm64 -t davidmdm/%s:latest -t davidmdm/%s:%s --push .",
+		[]any{name, name, name, strings.TrimPrefix(version, "v")},
+	); err != nil {
+		return fmt.Errorf("failed to build and push docker image: %w", err)
 	}
 
 	return nil
 }
 
-func (releaser Releaser) HasDiff(name string) (bool, error) {
-	tag := path.Join(name, releaser.Versions[name])
+func (releaser Releaser) HasDiff(name, version string) (bool, error) {
+	if version == "" {
+		return true, nil
+	}
+
+	tag := path.Join(name, version)
 
 	tagHash, err := releaser.Repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(tag)))
 	if err != nil {
@@ -201,14 +265,6 @@ func build(path string) (string, error) {
 	return out, nil
 }
 
-func release(tag, path string) error {
-	out, err := exec.Command("gh", "release", "create", tag, path).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%w: %s", err, out)
-	}
-	return nil
-}
-
 func compress(path string) (out string, err error) {
 	output := path + ".gz"
 
@@ -241,4 +297,27 @@ func compress(path string) (out string, err error) {
 	}
 
 	return output, nil
+}
+
+func getTagVersions(repo *git.Repository) (map[string]string, error) {
+	iter, err := repo.Tags()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tags: %w", err)
+	}
+
+	versions := map[string]string{}
+
+	iter.ForEach(func(r *plumbing.Reference) error {
+		release, version := path.Split(r.Name()[len("refs/tags/"):].String())
+		if !semver.IsValid(version) {
+			return nil
+		}
+		release = path.Clean(release)
+		if semver.Compare(version, versions[release]) > 0 {
+			versions[release] = version
+		}
+		return nil
+	})
+
+	return versions, nil
 }
