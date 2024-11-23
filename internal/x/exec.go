@@ -2,6 +2,7 @@ package x
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -12,8 +13,9 @@ import (
 var cyan = ansi.MakeStyle(ansi.FgCyan)
 
 type xoptions struct {
-	Env []string
-	Dir string
+	Env   []string
+	Dir   string
+	Input io.Reader
 }
 
 func Env(e ...string) XOpt {
@@ -25,6 +27,12 @@ func Env(e ...string) XOpt {
 func Dir(d string) XOpt {
 	return func(opts *xoptions) {
 		opts.Dir = d
+	}
+}
+
+func Input(r io.Reader) XOpt {
+	return func(opts *xoptions) {
+		opts.Input = r
 	}
 }
 
@@ -47,6 +55,7 @@ func Xf(line string, printArgs []any, opts ...XOpt) error {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = options.Input
 	cmd.Env = append(os.Environ(), options.Env...)
 	cmd.Dir = options.Dir
 
