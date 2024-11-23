@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,6 +34,8 @@ func run() error {
 			return err
 		}
 	}
+
+	backend.Spec.ServicePort = cmp.Or(backend.Spec.ServicePort, 3000)
 
 	if backend.Spec.Labels == nil {
 		backend.Spec.Labels = map[string]string{}
@@ -74,14 +77,14 @@ func createDeployment(backend v1.Backend) *appsv1.Deployment {
 							Env: []corev1.EnvVar{
 								{
 									Name:  "PORT",
-									Value: strconv.Itoa(3000),
+									Value: strconv.Itoa(backend.Spec.ServicePort),
 								},
 							},
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          backend.Name,
 									Protocol:      corev1.ProtocolTCP,
-									ContainerPort: 3000,
+									ContainerPort: int32(backend.Spec.ServicePort),
 								},
 							},
 						},

@@ -30,7 +30,18 @@ func TestAirTrafficController(t *testing.T) {
 	require.NoError(t, os.MkdirAll("./test_output", 0o755))
 
 	require.NoError(t, x.X("kind delete clusters --all"))
-	require.NoError(t, x.X("kind create cluster --name=atc-test"))
+
+	require.NoError(t, x.X("kind create cluster --name=atc-test --config -", x.Input(strings.NewReader(`
+    kind: Cluster
+    apiVersion: kind.x-k8s.io/v1alpha4
+    nodes:
+    - role: control-plane
+      extraPortMappings:
+      - containerPort: 30000
+        hostPort: 80
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+    `))))
 
 	require.NoError(t, x.X(
 		"go build -o ./test_output/atc-installer.wasm ../atc-installer",

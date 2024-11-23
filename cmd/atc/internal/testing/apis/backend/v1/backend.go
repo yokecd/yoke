@@ -13,10 +13,11 @@ type Backend struct {
 }
 
 type BackendSpec struct {
-	Image    string            `json:"image"`
-	Replicas int32             `json:"replicas"`
-	Labels   map[string]string `json:"labels,omitempty"`
-	NodePort int               `json:"nodePort,omitempty"`
+	Image       string            `json:"image"`
+	Replicas    int32             `json:"replicas"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	NodePort    int               `json:"nodePort,omitempty"`
+	ServicePort int               `json:"port,omitempty"`
 }
 
 func (backend Backend) MarshalJSON() ([]byte, error) {
