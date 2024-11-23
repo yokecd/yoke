@@ -41,6 +41,7 @@ func main() {
 func run() error {
 	dry := flag.Bool("dry", false, "dry-run")
 	cli := flag.Bool("cli", false, "release main yoke cli")
+	local := flag.Bool("local", false, "run agains the locally checkout version instead of main")
 
 	var wasms []string
 	flag.Func("wasm", "commands to buid as wasm and release", func(value string) error {
@@ -70,6 +71,7 @@ func run() error {
 		Versions: versions,
 		Repo:     repo,
 		DryRun:   *dry,
+		Local:    *local,
 	}
 
 	var errs []error
@@ -99,6 +101,7 @@ type Releaser struct {
 	Versions map[string]string
 	Repo     *git.Repository
 	DryRun   bool
+	Local    bool
 }
 
 func (releaser Releaser) ReleaseYokeCLI() error {
@@ -239,6 +242,36 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return false, fmt.Errorf("failed to resolve: %s: %w", tag, err)
 	}
 
+	branchRef, err := func() (plumbing.ReferenceName, error) {
+		if !releaser.Local {
+			return plumbing.NewBranchReferenceName("main"), nil
+		}
+
+		head, err := releaser.Repo.Head()
+		if err != nil {
+			return "", fmt.Errorf("failed to get head: %w", err)
+		}
+
+		branches, err := releaser.Repo.Branches()
+		if err != nil {
+			return "", fmt.Errorf("failed to lookup branches: %w", err)
+		}
+		defer branches.Close()
+
+		for {
+			branch, err := branches.Next()
+			if branch != nil && branch.Hash() == head.Hash() {
+				return branch.Name(), nil
+			}
+			if err == io.EOF {
+				return "", fmt.Errorf("failed to find local branch")
+			}
+		}
+	}()
+	if err != nil {
+		return false, fmt.Errorf("failed to get target branch: %w", err)
+	}
+
 	wt, err := releaser.Repo.Worktree()
 	if err != nil {
 		return false, fmt.Errorf("failed to get worktree: %w", err)
@@ -250,19 +283,19 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 
 	var (
 		tagBinPath  = filepath.Join(os.TempDir(), tag, name+".out")
-		headBinPath = filepath.Join(os.TempDir(), "head", name+".out")
+		headBinPath = filepath.Join(os.TempDir(), branchRef.Short(), name+".out")
 	)
 
 	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", tagBinPath, name)); err != nil {
 		return false, fmt.Errorf("failed to build previous binary: %w", err)
 	}
 
-	if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName("main")}); err != nil {
-		return false, fmt.Errorf("failed to checkout main: %w", err)
+	if err := wt.Checkout(&git.CheckoutOptions{Branch: branchRef}); err != nil {
+		return false, fmt.Errorf("failed to checkout %s: %w", branchRef.Short(), err)
 	}
 
 	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", headBinPath, name)); err != nil {
-		return false, fmt.Errorf("failed to build previous binary: %w", err)
+		return false, fmt.Errorf("failed to build next binary: %w", err)
 	}
 
 	tagData, err := os.ReadFile(tagBinPath)
