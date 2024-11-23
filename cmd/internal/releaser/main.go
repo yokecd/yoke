@@ -168,7 +168,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		return fmt.Errorf("failed to compress wasm: %w", err)
 	}
 
-	tag := path.Join(name, version)
+	tag := path.Join(name, nextVersion)
 
 	if releaser.DryRun {
 		fmt.Println("dry-run: create realease", tag)
@@ -217,7 +217,7 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 
 	if err := x.Xf(
 		"docker buildx build -f ./Dockerfile.%s --platform linux/amd64,linux/arm64 -t davidmdm/%s:latest -t davidmdm/%s:%s --push .",
-		[]any{name, name, name, strings.TrimPrefix(version, "v")},
+		[]any{name, name, name, strings.TrimPrefix(nextVersion, "v")},
 	); err != nil {
 		return fmt.Errorf("failed to build and push docker image: %w", err)
 	}
