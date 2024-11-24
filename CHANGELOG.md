@@ -4,6 +4,88 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## atc/v0.0.1 (2024-11-24) - atc-installer/v0.0.1 (2024-11-24) - v0.1.3 (2024-11-24) - yokecd/v0.0.3 (2024-11-24) - yokecd-installer/v0.0.9 (2024-11-24)
+
+<details>
+<summary>76 commits</summary>
+- internal/releaser: tag repo after dockerbuilds ([79d1084](https://github.com/yokecd/yoke/commit/79d1084664ccfd49a4e67293eb68a2456133db08))
+- internal/releaser: fix target versions for wasm and docker releases ([fc3435c](https://github.com/yokecd/yoke/commit/fc3435c608a0c6db1c2b9669f4ce8384840d30ea))
+- internal/releaser: support releasing from local branch ([1596caa](https://github.com/yokecd/yoke/commit/1596caa394852fae80545b575f966c03c5be539b))
+- atc/testing: make setup test compatible with nodeports for demos ([9d09c61](https://github.com/yokecd/yoke/commit/9d09c6139cbc4174d540d2f9381db29cc3aa11e8))
+- workflows/pipeline: rename releaser to pipeline in workflows ([dbe8bb6](https://github.com/yokecd/yoke/commit/dbe8bb65270111ff665f8f851be502f029557ad1))
+- yokecd: added yokecd suffix to yokecd Dockerfile ([08a3016](https://github.com/yokecd/yoke/commit/08a3016fafe9f1cc2aac65625a296a5dd1b94be8))
+- atc: fixed mayday bug where updating status was not updating unstructuted object ([c4f1755](https://github.com/yokecd/yoke/commit/c4f1755a9a4a0e9dfc98e16c0fe120bf300b55a2))
+- refactor: reorder imports ([087b4a7](https://github.com/yokecd/yoke/commit/087b4a77e9cd0d383a54874257b3cfbb3ab2f964))
+- atc/testing: fix backend example selector ([019dd90](https://github.com/yokecd/yoke/commit/019dd9083ac73aa5b8849040735521477212b77d))
+- internal/releaser: check against non-prefixed tag when releasing yoke cli ([8cf503e](https://github.com/yokecd/yoke/commit/8cf503ea8983bc2fe3e1620e9d6bdce1b7939267))
+- internal/releaser: release yoke cli on change ([24c55f9](https://github.com/yokecd/yoke/commit/24c55f9aa727f8572d1dbe067447c8017708d3e5))
+- internal/releaser: refactor ([3d22efe](https://github.com/yokecd/yoke/commit/3d22efe0ddddebac254b75d703a554fc277b2aab))
+- internal/releaser: revert back to main branch instead of main commit reference ([6f18588](https://github.com/yokecd/yoke/commit/6f185884321e2ea78b17f17c5ac5909b651349f6))
+- fix(git-state): bad merge/stash-apply were causing compilation errors ([903a53d](https://github.com/yokecd/yoke/commit/903a53de8e9916e5b06b86f8f53658c2926b4197))
+- internal/releaser: release dockerfiles ([5b7e436](https://github.com/yokecd/yoke/commit/5b7e436a22f3068987606efe54d885b3bd850744))
+- internal/releaser: compare binary data for releasing wasm ([3455567](https://github.com/yokecd/yoke/commit/3455567e89524472c1682323398f1afada6a1e5a))
+- gha: install latest kind for testing ([bc7695d](https://github.com/yokecd/yoke/commit/bc7695d5adf027baf561ef5605307f9a6116e0c1))
+- atc: commit wasmcache flight.wasm for compilation reasons ([65bfb92](https://github.com/yokecd/yoke/commit/65bfb92049a051b8554bc5203a26d361b644bb8d))
+- atc-installer: refactor ([f2f5930](https://github.com/yokecd/yoke/commit/f2f5930c199623b62c4a239590261856656fd63e))
+- internal/k8s: add airway to readiness check ([3e0d433](https://github.com/yokecd/yoke/commit/3e0d4333600da235d35aad634abbd2181ce09725))
+- testing: e2e testing spawns take responsibility for spawning kind clusters ([fc8394d](https://github.com/yokecd/yoke/commit/fc8394d917b8da58e0db782f829f1eeaf4ea8fb6))
+- airway: refactor ([d0a8bdd](https://github.com/yokecd/yoke/commit/d0a8bdd8d7296e7a399d18cbc2aeefac3f33a438))
+- airway: support wasmUrl per served version of crd ([819bc01](https://github.com/yokecd/yoke/commit/819bc01ea7e1a0ac5c60dc438095ecfe303ba258))
+- atc: set default namespace on namespaced scope flights with empty namespace field ([301bfec](https://github.com/yokecd/yoke/commit/301bfec3e97fa3d73ae20cdb5733eab207222ae8))
+- atc: default to passing entire custom resource as input ([7b86581](https://github.com/yokecd/yoke/commit/7b86581713b1b5989c6624b1fc5ea5922dfac8bf))
+- atc: less flaky status updates ([3074ef2](https://github.com/yokecd/yoke/commit/3074ef24797ac15847616dfe7895441f15004a28))
+- pkg/openapi: support Enum and XValidations struct tags ([0417d76](https://github.com/yokecd/yoke/commit/0417d767dbdbc714d35d57ac581e258215890c3b))
+- pkg/openapi: support basic validation via struct tags ([ec9c794](https://github.com/yokecd/yoke/commit/ec9c7944620de33e01196a265a5d52aaa7fe9b3f))
+- atc: testing backend flight should use backendSpec ([5234d6a](https://github.com/yokecd/yoke/commit/5234d6a4793313dac7da39261cedebe0e337b480))
+- k8s/ctrl: queue no longer needs concurrency hint ([119fd66](https://github.com/yokecd/yoke/commit/119fd66b81033a4e2f4e81a61fa4df23f86f2420))
+- atc: first initial happy test ([ac4752d](https://github.com/yokecd/yoke/commit/ac4752ddc1cad8ac647bf231f581f19bcf1baf47))
+- atc: refactor ([25820eb](https://github.com/yokecd/yoke/commit/25820ebd4de060028b57bc0a201d1c07b0b41248))
+- atc: add status to flights ([2e1df1e](https://github.com/yokecd/yoke/commit/2e1df1e545f55f7d883d960265e13bc927404697))
+- k8s/ctrl: unshift queue on dequeue ([4145872](https://github.com/yokecd/yoke/commit/414587245b74de69b057b033b3d8f0529bb8fc27))
+- atc: do not leak any goroutines on cancelation ([113558e](https://github.com/yokecd/yoke/commit/113558e9bbfcaf1ed051e2df703ef38a58e759e5))
+- atc-installer: configure labels and annotations on atc deployment ([b137cbe](https://github.com/yokecd/yoke/commit/b137cbe695e417440384b44d2c7a71d534edb897))
+- k8s/ctrl: drop status events ([77ddd41](https://github.com/yokecd/yoke/commit/77ddd418519536ec564f121ca51ed52ca226a6e4))
+- atc: refactor ([2465395](https://github.com/yokecd/yoke/commit/2465395edbb45ebb92c04c06aba2096146007910))
+- atc: update atc readme ([30047b7](https://github.com/yokecd/yoke/commit/30047b7c72fb4e348b6bdd7448548247f202983e))
+- airway: fixDriftInterfal use go time.Duration format ([9216572](https://github.com/yokecd/yoke/commit/92165725240eb34bc4a90633cae855e47ca8a6c5))
+- k8s/ctrl: added jitter to exponentional backoff in reconcile loops ([0186569](https://github.com/yokecd/yoke/commit/018656913552495b030693306a9d70bcdd38a222))
+- atc: rename fixDrift to fixDriftAfterSeconds ([583a288](https://github.com/yokecd/yoke/commit/583a288e239f9b7f25f97ee77168251639965006))
+- atc: add fixDrift in airway configuration ([0bf391f](https://github.com/yokecd/yoke/commit/0bf391f5193ca40f2211b1f493e2bf9227ca8e00))
+- atc: use createCRDs configuration ([38093d3](https://github.com/yokecd/yoke/commit/38093d3b36e3f1df8cf982d6dfc310e07d2c652b))
+- atc: remove Inprogress status ([cc3073f](https://github.com/yokecd/yoke/commit/cc3073f22d946132f82ce3d6bd2f4d9ec09dd24f))
+- pkg/apis/airway/v1: proper type splitting for reuse in other packages ([afe748a](https://github.com/yokecd/yoke/commit/afe748a7c7718961b1109494365953ecdbbd9cc2))
+- atc-installer: make createCrds optional ([0bd56f0](https://github.com/yokecd/yoke/commit/0bd56f07d1055bae1a90cb5e2b591d7bf2e04c08))
+- pkg/openapi: minimalistic kube style openapi generation ([95e6a86](https://github.com/yokecd/yoke/commit/95e6a864cf81b9bc4ca97f089589f13fc36a7cba))
+- examples/kube: use k8s.io/api instead of client-go ([1ea0d43](https://github.com/yokecd/yoke/commit/1ea0d434b6714a243b3c8e2ffda6af813db4406f))
+- refactor: regorganize imports accross project ([240ea82](https://github.com/yokecd/yoke/commit/240ea82b3fb8ab9ebe1e8d09947bb08cfd006a98))
+- atc-installer: use apimachinery yaml package for decoding ([85ec233](https://github.com/yokecd/yoke/commit/85ec233cde56e7e05224d9b04791bf0cb642e353))
+- atc: add createCrds to airway spec ([43128b7](https://github.com/yokecd/yoke/commit/43128b7735992621ed9df6de4be35cf3455cf595))
+- atc: introduced typed airway ([5b5ffc2](https://github.com/yokecd/yoke/commit/5b5ffc2313f6ae7726a8ab011c46418eb7fbd106))
+- atc: refactor ([f6dbdce](https://github.com/yokecd/yoke/commit/f6dbdce7dbe6ee5428d18618dc372d38f6eccc37))
+- k8s/controller: don't requeue active events until reconcile is done ([0eaa7f7](https://github.com/yokecd/yoke/commit/0eaa7f7ba5bbaaa0e1c56e3f2f12214e219d7d60))
+- atc: add support for airway status ([2021634](https://github.com/yokecd/yoke/commit/2021634880ff29128634d9650a3aeafdf0665d2e))
+- atc: add atc teardown ([7033ef6](https://github.com/yokecd/yoke/commit/7033ef63d25cfafa2172de31d70ffdd0616b5938))
+- atc: replace flight controllers on change to airway ([b822c2c](https://github.com/yokecd/yoke/commit/b822c2c12b9fce548a04de7216f8b864ec1ae759))
+- atc: refactor and add loopId to reconcile loop attributes ([0c9e620](https://github.com/yokecd/yoke/commit/0c9e6200522cc224c54d19cc063d1d3cd559a519))
+- k8s/controller: invalidate timers if new events are processed before a requeue is triggered ([d554dcf](https://github.com/yokecd/yoke/commit/d554dcf42b63ee6e52f56fcb82c006a3d852ea9f))
+- atc: add ownerReferences to flight resources produced by atc airway underlying flight ([2ad489e](https://github.com/yokecd/yoke/commit/2ad489ecb497616640a7edb796c1696129bdec9b))
+- atc: implemented cleanup finalizer for flight resources ([73e768d](https://github.com/yokecd/yoke/commit/73e768d8894242a71aaa69a71ca1ffaa2bb009c7))
+- atc: use rwlock for accessing cached wasm ([27323e4](https://github.com/yokecd/yoke/commit/27323e4d65ef55eb3b68d4e5a41fe7d9c1bd81b7))
+- atc: refactor logic out of main run function into atc type ([6f67787](https://github.com/yokecd/yoke/commit/6f6778759bc55132b43d6d5c8036ecde239f8279))
+- atc: added inline first draft of atc controller logic ([16704dd](https://github.com/yokecd/yoke/commit/16704ddafdffe57dcfa3381024ea254a6e585832))
+- atc-installer: fix airway crd scope to cluster ([4caac50](https://github.com/yokecd/yoke/commit/4caac501709dfdfb1356c4c9744b0e863ade0cb2))
+- refactor: moved controller logic from cmd/atc into internals/k8s/controller ([4cd55d9](https://github.com/yokecd/yoke/commit/4cd55d9dbec02b6edce8ec469e5dff5468a9b6d3))
+- atc-installer: fix airway schema ([3c2097a](https://github.com/yokecd/yoke/commit/3c2097a491419dc24e8f09382969357d995bbdec))
+- atc-installer: add deployment and service account ([a962bab](https://github.com/yokecd/yoke/commit/a962bab50faf4fb8155679509d222fcf2e5d9356))
+- atc-installer: add first draft of airway crd ([47d6f7e](https://github.com/yokecd/yoke/commit/47d6f7e721bd3b1b62e8972dafe9be02a6bfa9af))
+- atc: fix queue to act as a proper queue ([51486c0](https://github.com/yokecd/yoke/commit/51486c063e5a6b37d9f6524629bb7a0c004c2779))
+- atc: add controller with simple loop and requeue impl ([edc322f](https://github.com/yokecd/yoke/commit/edc322ff91d053bca3ee01b09f5d1ff3818122d6))
+- atc: basic event queue impl ([24a9a19](https://github.com/yokecd/yoke/commit/24a9a19dba280d53ad178043b7552f89f067d344))
+- atc: worker wip ([7d4fc02](https://github.com/yokecd/yoke/commit/7d4fc0293058efbc40156094d8b9187543c7a13c))
+- atc: added shell for atc and atc-installer ([3beffe2](https://github.com/yokecd/yoke/commit/3beffe2557475f50a0f21af55bbea64e6bf59c76))
+- cmd/atc: initial thoughts in readme ([dce5d0f](https://github.com/yokecd/yoke/commit/dce5d0f280138f41f1ba1f0587471642d167f62b))
+
+</details>
 ## v0.1.2 (2024-10-23) - yokecd-installer/v0.0.8 (2024-10-23)
 
 - yokecd-installer: update installer to use argo-helm/argo-cd chart 7.6.12 ([e1085cb](https://github.com/yokecd/yoke/commit/e1085cb914413051ac204af837b7f391620c09ad))
@@ -22,6 +104,9 @@
 
 - cmd/blackbox: fix active revision when listing release revisions ([e08dd7f](https://github.com/yokecd/yoke/commit/e08dd7fb82cf2c611c20687770097c39aebda056))
 - chore: update dependencies ([ec169ac](https://github.com/yokecd/yoke/commit/ec169ac9ca9aab5f142ed3396ccc6b9e29168c85))
+
+## yokecd/v0.0.2 (2024-07-04)
+
 - yokecd: use yoke.EvalFlight instad of low-level wasi.Execute to be more compatible with pkg/Flight helpers ([87230e9](https://github.com/yokecd/yoke/commit/87230e9e720c8e386c70ea1a86782408ec46f944))
 - cmd/internal/changelog: add dates to tag ([6163eae](https://github.com/yokecd/yoke/commit/6163eae045e3d5487d519414dc82b03337c5403a))
 - cmd/internal/changelog: fix issue where multiple tags on same commit would only show one tag ([dae2c54](https://github.com/yokecd/yoke/commit/dae2c543adc2bad74cb8ea62bfa9a539ce2791fc))
@@ -137,6 +222,8 @@
 
 ## yokecd-installer/v0.0.0-20241004031222 (2024-04-09)
 
+<details>
+<summary>11 commits</summary>
 - fix compressor ([5dc59c0](https://github.com/yokecd/yoke/commit/5dc59c0721aa56bf77ceb9995dd46b5e49688446))
 - fix download err ([2552acb](https://github.com/yokecd/yoke/commit/2552acbfc0a563475bc9013a8a54877535069840))
 - release yokecd-installer ([ed4d68d](https://github.com/yokecd/yoke/commit/ed4d68d16f5153d2b1e399006cfd4b8faaff581e))
@@ -149,8 +236,11 @@
 - yokecd: add suport for wasmPath parameter ([cfc3952](https://github.com/yokecd/yoke/commit/cfc39526323d6e295fc03ff98f299a81f90b2dba))
 - test simplified yokecd application ([70c44d3](https://github.com/yokecd/yoke/commit/70c44d3bf34b8aeb005eedcbdb564cace0279492))
 
+</details>
 ## v0.0.0-beta3 (2024-03-24)
 
+<details>
+<summary>23 commits</summary>
 - hardcode yokecd as plugin name, and simplified plugin definition ([0de06a9](https://github.com/yokecd/yoke/commit/0de06a959bde14d7432f737d60e9a77db88e79a1))
 - removed yoke exec in favor of takeoff --test-run ([a88793b](https://github.com/yokecd/yoke/commit/a88793b08995540b31bb3715b08e4cb084bacbf1))
 - use wazero interpreter instead of compiler ([f87011a](https://github.com/yokecd/yoke/commit/f87011a242d62d8a03658b6e55da1127cab7de70))
@@ -175,8 +265,11 @@
 - update helm2go to default to map[string]any if cannot generate values type ([48b3a22](https://github.com/yokecd/yoke/commit/48b3a22d16b9f4bbd788865b077fecc695488756))
 - add force-conflicts flag for takeoff ([c058acb](https://github.com/yokecd/yoke/commit/c058acb49961f7a67822a4e928cd069d237aa776))
 
+</details>
 ## v0.0.0-beta2 (2024-03-15)
 
+<details>
+<summary>14 commits</summary>
 - use server-side apply patch ([68f1d97](https://github.com/yokecd/yoke/commit/68f1d9716d0f29788aef1a831a9d958a94bcc98d))
 - use official argocd install yaml for argo example ([bb46eb3](https://github.com/yokecd/yoke/commit/bb46eb3d25ef9fe2492884a311ce83fbb595c35c))
 - try create before apply ([172fc7f](https://github.com/yokecd/yoke/commit/172fc7f758e58afeacf4138d9fba247551d85149))
@@ -192,8 +285,11 @@
 - generated pg values.go using helm2go ([0c360bb](https://github.com/yokecd/yoke/commit/0c360bb9cd7c1665b5150ecc7a4746f6029b9544))
 - renamed platters to flights and added helm2go script ([9da0265](https://github.com/yokecd/yoke/commit/9da02655f5e3985e18c3343ff64e7b589bd83735))
 
+</details>
 ## v0.0.0-beta1 (2024-02-29)
 
+<details>
+<summary>21 commits</summary>
 - starting website ([dd8c995](https://github.com/yokecd/yoke/commit/dd8c99584130ab84915a6bf5cc7e5c36af8de2a1))
 - added apply dry run failure test ([10c65b7](https://github.com/yokecd/yoke/commit/10c65b7b86d5f7976e4a6ff3e47ec262c8d50748))
 - remove .DS_Store ([f52068a](https://github.com/yokecd/yoke/commit/f52068a3ca6bf6fcfefb8631284f86718fb994c3))
@@ -216,6 +312,7 @@
 - update helmchart example to make it configurable ([c5133ef](https://github.com/yokecd/yoke/commit/c5133ef509b318a3fd47eaafc8426b0e7ce0d844))
 - update halloumi metadata ([11c9b2e](https://github.com/yokecd/yoke/commit/11c9b2e654f2eb486af4e5fcf61d191ad5937771))
 
+</details>
 ## v0.0.0-alpha17 (2024-02-25)
 
 - updated helm api ([964d147](https://github.com/yokecd/yoke/commit/964d147b1171920142533a87ce3868a23e2dccd1))
@@ -302,6 +399,8 @@
 
 ## v0.0.0-alpha1 (2024-02-17)
 
+<details>
+<summary>22 commits</summary>
 - added root command help text ([26c24a3](https://github.com/yokecd/yoke/commit/26c24a36f09a724187c6a2fcfef913f67aefaee4))
 - takeoff help text ([11a8602](https://github.com/yokecd/yoke/commit/11a86027ec3cee286869a67e9ddd870c8caac352))
 - formmatting ([94f9345](https://github.com/yokecd/yoke/commit/94f9345f4a30ff9808239dcc3dd39cc359046df2))
@@ -325,3 +424,4 @@
 - starting haloumi ([47b28fc](https://github.com/yokecd/yoke/commit/47b28fcfc3766575eab80a1c9e640bc33d5ffa28))
 - initial wazero runtime ([ac081a8](https://github.com/yokecd/yoke/commit/ac081a89136e9e57abb27ac3797fc72095db6af9))
 
+</details>

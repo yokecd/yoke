@@ -133,10 +133,21 @@ func (changelog Changelog) String() string {
 			builder.WriteString("> This version contains breaking changes, and is not expected to be compatible with previous versions\n\n")
 		}
 
+		count := len(entry.Commits)
+		collapsible := count > 10
+
+		if collapsible {
+			builder.WriteString(fmt.Sprintf("<details>\n<summary>%d commits</summary>\n", count))
+		}
+
 		for _, commit := range entry.Commits {
 			builder.WriteString(fmt.Sprintf("- %s ([%s](https://github.com/yokecd/yoke/commit/%s))\n", commit.Msg, commit.Sha[:7], commit.Sha))
 		}
 		builder.WriteByte('\n')
+
+		if collapsible {
+			builder.WriteString("</details>\n")
+		}
 	}
 
 	return builder.String()
