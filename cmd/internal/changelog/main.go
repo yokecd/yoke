@@ -64,7 +64,7 @@ func run() error {
 
 	commits.ForEach(func(c *object.Commit) error {
 		if tags := tags[c.Hash.String()]; len(tags) > 0 {
-			changelog = append(changelog, Entry{Tags: tags})
+			changelog = append(changelog, Entry{Tags: tags, Date: tags[0].CreatedAt})
 		}
 		// Commit isn't associated to any tags so not needed in changelog
 		if len(changelog) == 0 {
@@ -99,15 +99,13 @@ type (
 		Name      string
 		CreatedAt time.Time
 	}
+	Tags  []Tag
 	Entry struct {
 		Tags    []Tag
+		Date    time.Time
 		Commits []Commit
 	}
 )
-
-func (tag Tag) String() string {
-	return fmt.Sprintf("%s (%s)", tag.Name, tag.CreatedAt.Format("2006-01-02"))
-}
 
 func (changelog Changelog) String() string {
 	var builder strings.Builder
@@ -120,10 +118,10 @@ func (changelog Changelog) String() string {
 	for _, entry := range changelog {
 		var tags []string
 		for _, tag := range entry.Tags {
-			tags = append(tags, tag.String())
+			tags = append(tags, tag.Name)
 		}
 
-		builder.WriteString("## " + strings.Join(tags, " - ") + "\n\n")
+		builder.WriteString(fmt.Sprintf("## (%s) %s\n\n", entry.Date.Format("2006-01-02"), strings.Join(tags, " - ")))
 
 		if slices.ContainsFunc(entry.Commits, func(commit Commit) bool {
 			msg := strings.ToLower(commit.Msg)
