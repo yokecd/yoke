@@ -324,7 +324,7 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 func buildWasm(path string) (string, error) {
 	_, name := filepath.Split(path)
 	out := name + ".wasm"
-	err := x.Xf("go build -o %s ./%s", []any{out, path})
+	err := x.Xf("go build -o %s ./%s", []any{out, path}, x.Env("GOOS=wasip1", "GOARCH=wasm"))
 	return out, err
 }
 

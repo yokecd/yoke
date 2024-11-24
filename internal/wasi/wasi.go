@@ -71,7 +71,9 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 
 	module, err := runtime.InstantiateWithConfig(ctx, params.Wasm, moduleCfg)
 	defer func() {
-		err = xerr.MultiErrFrom("", err, module.Close(ctx))
+		if module != nil {
+			err = xerr.MultiErrFrom("", err, module.Close(ctx))
+		}
 	}()
 	if err != nil {
 		details := stderr.String()
