@@ -146,7 +146,7 @@ func (changelog Changelog) String() string {
 		builder.WriteByte('\n')
 
 		if collapsible {
-			builder.WriteString("</details>\n")
+			builder.WriteString("</details>\n\n")
 		}
 	}
 

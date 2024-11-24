@@ -87,6 +87,7 @@
 - cmd/atc: initial thoughts in readme ([dce5d0f](https://github.com/yokecd/yoke/commit/dce5d0f280138f41f1ba1f0587471642d167f62b))
 
 </details>
+
 ## v0.1.2 (2024-10-23) - yokecd-installer/v0.0.8 (2024-10-23)
 
 - yokecd-installer: update installer to use argo-helm/argo-cd chart 7.6.12 ([e1085cb](https://github.com/yokecd/yoke/commit/e1085cb914413051ac204af837b7f391620c09ad))
@@ -239,6 +240,7 @@
 - test simplified yokecd application ([70c44d3](https://github.com/yokecd/yoke/commit/70c44d3bf34b8aeb005eedcbdb564cace0279492))
 
 </details>
+
 ## v0.0.0-beta3 (2024-03-24)
 
 <details>
@@ -269,6 +271,7 @@
 - add force-conflicts flag for takeoff ([c058acb](https://github.com/yokecd/yoke/commit/c058acb49961f7a67822a4e928cd069d237aa776))
 
 </details>
+
 ## v0.0.0-beta2 (2024-03-15)
 
 <details>
@@ -290,6 +293,7 @@
 - renamed platters to flights and added helm2go script ([9da0265](https://github.com/yokecd/yoke/commit/9da02655f5e3985e18c3343ff64e7b589bd83735))
 
 </details>
+
 ## v0.0.0-beta1 (2024-02-29)
 
 <details>
@@ -318,6 +322,7 @@
 - update halloumi metadata ([11c9b2e](https://github.com/yokecd/yoke/commit/11c9b2e654f2eb486af4e5fcf61d191ad5937771))
 
 </details>
+
 ## v0.0.0-alpha17 (2024-02-25)
 
 - updated helm api ([964d147](https://github.com/yokecd/yoke/commit/964d147b1171920142533a87ce3868a23e2dccd1))
@@ -431,3 +436,4 @@
 - initial wazero runtime ([ac081a8](https://github.com/yokecd/yoke/commit/ac081a89136e9e57abb27ac3797fc72095db6af9))
 
 </details>
+
