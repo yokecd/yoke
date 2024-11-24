@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## atc/v0.0.2 (2024-11-24) - atc-installer/v0.0.2 (2024-11-24) - v0.1.4 (2024-11-24) - yokecd-installer/v0.0.10 (2024-11-24)
+
+- yoke: fix segfault of wasm module close on invalid wasm inputs ([5fd75ea](https://github.com/yokecd/yoke/commit/5fd75ea23361ebadd7bd60b51290962506bf7129))
+
 ## atc/v0.0.1 (2024-11-24) - atc-installer/v0.0.1 (2024-11-24) - v0.1.3 (2024-11-24) - yokecd/v0.0.3 (2024-11-24) - yokecd-installer/v0.0.9 (2024-11-24)
 
 <details>

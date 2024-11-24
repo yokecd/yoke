@@ -296,7 +296,7 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		headBinPath = filepath.Join(os.TempDir(), branchRef.Short(), name+".out")
 	)
 
-	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", tagBinPath, name)); err != nil {
+	if err := withoutGit(func() error { return x.X(fmt.Sprintf("go build -o %s ./cmd/%s", tagBinPath, name)) }); err != nil {
 		return false, fmt.Errorf("failed to build previous binary: %w", err)
 	}
 
@@ -304,7 +304,7 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 		return false, fmt.Errorf("failed to checkout %s: %w", branchRef.Short(), err)
 	}
 
-	if err := x.X(fmt.Sprintf("go build -o %s ./cmd/%s", headBinPath, name)); err != nil {
+	if err := withoutGit(func() error { return x.X(fmt.Sprintf("go build -o %s ./cmd/%s", headBinPath, name)) }); err != nil {
 		return false, fmt.Errorf("failed to build next binary: %w", err)
 	}
 
@@ -394,4 +394,18 @@ func bumpPatch(version string) string {
 	patch := canonical[len(majorMinor)+1:]
 	patchNumber, _ := strconv.Atoi(patch)
 	return fmt.Sprintf("%s.%d", majorMinor, patchNumber+1)
+}
+
+func withoutGit(fn func() error) error {
+	if err := x.X("mv .git .gitbak"); err != nil {
+		panic(err)
+	}
+
+	defer func() {
+		if err := x.X("mv .gitbak .git"); err != nil {
+			panic(err)
+		}
+	}()
+
+	return fn()
 }
