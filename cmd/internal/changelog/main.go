@@ -137,7 +137,7 @@ func (changelog Changelog) String() string {
 		collapsible := count > 10
 
 		if collapsible {
-			builder.WriteString(fmt.Sprintf("<details>\n<summary>%d commits</summary>\n", count))
+			builder.WriteString(fmt.Sprintf("<details>\n<summary>%d commits</summary>\n\n", count))
 		}
 
 		for _, commit := range entry.Commits {

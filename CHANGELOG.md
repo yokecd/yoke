@@ -8,6 +8,7 @@
 
 <details>
 <summary>76 commits</summary>
+
 - internal/releaser: tag repo after dockerbuilds ([79d1084](https://github.com/yokecd/yoke/commit/79d1084664ccfd49a4e67293eb68a2456133db08))
 - internal/releaser: fix target versions for wasm and docker releases ([fc3435c](https://github.com/yokecd/yoke/commit/fc3435c608a0c6db1c2b9669f4ce8384840d30ea))
 - internal/releaser: support releasing from local branch ([1596caa](https://github.com/yokecd/yoke/commit/1596caa394852fae80545b575f966c03c5be539b))
@@ -224,6 +225,7 @@
 
 <details>
 <summary>11 commits</summary>
+
 - fix compressor ([5dc59c0](https://github.com/yokecd/yoke/commit/5dc59c0721aa56bf77ceb9995dd46b5e49688446))
 - fix download err ([2552acb](https://github.com/yokecd/yoke/commit/2552acbfc0a563475bc9013a8a54877535069840))
 - release yokecd-installer ([ed4d68d](https://github.com/yokecd/yoke/commit/ed4d68d16f5153d2b1e399006cfd4b8faaff581e))
@@ -241,6 +243,7 @@
 
 <details>
 <summary>23 commits</summary>
+
 - hardcode yokecd as plugin name, and simplified plugin definition ([0de06a9](https://github.com/yokecd/yoke/commit/0de06a959bde14d7432f737d60e9a77db88e79a1))
 - removed yoke exec in favor of takeoff --test-run ([a88793b](https://github.com/yokecd/yoke/commit/a88793b08995540b31bb3715b08e4cb084bacbf1))
 - use wazero interpreter instead of compiler ([f87011a](https://github.com/yokecd/yoke/commit/f87011a242d62d8a03658b6e55da1127cab7de70))
@@ -270,6 +273,7 @@
 
 <details>
 <summary>14 commits</summary>
+
 - use server-side apply patch ([68f1d97](https://github.com/yokecd/yoke/commit/68f1d9716d0f29788aef1a831a9d958a94bcc98d))
 - use official argocd install yaml for argo example ([bb46eb3](https://github.com/yokecd/yoke/commit/bb46eb3d25ef9fe2492884a311ce83fbb595c35c))
 - try create before apply ([172fc7f](https://github.com/yokecd/yoke/commit/172fc7f758e58afeacf4138d9fba247551d85149))
@@ -290,6 +294,7 @@
 
 <details>
 <summary>21 commits</summary>
+
 - starting website ([dd8c995](https://github.com/yokecd/yoke/commit/dd8c99584130ab84915a6bf5cc7e5c36af8de2a1))
 - added apply dry run failure test ([10c65b7](https://github.com/yokecd/yoke/commit/10c65b7b86d5f7976e4a6ff3e47ec262c8d50748))
 - remove .DS_Store ([f52068a](https://github.com/yokecd/yoke/commit/f52068a3ca6bf6fcfefb8631284f86718fb994c3))
@@ -401,6 +406,7 @@
 
 <details>
 <summary>22 commits</summary>
+
 - added root command help text ([26c24a3](https://github.com/yokecd/yoke/commit/26c24a36f09a724187c6a2fcfef913f67aefaee4))
 - takeoff help text ([11a8602](https://github.com/yokecd/yoke/commit/11a86027ec3cee286869a67e9ddd870c8caac352))
 - formmatting ([94f9345](https://github.com/yokecd/yoke/commit/94f9345f4a30ff9808239dcc3dd39cc359046df2))
