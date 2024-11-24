@@ -222,6 +222,16 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 		return fmt.Errorf("failed to build and push docker image: %w", err)
 	}
 
+	tag := path.Join(name, nextVersion)
+
+	if err := x.Xf("git tag %s", []any{tag}); err != nil {
+		return fmt.Errorf("failed to tag repository: %w", err)
+	}
+
+	if err := x.X("git push --tags"); err != nil {
+		return fmt.Errorf("failed to push tags")
+	}
+
 	return nil
 }
 
