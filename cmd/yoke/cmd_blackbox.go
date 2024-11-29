@@ -23,11 +23,10 @@ import (
 
 type BlackboxParams struct {
 	GlobalSettings
-	Release          string
-	ResourceMappings bool
-	RevisionID       int
-	DiffRevisionID   int
-	Context          int
+	Release        string
+	RevisionID     int
+	DiffRevisionID int
+	Context        int
 }
 
 //go:embed cmd_blackbox_help.txt
@@ -49,7 +48,6 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
-	flagset.BoolVar(&params.ResourceMappings, "mapping", false, "print release to resource mappings. If present ignores all other args")
 	flagset.Parse(args)
 
 	params.Release = flagset.Arg(0)
@@ -82,22 +80,6 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 	client, err := k8s.NewClient(restcfg)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
-	}
-
-	if params.ResourceMappings {
-		mappings, err := client.GetResourceReleaseMapping(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to lookup resource to release mappings: %w", err)
-		}
-
-		relToRes := make(map[string][]string)
-		for resource, release := range mappings {
-			relToRes[release] = append(relToRes[release], resource)
-		}
-
-		encoder := yaml.NewEncoder(os.Stdout)
-		encoder.SetIndent(2)
-		return encoder.Encode(relToRes)
 	}
 
 	allReleases, err := client.GetAllRevisions(ctx)
