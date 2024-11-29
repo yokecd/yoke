@@ -94,10 +94,6 @@ func TestCreateDeleteCycle(t *testing.T) {
 	client, err := k8s.NewClient(restcfg)
 	require.NoError(t, err)
 
-	mappings, err := client.GetResourceReleaseMapping(background)
-	require.NoError(t, err)
-	require.Equal(t, map[string]string{}, mappings)
-
 	revisions, err := client.GetAllRevisions(background)
 	require.NoError(t, err)
 	require.Len(t, revisions, 0)
@@ -111,10 +107,6 @@ func TestCreateDeleteCycle(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, params))
 
-	mappings, err = client.GetResourceReleaseMapping(background)
-	require.NoError(t, err)
-	require.Equal(t, map[string]string{"default.apps.v1.deployment.sample-app": "foo"}, mappings)
-
 	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
 	require.NoError(t, err)
 
@@ -124,10 +116,6 @@ func TestCreateDeleteCycle(t *testing.T) {
 		GlobalSettings: settings,
 		Release:        "foo",
 	}))
-
-	mappings, err = client.GetResourceReleaseMapping(background)
-	require.NoError(t, err)
-	require.Equal(t, map[string]string{}, mappings)
 
 	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
 	require.NoError(t, err)
@@ -217,7 +205,7 @@ func TestReleaseOwnership(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, makeParams("bar")),
-		`failed to validate ownership: conflict(s): resource "default.apps.v1.deployment.sample-app" is owned by release "foo"`,
+		`failed to apply resources: dry run: default.apps.v1.deployment.sample-app: failed to validate resource release: expected release "bar" but resource is already owned by "foo"`,
 	)
 }
 

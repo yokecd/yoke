@@ -84,14 +84,19 @@ type Revision struct {
 	Resources int       `json:"resources"`
 }
 
+const (
+	LabelManagedBy   = "app.kubernetes.io/managed-by"
+	LabelYokeRelease = "app.kubernetes.io/yoke-release"
+)
+
 func AddYokeMetadata(resources []*unstructured.Unstructured, release string) {
 	for _, resource := range resources {
 		labels := resource.GetLabels()
 		if labels == nil {
 			labels = make(map[string]string)
 		}
-		labels["app.kubernetes.io/managed-by"] = "yoke"
-		labels["app.kubernetes.io/yoke-release"] = release
+		labels[LabelManagedBy] = "yoke"
+		labels[LabelYokeRelease] = release
 		resource.SetLabels(labels)
 	}
 }

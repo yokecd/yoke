@@ -58,16 +58,12 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to lookup target revision resources: %w", err)
 	}
 
-	if err := commander.k8s.ValidateOwnership(ctx, params.Release, next); err != nil {
-		return fmt.Errorf("failed to validate ownership: %w", err)
-	}
-
 	previous, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
 	if err != nil {
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
 
-	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
+	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true, Release: params.Release}); err != nil {
 		return fmt.Errorf("failed to apply resources: %w", err)
 	}
 
@@ -75,18 +71,8 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
-	removed, err := commander.k8s.RemoveOrphans(ctx, previous, next)
-	if err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous, next); err != nil {
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
-	}
-
-	var (
-		createdNames = internal.CanonicalNameList(next)
-		removedNames = internal.CanonicalNameList(removed)
-	)
-
-	if err := commander.k8s.UpdateResourceReleaseMapping(ctx, params.Release, createdNames, removedNames); err != nil {
-		return fmt.Errorf("failed to update resource release mapping: %w", err)
 	}
 
 	if params.Wait > 0 {
@@ -115,13 +101,8 @@ func (client Commander) Mayday(ctx context.Context, release string) error {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	removed, err := client.k8s.RemoveOrphans(ctx, resources, nil)
-	if err != nil {
+	if _, err := client.k8s.RemoveOrphans(ctx, resources, nil); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
-	}
-
-	if err := client.k8s.UpdateResourceReleaseMapping(ctx, release, nil, internal.CanonicalNameList(removed)); err != nil {
-		return fmt.Errorf("failed to update resource to release mapping: %w", err)
 	}
 
 	if err := client.k8s.DeleteRevisions(ctx, *revisions); err != nil {

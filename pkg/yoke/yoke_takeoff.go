@@ -152,10 +152,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
-	if err := commander.k8s.ValidateOwnership(ctx, params.Release, resources); err != nil {
-		return fmt.Errorf("failed to validate ownership: %w", err)
-	}
-
 	if namespace := params.Flight.Namespace; namespace != "" {
 		if err := commander.k8s.EnsureNamespace(ctx, namespace); err != nil {
 			return fmt.Errorf("failed to ensure namespace: %w", err)
@@ -168,6 +164,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	applyOpts := k8s.ApplyResourcesOpts{
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
+		Release:        params.Release,
 	}
 
 	if err := commander.k8s.ApplyResources(ctx, resources, applyOpts); err != nil {
@@ -189,18 +186,8 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to create revision: %w", err)
 	}
 
-	removed, err := commander.k8s.RemoveOrphans(ctx, previous, resources)
-	if err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous, resources); err != nil {
 		return fmt.Errorf("failed to remove orhpans: %w", err)
-	}
-
-	var (
-		createdNames = internal.CanonicalNameList(resources)
-		removedNames = internal.CanonicalNameList(removed)
-	)
-
-	if err := commander.k8s.UpdateResourceReleaseMapping(ctx, params.Release, createdNames, removedNames); err != nil {
-		return fmt.Errorf("failed to update resource release mapping: %w", err)
 	}
 
 	if params.Wait > 0 {
@@ -221,6 +208,7 @@ func (commander Commander) applyDependencies(ctx context.Context, dependencies F
 	applyOpts := k8s.ApplyResourcesOpts{
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
+		Release:        params.Release,
 	}
 
 	if params.CreateCRDs {

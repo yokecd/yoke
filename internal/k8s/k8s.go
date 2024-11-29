@@ -27,15 +27,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/yokecd/yoke/internal"
 )
 
 const (
-	ResourceReleaseMapping = "yoke-resource-release-mapping"
-	NSKubeSystem           = "kube-system"
-	yoke                   = "yoke"
+	NSKubeSystem = "kube-system"
+	yoke         = "yoke"
 )
 
 func yokePrefix(release string) string { return yoke + "-" + release }
@@ -84,19 +82,20 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 type ApplyResourcesOpts struct {
 	SkipDryRun     bool
 	ForceConflicts bool
+	Release        string
 }
 
 func (client Client) ApplyResources(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyResourcesOpts) error {
 	defer internal.DebugTimer(ctx, "apply resources")()
 
 	if !opts.SkipDryRun {
-		dryOpts := ApplyOpts{DryRun: true}
+		dryOpts := ApplyOpts{DryRun: true, Release: opts.Release}
 		if err := xerr.MultiErrOrderedFrom("dry run", client.applyMany(ctx, resources, dryOpts)...); err != nil {
 			return err
 		}
 	}
 
-	applyOpts := ApplyOpts{DryRun: false, ForceConflicts: opts.ForceConflicts}
+	applyOpts := ApplyOpts{DryRun: false, ForceConflicts: opts.ForceConflicts, Release: opts.Release}
 
 	return xerr.MultiErrOrderedFrom("", client.applyMany(ctx, resources, applyOpts)...)
 }
@@ -131,6 +130,7 @@ func (client Client) applyMany(ctx context.Context, resources []*unstructured.Un
 type ApplyOpts struct {
 	DryRun         bool
 	ForceConflicts bool
+	Release        string
 }
 
 func (client Client) ApplyResource(ctx context.Context, resource *unstructured.Unstructured, opts ApplyOpts) error {
@@ -149,9 +149,15 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 		),
 	)()
 
-	resourceInterface, err := client.GetDynamicResourceInterface(resource)
+	intf, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
 		return fmt.Errorf("failed to resolve resource: %w", err)
+	}
+
+	if release := opts.Release; release != "" {
+		if err := client.checkResourceRelease(ctx, release, resource); err != nil {
+			return fmt.Errorf("failed to validate resource release: %w", err)
+		}
 	}
 
 	dryRun := func() []string {
@@ -166,7 +172,7 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 		return err
 	}
 
-	_, err = resourceInterface.Patch(
+	_, err = intf.Patch(
 		ctx,
 		resource.GetName(),
 		types.ApplyPatchType,
@@ -178,6 +184,27 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 		},
 	)
 	return err
+}
+
+func (client Client) checkResourceRelease(ctx context.Context, targetRelease string, resource *unstructured.Unstructured) error {
+	intf, err := client.GetDynamicResourceInterface(resource)
+	if err != nil {
+		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
+	}
+
+	svrResource, err := intf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get resource: %w", err)
+	}
+
+	if serverRelease := svrResource.GetLabels()[internal.LabelYokeRelease]; serverRelease != targetRelease {
+		return fmt.Errorf("expected release %q but resource is already owned by %q", targetRelease, serverRelease)
+	}
+
+	return nil
 }
 
 func (client Client) RemoveOrphans(ctx context.Context, previous, current []*unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
@@ -381,88 +408,6 @@ func (client *Client) LookupResourceMapping(resource *unstructured.Unstructured)
 		mapping, err = client.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	}
 	return mapping, err
-}
-
-func (client Client) UpdateResourceReleaseMapping(ctx context.Context, release string, create, remove []string) error {
-	defer internal.DebugTimer(ctx, "update resource to release mapping")()
-
-	configMaps := client.Clientset.CoreV1().ConfigMaps(NSKubeSystem)
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		configMap, err := configMaps.Get(ctx, ResourceReleaseMapping, metav1.GetOptions{})
-		if kerrors.IsNotFound(err) {
-			mapping := map[string]string{}
-			for _, value := range create {
-				mapping[value] = release
-			}
-
-			_, err := configMaps.Create(
-				ctx,
-				&corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:   ResourceReleaseMapping,
-						Labels: map[string]string{"internal.yoke/kind": "resource-mapping"},
-					},
-					Data: mapping,
-				},
-				metav1.CreateOptions{FieldManager: yoke},
-			)
-			return err
-		}
-
-		if err != nil {
-			return fmt.Errorf("failed to get resource to release mapping: %w", err)
-		}
-
-		if configMap.Data == nil {
-			configMap.Data = make(map[string]string, len(create))
-		}
-
-		for _, value := range remove {
-			delete(configMap.Data, value)
-		}
-		for _, value := range create {
-			configMap.Data[value] = release
-		}
-
-		_, err = configMaps.Update(ctx, configMap, metav1.UpdateOptions{FieldManager: yoke})
-		return err
-	})
-}
-
-func (client Client) GetResourceReleaseMapping(ctx context.Context) (map[string]string, error) {
-	configMaps := client.Clientset.CoreV1().ConfigMaps(NSKubeSystem)
-
-	configMap, err := configMaps.Get(ctx, ResourceReleaseMapping, metav1.GetOptions{})
-	if err != nil {
-		if kerrors.IsNotFound(err) {
-			return make(map[string]string), nil
-		}
-		return nil, err
-	}
-
-	mapping := configMap.Data
-	if mapping == nil {
-		mapping = make(map[string]string)
-	}
-
-	return mapping, nil
-}
-
-func (client Client) ValidateOwnership(ctx context.Context, release string, resources []*unstructured.Unstructured) error {
-	resourceReleaseMapping, err := client.GetResourceReleaseMapping(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get release to resource mapping: %w", err)
-	}
-
-	var errs []error
-	for _, resource := range internal.CanonicalNameList(resources) {
-		if currentRelease, ok := resourceReleaseMapping[resource]; ok && currentRelease != release {
-			errs = append(errs, fmt.Errorf("resource %+q is owned by release %+q", resource, currentRelease))
-		}
-	}
-
-	return xerr.MultiErrOrderedFrom("conflict(s)", errs...)
 }
 
 func (client Client) EnsureNamespace(ctx context.Context, namespace string) error {
