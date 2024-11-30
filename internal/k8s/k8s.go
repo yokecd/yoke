@@ -88,14 +88,16 @@ type ApplyResourcesOpts struct {
 func (client Client) ApplyResources(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyResourcesOpts) error {
 	defer internal.DebugTimer(ctx, "apply resources")()
 
+	applyOpts := ApplyOpts{DryRun: false, ForceConflicts: opts.ForceConflicts, Release: opts.Release}
+
 	if !opts.SkipDryRun {
-		dryOpts := ApplyOpts{DryRun: true, Release: opts.Release}
-		if err := xerr.MultiErrOrderedFrom("dry run", client.applyMany(ctx, resources, dryOpts)...); err != nil {
+		applyOpts := applyOpts
+		applyOpts.DryRun = true
+
+		if err := xerr.MultiErrOrderedFrom("dry run", client.applyMany(ctx, resources, applyOpts)...); err != nil {
 			return err
 		}
 	}
-
-	applyOpts := ApplyOpts{DryRun: false, ForceConflicts: opts.ForceConflicts, Release: opts.Release}
 
 	return xerr.MultiErrOrderedFrom("", client.applyMany(ctx, resources, applyOpts)...)
 }

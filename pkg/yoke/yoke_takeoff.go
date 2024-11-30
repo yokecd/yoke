@@ -69,6 +69,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	dependencies, resources := SplitResources(resources)
 
+	internal.AddYokeMetadata(dependencies.CRDs, params.Release)
+	internal.AddYokeMetadata(dependencies.Namespaces, params.Release)
+	internal.AddYokeMetadata(resources, params.Release)
+
 	if params.CreateCRDs || params.CreateNamespaces {
 		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {
 			return fmt.Errorf("failed to apply flight dependencies: %w", err)
@@ -92,8 +96,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	}
 
 	complete()
-
-	internal.AddYokeMetadata(resources, params.Release)
 
 	if params.Out != "" {
 		if params.Out == "-" {
