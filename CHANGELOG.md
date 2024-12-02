@@ -4,7 +4,19 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2024-11-24) atc/v0.0.2 - atc-installer/v0.0.2 - v0.1.4 - yokecd-installer/v0.0.10
+## (2024-12-01) atc/v0.1.0 - atc-installer/v0.1.0 - v0.2.0 - yokecd/v0.1.0 - yokecd-installer/v0.1.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- internal/releaser: properly check latest tags ([7fcd88e](https://github.com/yokecd/yoke/commit/7fcd88ec39803cdeb9d9d7c13558632a2a370be3))
+- yoke/testing: update tests to check labels ([390e67f](https://github.com/yokecd/yoke/commit/390e67fbebde97c0e1843f53634007fea413e689))
+- internal/releaser: check for breaking changes and bump minor ([ebf677c](https://github.com/yokecd/yoke/commit/ebf677cec53b0e648380f45b31ae1dbac1872238))
+- yoke: ensure flight dependecies are labeled with yoke metadata ([b9ba4b2](https://github.com/yokecd/yoke/commit/b9ba4b25bcba50d290c90f32269f0dbfdf24bd31))
+- deps: update dependencies ([3baadfc](https://github.com/yokecd/yoke/commit/3baadfc203a5b673b8a750063920cd199f99cd29))
+- yoke: breaking change: remove resource-mapping and use labels instead ([2941bcf](https://github.com/yokecd/yoke/commit/2941bcf583ab4957d8a7ac323d968f8352be6f17))
+
+## (2024-11-24) atc/v0.0.2 - atc-installer/v0.0.2 - v0.1.4 - yokecd/v0.0.4 - yokecd-installer/v0.0.10
 
 - yoke: fix segfault of wasm module close on invalid wasm inputs ([5fd75ea](https://github.com/yokecd/yoke/commit/5fd75ea23361ebadd7bd60b51290962506bf7129))
 
