@@ -62,6 +62,11 @@ func run() error {
 		return fmt.Errorf("failed to open git repo: %w", err)
 	}
 
+	breaking, err := containsBreakingChange(repo, "main")
+	if err != nil {
+		return fmt.Errorf("failed to check if repo contains breaking change: %w", err)
+	}
+
 	versions, err := getTagVersions(repo)
 	if err != nil {
 		return fmt.Errorf("failed to get repo's versions by tag: %w", err)
@@ -72,6 +77,7 @@ func run() error {
 		Repo:     repo,
 		DryRun:   *dry,
 		Local:    *local,
+		Breaking: breaking,
 	}
 
 	var errs []error
@@ -102,6 +108,7 @@ type Releaser struct {
 	Repo     *git.Repository
 	DryRun   bool
 	Local    bool
+	Breaking bool
 }
 
 func (releaser Releaser) ReleaseYokeCLI() error {
@@ -116,7 +123,7 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		return nil
 	}
 
-	nextVersion := bumpPatch(version)
+	nextVersion := releaser.Bump(version)
 
 	if releaser.DryRun {
 		fmt.Println("dry-run: release yoke cli via tag:", nextVersion)
@@ -153,7 +160,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := bumpPatch(version)
+	nextVersion := releaser.Bump(version)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -201,7 +208,7 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := bumpPatch(version)
+	nextVersion := releaser.Bump(version)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -321,6 +328,13 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 	return !reflect.DeepEqual(tagData, headData), nil
 }
 
+func (releaser Releaser) Bump(version string) string {
+	if !releaser.Breaking {
+		return bumpPatch(version)
+	}
+	return bumpMinor(version)
+}
+
 func buildWasm(path string) (string, error) {
 	_, name := filepath.Split(path)
 	out := name + ".wasm"
@@ -396,6 +410,13 @@ func bumpPatch(version string) string {
 	return fmt.Sprintf("%s.%d", majorMinor, patchNumber+1)
 }
 
+func bumpMinor(version string) string {
+	major := semver.Major(version)
+	minor := semver.MajorMinor(version)[len(major)+1:]
+	minorNum, _ := strconv.Atoi(minor)
+	return fmt.Sprintf("%s.%d.0", major, minorNum+1)
+}
+
 func withoutGit(fn func() error) error {
 	if err := x.X("mv .git .gitbak"); err != nil {
 		panic(err)
@@ -408,4 +429,31 @@ func withoutGit(fn func() error) error {
 	}()
 
 	return fn()
+}
+
+func containsBreakingChange(repo *git.Repository, branch string) (bool, error) {
+	hash, err := repo.ResolveRevision(plumbing.Revision(plumbing.NewBranchReferenceName(branch)))
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve revision for %s: %w", branch, err)
+	}
+
+	iter, err := repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
+	if err != nil {
+		return false, fmt.Errorf("failed to git log: %w", err)
+	}
+
+	for {
+		commit, err := iter.Next()
+		if commit != nil && commit.Hash == *hash {
+			break
+		}
+		if err == io.EOF {
+			break
+		}
+		if strings.Contains(strings.ToLower(commit.Message), "breaking change:") {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
