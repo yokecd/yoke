@@ -207,6 +207,22 @@ func TestReleaseOwnership(t *testing.T) {
 		TakeOff(background, makeParams("bar")),
 		`failed to apply resources: dry run: default.apps.v1.deployment.sample-app: failed to validate resource release: expected release "bar" but resource is already owned by "foo"`,
 	)
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	deployment, err := client.Clientset.AppsV1().Deployments("default").Get(context.Background(), "sample-app", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(
+		t,
+		map[string]string{
+			"app":                            "sample-app",
+			"app.kubernetes.io/managed-by":   "yoke",
+			"app.kubernetes.io/yoke-release": "foo",
+		},
+		deployment.Labels,
+	)
 }
 
 func TestTakeoffWithNamespace(t *testing.T) {
@@ -310,8 +326,9 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 		)
 	}()
 
-	_, err = client.CoreV1().Namespaces().Get(background, "test-ns-resource", metav1.GetOptions{})
+	ns, err = client.CoreV1().Namespaces().Get(background, "test-ns-resource", metav1.GetOptions{})
 	require.NoError(t, err)
+	require.Equal(t, "foo", ns.Labels["app.kubernetes.io/yoke-release"])
 
 	_, err = client.CoreV1().ConfigMaps("test-ns-resource").Get(background, "test-cm", metav1.GetOptions{})
 	require.NoError(t, err)
