@@ -62,11 +62,6 @@ func run() error {
 		return fmt.Errorf("failed to open git repo: %w", err)
 	}
 
-	breaking, err := containsBreakingChange(repo, "main")
-	if err != nil {
-		return fmt.Errorf("failed to check if repo contains breaking change: %w", err)
-	}
-
 	versions, err := getTagVersions(repo)
 	if err != nil {
 		return fmt.Errorf("failed to get repo's versions by tag: %w", err)
@@ -77,7 +72,6 @@ func run() error {
 		Repo:     repo,
 		DryRun:   *dry,
 		Local:    *local,
-		Breaking: breaking,
 	}
 
 	var errs []error
@@ -104,7 +98,7 @@ func run() error {
 }
 
 type Releaser struct {
-	Versions map[string]string
+	Versions map[string]TagVersion
 	Repo     *git.Repository
 	DryRun   bool
 	Local    bool
@@ -112,7 +106,8 @@ type Releaser struct {
 }
 
 func (releaser Releaser) ReleaseYokeCLI() error {
-	version := releaser.Versions["."]
+	version := releaser.Versions["."].V
+	hash := releaser.Versions["."].H
 
 	diff, err := releaser.HasDiff("yoke", version)
 	if err != nil {
@@ -123,7 +118,12 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		return nil
 	}
 
-	nextVersion := releaser.Bump(version)
+	breaking, err := containsBreakingChange(releaser.Repo, hash)
+	if err != nil {
+		return err
+	}
+
+	nextVersion := releaser.Bump(version, breaking)
 
 	if releaser.DryRun {
 		fmt.Println("dry-run: release yoke cli via tag:", nextVersion)
@@ -142,7 +142,8 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 }
 
 func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
-	version := releaser.Versions[name]
+	version := releaser.Versions[name].V
+	hash := releaser.Versions[name].H
 
 	diff, err := releaser.HasDiff(name, version)
 	if err != nil {
@@ -160,7 +161,12 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := releaser.Bump(version)
+	breaking, err := containsBreakingChange(releaser.Repo, hash)
+	if err != nil {
+		return err
+	}
+
+	nextVersion := releaser.Bump(version, breaking)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -190,7 +196,8 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 }
 
 func (releaser Releaser) ReleaseDockerFile(name string) error {
-	version := releaser.Versions[name]
+	version := releaser.Versions[name].V
+	hash := releaser.Versions[name].H
 
 	diff, err := releaser.HasDiff(name, version)
 	if err != nil {
@@ -208,7 +215,12 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 		fmt.Printf("%s is pre v0.0.1... tagging new release\n", name)
 	}
 
-	nextVersion := releaser.Bump(version)
+	breaking, err := containsBreakingChange(releaser.Repo, hash)
+	if err != nil {
+		return err
+	}
+
+	nextVersion := releaser.Bump(version, breaking)
 
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
@@ -328,8 +340,8 @@ func (releaser Releaser) HasDiff(name, version string) (bool, error) {
 	return !reflect.DeepEqual(tagData, headData), nil
 }
 
-func (releaser Releaser) Bump(version string) string {
-	if !releaser.Breaking {
+func (releaser Releaser) Bump(version string, breaking bool) string {
+	if !breaking {
 		return bumpPatch(version)
 	}
 	return bumpMinor(version)
@@ -376,13 +388,18 @@ func compressFile(path string) (out string, err error) {
 	return output, nil
 }
 
-func getTagVersions(repo *git.Repository) (map[string]string, error) {
+type TagVersion struct {
+	V string
+	H plumbing.Hash
+}
+
+func getTagVersions(repo *git.Repository) (map[string]TagVersion, error) {
 	iter, err := repo.Tags()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read tags: %w", err)
 	}
 
-	versions := map[string]string{}
+	versions := map[string]TagVersion{}
 
 	iter.ForEach(func(r *plumbing.Reference) error {
 		release, version := path.Split(r.Name()[len("refs/tags/"):].String())
@@ -390,8 +407,11 @@ func getTagVersions(repo *git.Repository) (map[string]string, error) {
 			return nil
 		}
 		release = path.Clean(release)
-		if semver.Compare(version, versions[release]) > 0 {
-			versions[release] = version
+		if semver.Compare(version, versions[release].V) > 0 {
+			versions[release] = TagVersion{
+				V: version,
+				H: r.Hash(),
+			}
 		}
 		return nil
 	})
@@ -431,12 +451,7 @@ func withoutGit(fn func() error) error {
 	return fn()
 }
 
-func containsBreakingChange(repo *git.Repository, branch string) (bool, error) {
-	hash, err := repo.ResolveRevision(plumbing.Revision(plumbing.NewBranchReferenceName(branch)))
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve revision for %s: %w", branch, err)
-	}
-
+func containsBreakingChange(repo *git.Repository, since plumbing.Hash) (bool, error) {
 	iter, err := repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
 	if err != nil {
 		return false, fmt.Errorf("failed to git log: %w", err)
@@ -444,7 +459,7 @@ func containsBreakingChange(repo *git.Repository, branch string) (bool, error) {
 
 	for {
 		commit, err := iter.Next()
-		if commit != nil && commit.Hash == *hash {
+		if commit != nil && commit.Hash == since {
 			break
 		}
 		if err == io.EOF {
