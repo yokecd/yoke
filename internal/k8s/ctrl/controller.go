@@ -187,10 +187,19 @@ func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interf
 			case <-ctx.Done():
 				close(events)
 				return
-			case event := <-kubeEvents:
+			case event, ok := <-kubeEvents:
+				if event.Type == watch.Error {
+					ctrl.Logger.Error("kube events sent an error", "error", event)
+				}
+
+				if !ok {
+					ctrl.Logger.Error("unexpected close of kube events channel")
+					return
+				}
+
 				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
 				if !ok {
-					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Type), "runtimeObject", func() string {
+					ctrl.Logger.Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
 						if event.Object == nil {
 							return "<nil>"
 						}
