@@ -190,7 +190,7 @@ func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interf
 			case event := <-kubeEvents:
 				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
 				if !ok {
-					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Type), "runtimeObject", func() string {
+					ctrl.Logger.Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
 						if event.Object == nil {
 							return "<nil>"
 						}

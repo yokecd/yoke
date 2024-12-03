@@ -199,7 +199,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		}
 	}
 
-  fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
+	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
 
 	return nil
 }
