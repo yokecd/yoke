@@ -472,25 +472,32 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 		case <-ctx.Done():
 			return context.Cause(ctx)
 		case <-timer.C:
-			state, err := client.GetInClusterState(ctx, resource)
+			ready, err := client.IsReady(ctx, resource)
 			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
-				}
-				return fmt.Errorf("failed to get in cluster state: %w", err)
+				return err
 			}
-
-			if state == nil {
-				return fmt.Errorf("resource not found")
-			}
-
-			if isReady(ctx, state) {
+			if ready {
 				return nil
 			}
-
 			timer.Reset(interval)
 		}
 	}
+}
+
+func (client Client) IsReady(ctx context.Context, resource *unstructured.Unstructured) (bool, error) {
+	state, err := client.GetInClusterState(ctx, resource)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
+		return false, fmt.Errorf("failed to get in cluster state: %w", err)
+	}
+
+	if state == nil {
+		return false, fmt.Errorf("resource not found")
+	}
+
+	return isReady(ctx, state), nil
 }
 
 func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured, opts WaitOptions) error {

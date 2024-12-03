@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -249,6 +250,8 @@ type FlightReconcilerParams struct {
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
+
 		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK)
 		if err != nil {
 			ctrl.Client(ctx).Mapper.Reset()

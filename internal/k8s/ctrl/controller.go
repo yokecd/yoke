@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 
 	"github.com/yokecd/yoke/internal/k8s"
 )
@@ -57,19 +58,15 @@ func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, 
 		}
 	}
 
-	watcher, err := ctrl.Client.Meta.Resource(mapping.Resource).Watch(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to watch resources: %w", err)
-	}
-	defer watcher.Stop()
-
 	logger := ctrl.Logger.With(slog.String("groupKind", gk.String()))
 	logger.Info("watching resources")
 
 	ctx = context.WithValue(ctx, loggerKey{}, logger)
 	ctx = context.WithValue(ctx, rootLoggerKey{}, ctrl.Logger)
 
-	events := ctrl.eventsFromWatcher(ctx, watcher, mapping)
+	intf := ctrl.Client.Meta.Resource(mapping.Resource)
+
+	events := ctrl.eventsFromMetaGetter(ctx, intf, mapping)
 
 	return ctrl.process(ctx, events, handler)
 }
@@ -174,23 +171,51 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 	return context.Cause(ctx)
 }
 
-func (ctrl Instance) eventsFromWatcher(ctx context.Context, watcher watch.Interface, mapping *meta.RESTMapping) chan Event {
+func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) chan Event {
 	events := make(chan Event)
 	cache := make(map[Event]*unstructured.Unstructured)
+	backoff := time.Second
+
+	setupWatcher := func() watch.Interface {
+		for {
+			watcher, err := getter.Watch(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				ctrl.Logger.Error("failed to setup watcher", "error", err, "backoff", backoff.String())
+				time.Sleep(backoff)
+				continue
+			}
+			return watcher
+		}
+	}
 
 	go func() {
-		kubeEvents := watcher.ResultChan()
+		watcher := setupWatcher()
 		defer watcher.Stop()
+
+		kubeEvents := watcher.ResultChan()
 
 		for {
 			select {
 			case <-ctx.Done():
 				close(events)
 				return
-			case event := <-kubeEvents:
+			case event, ok := <-kubeEvents:
+				if !ok {
+					ctrl.Logger.Error("unexpected close of kube events channel")
+					watcher.Stop()
+					watcher = setupWatcher()
+					kubeEvents = watcher.ResultChan()
+					continue
+				}
+
+				if event.Type == watch.Error {
+					ctrl.Logger.Error("kube events sent an error", "error", event)
+					continue
+				}
+
 				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
 				if !ok {
-					ctrl.Logger.Warn("unexpected event type", "type", reflect.TypeOf(event.Type), "runtimeObject", func() string {
+					ctrl.Logger.Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
 						if event.Object == nil {
 							return "<nil>"
 						}
