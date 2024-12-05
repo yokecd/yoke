@@ -57,8 +57,9 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	if err != nil {
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}
+
 	if params.TestRun {
-		_, err = fmt.Print(string(output))
+		_, err = internal.Stdout(ctx).Write(output)
 		return err
 	}
 
@@ -72,12 +73,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	internal.AddYokeMetadata(dependencies.CRDs, params.Release)
 	internal.AddYokeMetadata(dependencies.Namespaces, params.Release)
 	internal.AddYokeMetadata(resources, params.Release)
-
-	if params.CreateCRDs || params.CreateNamespaces {
-		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {
-			return fmt.Errorf("failed to apply flight dependencies: %w", err)
-		}
-	}
 
 	complete := internal.DebugTimer(ctx, "looking up resource mappings")
 
@@ -163,6 +158,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		}
 	}
 
+	if params.CreateCRDs || params.CreateNamespaces {
+		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {
+			return fmt.Errorf("failed to apply flight dependencies: %w", err)
+		}
+	}
+
 	applyOpts := k8s.ApplyResourcesOpts{
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
@@ -197,6 +198,8 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
 		}
 	}
+
+  fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
 
 	return nil
 }
