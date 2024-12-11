@@ -180,7 +180,7 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 		for {
 			watcher, err := getter.Watch(context.Background(), metav1.ListOptions{})
 			if err != nil {
-				ctrl.Logger.Error("failed to setup watcher", "error", err, "backoff", backoff.String())
+				Logger(ctx).Error("failed to setup watcher", "error", err, "backoff", backoff.String())
 				time.Sleep(backoff)
 				continue
 			}
@@ -201,7 +201,7 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 				return
 			case event, ok := <-kubeEvents:
 				if !ok {
-					ctrl.Logger.Error("unexpected close of kube events channel")
+					Logger(ctx).Error("unexpected close of kube events channel")
 					watcher.Stop()
 					watcher = setupWatcher()
 					kubeEvents = watcher.ResultChan()
@@ -209,13 +209,13 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 				}
 
 				if event.Type == watch.Error {
-					ctrl.Logger.Error("kube events sent an error", "error", event)
+					Logger(ctx).Error("kube events sent an error", "error", event)
 					continue
 				}
 
 				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
 				if !ok {
-					ctrl.Logger.Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
+					Logger(ctx).Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
 						if event.Object == nil {
 							return "<nil>"
 						}
