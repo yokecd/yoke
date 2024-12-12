@@ -4,6 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2024-12-11) atc/v0.1.2
+
+- k8s/controller: use contextual logger in event loop ([4ea004e](https://github.com/yokecd/yoke/commit/4ea004ed3e1e97448b09b94f5f32dd2d4b6d7a7a))
+- atc: restart watcher on kube events being closed ([295621d](https://github.com/yokecd/yoke/commit/295621d4b72ceeb7e090371d30a31b4ae558d142))
+
+## (2024-12-04) atc/v0.1.1 - v0.2.1 - yokecd/v0.1.1
+
+- yoke: log to stderr after successful takeoff ([01703c6](https://github.com/yokecd/yoke/commit/01703c62dd22fd1825b7dff77f46dc084255ffeb))
+- project: add code of conduct and contributing markdowns ([cc42a37](https://github.com/yokecd/yoke/commit/cc42a37732891e7000776c2f92a76f32e0705843))
+
 ## (2024-12-01) atc/v0.1.0 - atc-installer/v0.1.0 - v0.2.0 - yokecd/v0.1.0 - yokecd-installer/v0.1.0
 
 > [!CAUTION]
