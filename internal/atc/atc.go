@@ -356,7 +356,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
 		takeoffParams := yoke.TakeoffParams{
-			Release: event.String(),
+			Release: ReleaseName(flight),
 			Flight: yoke.FlightParams{
 				Path:                filepath.Join(params.CacheDir, fmt.Sprintf("%s.wasm", flight.GroupVersionKind().Version)),
 				Input:               bytes.NewReader(data),
@@ -410,4 +410,20 @@ func unstructuredObject(value any) any {
 type FlightStatus struct {
 	Status string `json:"status"`
 	Msg    string `json:"msg"`
+}
+
+func ReleaseName(resource *unstructured.Unstructured) string {
+	gvk := resource.GroupVersionKind()
+	elems := []string{
+		gvk.Group,
+		gvk.Kind,
+	}
+
+	if ns := resource.GetNamespace(); ns != "" {
+		elems = append(elems, ns)
+	}
+
+	elems = append(elems, resource.GetName())
+
+	return strings.Join(elems, ".")
 }

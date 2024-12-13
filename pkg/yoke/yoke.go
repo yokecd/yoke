@@ -44,7 +44,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 
 	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
 	if err != nil {
-		return fmt.Errorf("failed to get revisions: %w", err)
+		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
 	}
 
 	if id := params.RevisionID; id < 1 || id > len(revisions.History) {

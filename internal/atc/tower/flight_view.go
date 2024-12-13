@@ -5,6 +5,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/yokecd/yoke/internal/atc"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -54,7 +56,7 @@ func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
 						return ExecMsg(func(cmds Commands) tea.Cmd {
 							name := resource.GetName()
 							if namespace := resource.GetNamespace(); namespace != "" {
-								name = namespace + "-" + name
+								name = atc.ReleaseName(&resource)
 							}
 							return cmds.GetRevisionResources(name)
 						})

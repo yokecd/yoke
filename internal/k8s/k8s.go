@@ -36,8 +36,6 @@ const (
 	yoke         = "yoke"
 )
 
-func yokePrefix(release string) string { return yoke + "-" + release }
-
 type Client struct {
 	Dynamic   *dynamic.DynamicClient
 	Clientset *kubernetes.Clientset
@@ -331,7 +329,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 }
 
 func (client Client) CreateRevision(ctx context.Context, release string, revision internal.Revision, resources []*unstructured.Unstructured) error {
-	name := yokePrefix(release) + "-" + internal.RandomString()
+	name := "yoke." + internal.RandomString()
 
 	data, err := json.Marshal(resources)
 	if err != nil {

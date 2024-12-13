@@ -132,7 +132,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
 	if err != nil {
-		return fmt.Errorf("failed to get revision history: %w", err)
+		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
 
 	previous, err := func() ([]*unstructured.Unstructured, error) {
