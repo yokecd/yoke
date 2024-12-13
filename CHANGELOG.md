@@ -4,6 +4,14 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2024-12-13) atc/v0.2.0 - v0.3.0 - yokecd/v0.2.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: breaking change: change yoke internal secret naming to support atc releases that include type flight information ([654a14c](https://github.com/yokecd/yoke/commit/654a14c257226c58232e17e89d1ffa2a37f8be50))
+- yoke: add initial draft of atc subcommand ([511f31b](https://github.com/yokecd/yoke/commit/511f31bb8e554c77eeb7a97699daba89db31e266))
+
 ## (2024-12-11) atc/v0.1.2
 
 - k8s/controller: use contextual logger in event loop ([4ea004e](https://github.com/yokecd/yoke/commit/4ea004ed3e1e97448b09b94f5f32dd2d4b6d7a7a))
