@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/yokecd/yoke/internal/atc"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -82,7 +83,7 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flightGK schema.GroupKind) Revision
 									return ExecMsg(func(cmds Commands) tea.Cmd {
 										name := ref.Name
 										if ref.Namespace != "" {
-											name = ref.Namespace + "-" + name
+											name = atc.ReleaseName(resource.Unstructured)
 										}
 										return cmds.GetRevisionResources(name)
 									})
