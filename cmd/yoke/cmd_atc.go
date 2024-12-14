@@ -126,7 +126,7 @@ func ATC(ctx context.Context) error {
 
 						resources, err := client.GetRevisionResources(ctx, revisions.Active())
 						if err != nil {
-							return fmt.Errorf("failed to get active resources: %w", err)
+							return fmt.Errorf("failed to get active resources for %q: %w", name, err)
 						}
 
 						var wg sync.WaitGroup

@@ -47,10 +47,9 @@ func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
 				Desc: "view airways",
 			},
 			Forward: func(resource unstructured.Unstructured) Nav {
-				gk := resource.GroupVersionKind().GroupKind()
 				return Nav{
 					Model: func(msg tea.WindowSizeMsg) tea.Model {
-						return MakeRevisionView(msg, gk)
+						return MakeRevisionView(msg, resource)
 					},
 					Cmd: func() tea.Msg {
 						return ExecMsg(func(cmds Commands) tea.Cmd {

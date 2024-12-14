@@ -7,10 +7,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/yokecd/yoke/internal/atc"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type ReadyResource struct {
@@ -24,7 +24,7 @@ type RevisionView struct {
 	tea.Model
 }
 
-func MakeRevisionView(dim tea.WindowSizeMsg, flightGK schema.GroupKind) RevisionView {
+func MakeRevisionView(dim tea.WindowSizeMsg, flight unstructured.Unstructured) RevisionView {
 	return RevisionView{
 		Model: TableView[ReadyResource]{
 			Err:     nil,
@@ -57,10 +57,10 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flightGK schema.GroupKind) Revision
 				},
 				Cmd: func() tea.Msg {
 					return ExecMsg(func(cmds Commands) tea.Cmd {
-						return cmds.GetFlightList(flightGK)
+						return cmds.GetFlightList(flight.GroupVersionKind().GroupKind())
 					})
 				},
-				Desc: "view " + flightGK.String(),
+				Desc: "view " + flight.GroupVersionKind().GroupKind().String(),
 			},
 			Forward: nil,
 			Yaml: func(resource ReadyResource) Nav {
@@ -77,13 +77,13 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flightGK schema.GroupKind) Revision
 							Dim:      dim,
 							Back: Nav{
 								Model: func(dim tea.WindowSizeMsg) tea.Model {
-									return MakeRevisionView(dim, flightGK)
+									return MakeRevisionView(dim, flight)
 								},
 								Cmd: func() tea.Msg {
 									return ExecMsg(func(cmds Commands) tea.Cmd {
 										name := ref.Name
 										if ref.Namespace != "" {
-											name = atc.ReleaseName(resource.Unstructured)
+											name = atc.ReleaseName(&flight)
 										}
 										return cmds.GetRevisionResources(name)
 									})
