@@ -9,6 +9,7 @@
 *.out
 
 test_output
+build_output
 
 cache
 

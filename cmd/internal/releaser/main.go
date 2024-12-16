@@ -130,12 +130,48 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		return nil
 	}
 
-	if err := x.Xf("git tag %s", []any{nextVersion}); err != nil {
-		return fmt.Errorf("failed to tag repository: %w", err)
+	targets := []struct {
+		OS   string
+		Arch []string
+	}{
+		{
+			OS:   "darwin",
+			Arch: []string{"arm64", "amd64"},
+		},
+		{
+			OS:   "linux",
+			Arch: []string{"arm64", "amd64", "arm", "386"},
+		},
+		{
+			OS:   "windows",
+			Arch: []string{"amd64"},
+		},
 	}
 
-	if err := x.X("git push --tags"); err != nil {
-		return fmt.Errorf("failed to push tags: %w", err)
+	var compressedPaths []string
+	for _, target := range targets {
+		for _, arch := range target.Arch {
+			binaryPath := fmt.Sprintf("./build_output/yoke_%s_%s_%s", nextVersion, target.OS, arch)
+			if target.OS == "windows" {
+				binaryPath += ".exe"
+			}
+
+			env := x.Env("GOOS="+target.OS, "GOARCH="+arch)
+			if err := x.Xf("go build -o %s ./cmd/yoke", []any{binaryPath}, env); err != nil {
+				return fmt.Errorf("failed to build %s: %v", binaryPath, err)
+			}
+
+			compressedPath, err := compressFile(binaryPath)
+			if err != nil {
+				return fmt.Errorf("failed to compress %s: %w", binaryPath, err)
+			}
+
+			compressedPaths = append(compressedPaths, compressedPath)
+		}
+	}
+
+	if err := x.Xf("gh create release %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
+		return fmt.Errorf("failed to create github release: %v", err)
 	}
 
 	return nil
