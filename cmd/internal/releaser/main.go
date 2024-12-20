@@ -170,7 +170,7 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		}
 	}
 
-	if err := x.Xf("gh create release %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
+	if err := x.Xf("gh release create %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
 		return fmt.Errorf("failed to create github release: %v", err)
 	}
 
