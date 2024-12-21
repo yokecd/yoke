@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"reflect"
 	"strconv"
@@ -25,11 +26,11 @@ import (
 )
 
 type Config struct {
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
 	Image       string            `json:"image"`
 	Version     string            `json:"version"`
 	Port        int               `json:"port"`
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
 }
 
 func main() {
@@ -120,13 +121,60 @@ func run() error {
 		},
 	}
 
+	selector := map[string]string{
+		"yoke.cd/app": "atc",
+	}
+
 	labels := map[string]string{}
 	for k, v := range cfg.Labels {
 		labels[k] = v
 	}
-	labels["yoke.cd/app"] = "atc"
 
-	deploment := appsv1.Deployment{
+	maps.Copy(labels, selector)
+
+	svc := corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      flight.Release() + "-atc",
+			Namespace: flight.Namespace(),
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: selector,
+			Ports: []corev1.ServicePort{
+				{
+					Protocol:   corev1.ProtocolTCP,
+					Port:       80,
+					TargetPort: intstr.FromInt(cfg.Port),
+				},
+			},
+		},
+	}
+
+	tls, err := NewTLS(svc)
+	if err != nil {
+		return err
+	}
+
+	tlsSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      flight.Release() + "-tls",
+			Namespace: flight.Namespace(),
+		},
+		Data: map[string][]byte{
+			"ca.crt":     tls.RootCA,
+			"server.crt": tls.ServerCert,
+			"server.key": tls.ServerKey,
+		},
+	}
+
+	deployment := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -138,7 +186,7 @@ func run() error {
 		Spec: appsv1.DeploymentSpec{
 			Replicas: ptr[int32](1),
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: selector,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
@@ -146,12 +194,32 @@ func run() error {
 					Annotations: cfg.Annotations,
 				},
 				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "tls-secrets",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{SecretName: tlsSecret.GetName()},
+							},
+						},
+					},
 					ServiceAccountName: account.Name,
 					Containers: []corev1.Container{
 						{
 							Name:  "yokecd-atc",
 							Image: cmp.Or(cfg.Image, "davidmdm/atc") + ":" + cfg.Version,
-							Env:   []corev1.EnvVar{{Name: "PORT", Value: strconv.Itoa(cfg.Port)}},
+							Env: []corev1.EnvVar{
+								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
+								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
+								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
+								{Name: "TLS_SERVEr_KEY", Value: "/conf/tls/server.key"},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "tls-secrets",
+									ReadOnly:  true,
+									MountPath: "/conf/tls",
+								},
+							},
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: int32(cfg.Port),
@@ -183,7 +251,14 @@ func run() error {
 		},
 	}
 
-	return json.NewEncoder(os.Stdout).Encode([]any{crd, deploment, account, binding})
+	return json.NewEncoder(os.Stdout).Encode([]any{
+		crd,
+		svc,
+		tlsSecret,
+		deployment,
+		account,
+		binding,
+	})
 }
 
 func ptr[T any](value T) *T { return &value }
