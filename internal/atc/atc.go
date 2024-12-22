@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -38,13 +37,13 @@ const (
 	cleanupFinalizer = "yoke.cd/mayday.flight"
 )
 
-func GetReconciler(airway schema.GroupKind, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(airway schema.GroupKind, locks *WasmLocks, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		Airway:      airway,
 		CacheDir:    cacheDir,
 		Concurrency: concurrency,
 		cleanups:    map[string]func(){},
-		locks:       &sync.Map{},
+		locks:       locks,
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -55,7 +54,7 @@ type atc struct {
 	Concurrency int
 
 	cleanups map[string]func()
-	locks    *sync.Map
+	locks    *WasmLocks
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -117,14 +116,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	cacheDir := filepath.Join("./cache", airway.GetName())
 
-	mutex := func() *sync.RWMutex {
-		value, _ := atc.locks.LoadOrStore(airway.GetName(), new(sync.RWMutex))
-		return value.(*sync.RWMutex)
-	}()
+	lock := atc.locks.Get(typedAirway.Name)
 
 	if err := func() error {
-		mutex.Lock()
-		defer mutex.Unlock()
+		lock.LockAll()
+		defer lock.UnlockAll()
 
 		for key, url := range map[string]string{
 			"flight":    typedAirway.Spec.WasmURLs.Flight,
@@ -214,7 +210,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
 		GK:               flightGK,
 		CacheDir:         cacheDir,
-		Lock:             mutex,
+		Lock:             lock,
 		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
 		CreateCrds:       typedAirway.Spec.CreateCRDs,
 	})
@@ -247,7 +243,7 @@ func (atc atc) Teardown() {
 type FlightReconcilerParams struct {
 	GK               schema.GroupKind
 	CacheDir         string
-	Lock             *sync.RWMutex
+	Lock             *WasmLock
 	FixDriftInterval time.Duration
 	CreateCrds       bool
 	ObjectPath       []string
@@ -355,8 +351,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
 
-		params.Lock.RLock()
-		defer params.Lock.RUnlock()
+		params.Lock.Flight.RLock()
+		defer params.Lock.Flight.RUnlock()
 
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
