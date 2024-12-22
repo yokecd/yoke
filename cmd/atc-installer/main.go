@@ -211,7 +211,7 @@ func run() error {
 								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
 								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
 								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
-								{Name: "TLS_SERVEr_KEY", Value: "/conf/tls/server.key"},
+								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -228,8 +228,9 @@ func run() error {
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/live",
-										Port: intstr.FromInt(cfg.Port),
+										Path:   "/live",
+										Port:   intstr.FromInt(cfg.Port),
+										Scheme: corev1.URISchemeHTTPS,
 									},
 								},
 								TimeoutSeconds: 5,
@@ -237,8 +238,9 @@ func run() error {
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/ready",
-										Port: intstr.FromInt(cfg.Port),
+										Path:   "/ready",
+										Port:   intstr.FromInt(cfg.Port),
+										Scheme: corev1.URISchemeHTTPS,
 									},
 								},
 								TimeoutSeconds: 5,

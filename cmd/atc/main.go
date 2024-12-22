@@ -67,7 +67,12 @@ func run() (err error) {
 	go func() {
 		// Listen on a port and simply return 200 too all requests. This will allow a Liveness and Readiness checks on the atc deployment.
 		// TODO: make checks more sophisticated?
-		http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		_ = http.ListenAndServeTLS(
+			fmt.Sprintf(":%d", cfg.Port),
+			cfg.TLS.ServerCert.Path,
+			cfg.TLS.ServerKey.Path,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+		)
 	}()
 
 	controller := ctrl.Instance{

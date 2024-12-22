@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	"encoding/json"
-	"reflect"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,23 +17,16 @@ type Airway struct {
 }
 
 type AirwaySpec struct {
-	WasmURLs         map[string]string                            `json:"wasmUrls"`
+	WasmURLs         WasmURLs                                     `json:"wasmUrls"`
 	ObjectPath       []string                                     `json:"objectPath,omitempty"`
 	FixDriftInterval openapi.Duration                             `json:"fixDriftInterval,omitempty"`
 	CreateCRDs       bool                                         `json:"createCrds,omitempty"`
 	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 }
 
-func (airway AirwaySpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
-	type Spec AirwaySpec
-	schema := openapi.SchemaFrom(reflect.TypeFor[Spec]())
-	schema.XValidations = apiextensionsv1.ValidationRules{
-		{
-			Rule:    "self.template.versions.map(v, v.served, v.name).all(v, v in self.wasmUrls)",
-			Message: "all served versions must have a wasmUrl associated",
-		},
-	}
-	return schema
+type WasmURLs struct {
+	Flight    string `json:"flight"`
+	Converter string `json:"converter,omitempty"`
 }
 
 type AirwayStatus struct {

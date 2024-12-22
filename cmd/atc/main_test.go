@@ -119,8 +119,8 @@ func TestAirTrafficController(t *testing.T) {
 					Name: "backends.examples.com",
 				},
 				Spec: v1alpha1.AirwaySpec{
-					WasmURLs: map[string]string{
-						"v1": "http://wasmcache",
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache",
 					},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
