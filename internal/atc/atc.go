@@ -126,7 +126,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		mutex.Lock()
 		defer mutex.Unlock()
 
-		for version, url := range typedAirway.Spec.WasmURLs {
+		for key, url := range map[string]string{
+			"flight":    typedAirway.Spec.WasmURLs.Flight,
+			"converter": typedAirway.Spec.WasmURLs.Converter,
+		} {
+			if url == "" {
+				continue
+			}
 			wasm, err := yoke.LoadWasm(ctx, url)
 			if err != nil {
 				return fmt.Errorf("failed to load wasm: %w", err)
@@ -134,7 +140,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
-			path := filepath.Join(cacheDir, fmt.Sprintf("%s.wasm", version))
+			path := filepath.Join(cacheDir, fmt.Sprintf("%s.wasm", key))
 			if err := os.WriteFile(path, wasm, 0o644); err != nil {
 				return fmt.Errorf("failed to cache wasm asset: %w", err)
 			}
@@ -159,7 +165,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 		}
 		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[FlightStatus]())
-		break
 	}
 
 	crd := &unstructured.Unstructured{
@@ -358,7 +363,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		takeoffParams := yoke.TakeoffParams{
 			Release: ReleaseName(flight),
 			Flight: yoke.FlightParams{
-				Path:                filepath.Join(params.CacheDir, fmt.Sprintf("%s.wasm", flight.GroupVersionKind().Version)),
+				Path:                filepath.Join(params.CacheDir, "flight.wasm"),
 				Input:               bytes.NewReader(data),
 				Namespace:           event.Namespace,
 				CompilationCacheDir: params.CacheDir,
