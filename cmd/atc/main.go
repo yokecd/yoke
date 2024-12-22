@@ -64,6 +64,8 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
+	locks := new(atc.WasmLocks)
+
 	go func() {
 		// Listen on a port and simply return 200 too all requests. This will allow a Liveness and Readiness checks on the atc deployment.
 		// TODO: make checks more sophisticated?
@@ -83,7 +85,7 @@ func run() (err error) {
 
 	airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.CacheDir, cfg.Concurrency)
+	reconciler, teardown := atc.GetReconciler(airwayGK, locks, cfg.CacheDir, cfg.Concurrency)
 	defer teardown()
 
 	return controller.ProcessGroupKind(ctx, airwayGK, reconciler)
