@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal/atc"
+	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 )
@@ -64,7 +65,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
-	locks := new(atc.WasmLocks)
+	locks := new(wasm.Locks)
 
 	go func() {
 		// Listen on a port and simply return 200 too all requests. This will allow a Liveness and Readiness checks on the atc deployment.

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
@@ -37,7 +37,7 @@ const (
 	cleanupFinalizer = "yoke.cd/mayday.flight"
 )
 
-func GetReconciler(airway schema.GroupKind, locks *WasmLocks, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(airway schema.GroupKind, locks *wasm.Locks, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		Airway:      airway,
 		CacheDir:    cacheDir,
@@ -54,7 +54,7 @@ type atc struct {
 	Concurrency int
 
 	cleanups map[string]func()
-	locks    *WasmLocks
+	locks    *wasm.Locks
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -114,30 +114,30 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}()
 
-	cacheDir := filepath.Join("./cache", airway.GetName())
-
 	lock := atc.locks.Get(typedAirway.Name)
 
 	if err := func() error {
 		lock.LockAll()
 		defer lock.UnlockAll()
 
-		for key, url := range map[string]string{
-			"flight":    typedAirway.Spec.WasmURLs.Flight,
-			"converter": typedAirway.Spec.WasmURLs.Converter,
+		for typ, url := range map[wasm.Type]string{
+			wasm.Flight:    typedAirway.Spec.WasmURLs.Flight,
+			wasm.Converter: typedAirway.Spec.WasmURLs.Converter,
 		} {
 			if url == "" {
 				continue
 			}
-			wasm, err := yoke.LoadWasm(ctx, url)
+			data, err := yoke.LoadWasm(ctx, url)
 			if err != nil {
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
-			if err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm, CacheDir: cacheDir}); err != nil {
+			if err := wasi.Compile(ctx, wasi.CompileParams{
+				Wasm:     data,
+				CacheDir: wasm.AirwayModuleDir(typedAirway.Name),
+			}); err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
-			path := filepath.Join(cacheDir, fmt.Sprintf("%s.wasm", key))
-			if err := os.WriteFile(path, wasm, 0o644); err != nil {
+			if err := os.WriteFile(wasm.AirwayModulePath(typedAirway.Name, typ), data, 0o644); err != nil {
 				return fmt.Errorf("failed to cache wasm asset: %w", err)
 			}
 		}
@@ -209,7 +209,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
 		GK:               flightGK,
-		CacheDir:         cacheDir,
+		Airway:           typedAirway.Name,
 		Lock:             lock,
 		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
 		CreateCrds:       typedAirway.Spec.CreateCRDs,
@@ -242,8 +242,8 @@ func (atc atc) Teardown() {
 
 type FlightReconcilerParams struct {
 	GK               schema.GroupKind
-	CacheDir         string
-	Lock             *WasmLock
+	Airway           string
+	Lock             *wasm.Lock
 	FixDriftInterval time.Duration
 	CreateCrds       bool
 	ObjectPath       []string
@@ -359,10 +359,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		takeoffParams := yoke.TakeoffParams{
 			Release: ReleaseName(flight),
 			Flight: yoke.FlightParams{
-				Path:                filepath.Join(params.CacheDir, "flight.wasm"),
+				Path:                wasm.AirwayModulePath(params.Airway, wasm.Flight),
 				Input:               bytes.NewReader(data),
 				Namespace:           event.Namespace,
-				CompilationCacheDir: params.CacheDir,
+				CompilationCacheDir: wasm.AirwayModuleDir(params.Airway),
 			},
 			CreateCRDs: params.CreateCrds,
 			OwnerReferences: []metav1.OwnerReference{
