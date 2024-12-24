@@ -86,7 +86,7 @@ func run() (err error) {
 
 	airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, locks, cfg.CacheDir, cfg.Concurrency)
+	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
 	defer teardown()
 
 	return controller.ProcessGroupKind(ctx, airwayGK, reconciler)

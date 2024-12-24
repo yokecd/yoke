@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc/wasm"
@@ -37,11 +38,11 @@ const (
 	cleanupFinalizer = "yoke.cd/mayday.flight"
 )
 
-func GetReconciler(airway schema.GroupKind, locks *wasm.Locks, cacheDir string, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(airway schema.GroupKind, service ServiceDef, locks *wasm.Locks, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
-		Airway:      airway,
-		CacheDir:    cacheDir,
-		Concurrency: concurrency,
+		airway:      airway,
+		concurrency: concurrency,
+		service:     service,
 		cleanups:    map[string]func(){},
 		locks:       locks,
 	}
@@ -49,19 +50,19 @@ func GetReconciler(airway schema.GroupKind, locks *wasm.Locks, cacheDir string, 
 }
 
 type atc struct {
-	Airway      schema.GroupKind
-	CacheDir    string
-	Concurrency int
+	airway      schema.GroupKind
+	concurrency int
 
+	service  ServiceDef
 	cleanups map[string]func()
 	locks    *wasm.Locks
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
-	mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(atc.Airway)
+	mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(atc.airway)
 	if err != nil {
 		ctrl.Client(ctx).Mapper.Reset()
-		return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for groupkind %s: %w", atc.Airway, err)
+		return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for groupkind %s: %w", atc.airway, err)
 	}
 
 	airwayIntf := ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
@@ -163,6 +164,24 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[FlightStatus]())
 	}
 
+	if typedAirway.Spec.WasmURLs.Converter != "" {
+		typedAirway.Spec.Template.Conversion = &apiextv1.CustomResourceConversion{
+			Strategy: apiextv1.WebhookConverter,
+			Webhook: &apiextv1.WebhookConversion{
+				ClientConfig: &apiextv1.WebhookClientConfig{
+					Service: &apiextv1.ServiceReference{
+						Name:      atc.service.Name,
+						Namespace: atc.service.Namespace,
+						Path:      ptr.To("/crdconvert/" + typedAirway.Name),
+						Port:      ptr.To(atc.service.Port),
+					},
+					CABundle: atc.service.CABundle,
+				},
+				ConversionReviewVersions: []string{"v1"},
+			},
+		}
+	}
+
 	crd := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "apiextensions.k8s.io/v1",
@@ -199,7 +218,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	flightController := ctrl.Instance{
 		Client:      ctrl.Client(ctx),
 		Logger:      ctrl.RootLogger(ctx),
-		Concurrency: atc.Concurrency,
+		Concurrency: atc.concurrency,
 	}
 
 	flightGK := schema.GroupKind{
@@ -427,4 +446,11 @@ func ReleaseName(resource *unstructured.Unstructured) string {
 	elems = append(elems, resource.GetName())
 
 	return strings.Join(elems, ".")
+}
+
+type ServiceDef struct {
+	Name      string
+	Namespace string
+	CABundle  []byte
+	Port      int32
 }
