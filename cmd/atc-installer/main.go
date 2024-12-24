@@ -212,6 +212,9 @@ func run() error {
 								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
 								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
 								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
+								{Name: "SVC_NAME", Value: svc.Name},
+								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
+								{Name: "SVC_PORT", Value: strconv.Itoa(svc.Spec.Ports[0].TargetPort.IntValue())},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
