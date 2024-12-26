@@ -214,7 +214,7 @@ func run() error {
 								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
 								{Name: "SVC_NAME", Value: svc.Name},
 								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
-								{Name: "SVC_PORT", Value: strconv.Itoa(svc.Spec.Ports[0].TargetPort.IntValue())},
+								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
