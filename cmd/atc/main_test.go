@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -13,8 +14,11 @@ import (
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	backendv1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
+	backendv2 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v2"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -48,7 +52,7 @@ func TestAirTrafficController(t *testing.T) {
 		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
 	require.NoError(t, x.X(
-		"go build -o ./test_output/backend.wasm ./internal/testing/apis/backend/flight",
+		"go build -o ./test_output/backend.v1.wasm ./internal/testing/apis/backend/v1/flight",
 		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
 
@@ -92,16 +96,16 @@ func TestAirTrafficController(t *testing.T) {
 	wasmcacheTakeoffParams := yoke.TakeoffParams{
 		Release: "wasmcache",
 		Flight: yoke.FlightParams{
-			Path: "./test_output/backend.wasm",
-			Input: strings.NewReader(`{
-        "metadata": {
-          "name": "wasmcache"
-        },
-        "spec": {
-          "image": "yokecd/wasmcache:test",
-          "replicas": 1
-        }
-      }`),
+			Path: "./test_output/backend.v1.wasm",
+			Input: testutils.JsonReader(backendv1.Backend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "wasmcache",
+				},
+				Spec: backendv1.BackendSpec{
+					Image:    "yokecd/wasmcache:test",
+					Replicas: 1,
+				},
+			}),
 			Namespace: "atc",
 		},
 		Wait: 30 * time.Second,
@@ -120,7 +124,7 @@ func TestAirTrafficController(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache",
+						Flight: "http://wasmcache/flight.v1.wasm",
 					},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
@@ -177,14 +181,16 @@ func TestAirTrafficController(t *testing.T) {
 		"failed to create backend resource",
 	)
 
+	listCatOpts := metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
+			MatchLabels: map[string]string{"test.app": "c4ts"},
+		}),
+	}
+
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
-			pods, err := client.Clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
-				LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
-					MatchLabels: map[string]string{"test.app": "c4ts"},
-				}),
-			})
+			pods, err := client.Clientset.CoreV1().Pods("default").List(ctx, listCatOpts)
 			if err != nil {
 				return err
 			}
@@ -198,5 +204,142 @@ func TestAirTrafficController(t *testing.T) {
 		time.Second,
 		30*time.Second,
 		"failed to assert expected replica count for c4ts backend deployment",
+	)
+
+	if setupOnly, _ := strconv.ParseBool(os.Getenv("SETUP_ONLY")); setupOnly {
+		return
+	}
+
+	require.NoError(t, commander.Mayday(ctx, "c4ts"))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			pods, err := client.Clientset.CoreV1().Pods("default").List(ctx, listCatOpts)
+			if err != nil {
+				return err
+			}
+			if count := len(pods.Items); count != 0 {
+				return fmt.Errorf("expected no pods but found: %d", count)
+			}
+			return nil
+		},
+		time.Second,
+		2*time.Minute,
+		"c4ts assets are not cleaned up after delete",
+	)
+
+	airwayTakeoffParams = yoke.TakeoffParams{
+		Release: "backend-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight:    "http://wasmcache/flight.v2.wasm",
+						Converter: "http://wasmcache/converter.wasm",
+					},
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:     "backends",
+							Singular:   "backend",
+							ShortNames: []string{"be"},
+							Kind:       "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: false,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+								},
+							},
+							{
+								Name:    "v2",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv2.Backend]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}
+
+	require.NoError(t, commander.Takeoff(ctx, airwayTakeoffParams))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			resources, err := client.Clientset.ServerResourcesForGroupVersion("examples.com/v2")
+			if err != nil {
+				return err
+			}
+
+			if _, found := internal.Find(resources.APIResources, func(value metav1.APIResource) bool {
+				return value.Kind == "Backend"
+			}); !found {
+				return fmt.Errorf("no Backend V2 found")
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to detect new Backend version",
+	)
+
+	require.NoError(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release: "c4ts",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(backendv1.Backend{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c4ts",
+					},
+					Spec: backendv1.BackendSpec{
+						Image:    "yokecd/c4ts:test",
+						Replicas: 1,
+						Labels:   map[string]string{"test.app": "c4ts"},
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}),
+	)
+
+	rawBackend, err := client.Dynamic.
+		Resource(schema.GroupVersionResource{Group: "examples.com", Version: "v2", Resource: "backends"}).
+		Namespace("default").
+		Get(context.Background(), "c4ts", metav1.GetOptions{})
+
+	require.NoError(t, err)
+
+	var bv2 backendv2.Backend
+	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(rawBackend.Object, &bv2))
+
+	require.Equal(
+		t,
+		backendv2.BackendSpec{
+			Image:    "yokecd/c4ts:test",
+			Replicas: 1,
+			Meta: backendv2.Meta{
+				Labels:      map[string]string{"test.app": "c4ts"},
+				Annotations: map[string]string{},
+			},
+		},
+		bv2.Spec,
 	)
 }

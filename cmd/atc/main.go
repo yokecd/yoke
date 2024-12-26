@@ -68,19 +68,18 @@ func run() (err error) {
 	locks := new(wasm.Locks)
 
 	go func() {
-		// Listen on a port and simply return 200 too all requests. This will allow a Liveness and Readiness checks on the atc deployment.
-		// TODO: make checks more sophisticated?
+		// TODO handle errors adn graceful shutdown.
 		_ = http.ListenAndServeTLS(
 			fmt.Sprintf(":%d", cfg.Port),
 			cfg.TLS.ServerCert.Path,
 			cfg.TLS.ServerKey.Path,
-			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+			Handler(locks, logger.With("component", "server")),
 		)
 	}()
 
 	controller := ctrl.Instance{
 		Client:      client,
-		Logger:      logger,
+		Logger:      logger.With("component", "controller"),
 		Concurrency: cfg.Concurrency,
 	}
 

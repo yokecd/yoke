@@ -15,8 +15,7 @@ tasks:
 
   test:
     cmds:
-      # - kind delete cluster --name=tests && kind create cluster --name=tests
-      - go test -coverprofile cover.out -p 1 -v ./...
+      - go test -timeout 10m -p 1 -v ./...
 
   update-deps:
     cmds:

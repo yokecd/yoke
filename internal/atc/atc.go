@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -109,6 +110,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
+	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
+		airwayStatus("InProgress", "Cleaning up previous flight controller")
+		cleanup()
+	}
+
+	airwayStatus("InProgress", "Initializing flight controller")
+
 	defer func() {
 		if err != nil {
 			airwayStatus("Error", err)
@@ -147,8 +155,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to setup cache: %w", err)
 	}
 
+	var storageVersion string
 	for i := range typedAirway.Spec.Template.Versions {
 		version := &typedAirway.Spec.Template.Versions[i]
+		if version.Storage {
+			storageVersion = version.Name
+		}
 		version.Subresources = &apiextv1.CustomResourceSubresources{
 			Status: &apiextv1.CustomResourceSubresourceStatus{},
 		}
@@ -201,10 +213,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
 	}
 
-	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
-		cleanup()
-	}
-
 	flightCtx, cancel := context.WithCancel(ctx)
 
 	done := make(chan struct{})
@@ -229,10 +237,14 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
 		GK:               flightGK,
 		Airway:           typedAirway.Name,
+		Version:          storageVersion,
 		Lock:             lock,
 		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
 		CreateCrds:       typedAirway.Spec.CreateCRDs,
+		ObjectPath:       []string{},
 	})
+
+	ctrl.Logger(ctx).Info("Launching flight controller")
 
 	go func() {
 		defer cancel()
@@ -262,6 +274,7 @@ func (atc atc) Teardown() {
 type FlightReconcilerParams struct {
 	GK               schema.GroupKind
 	Airway           string
+	Version          string
 	Lock             *wasm.Lock
 	FixDriftInterval time.Duration
 	CreateCrds       bool
@@ -269,10 +282,17 @@ type FlightReconcilerParams struct {
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
+	var once sync.Once
+
 	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+		once.Do(func() {
+			// We need to reset to make sure that we are requesting the latest storage version for the resource.
+			ctrl.Client(ctx).Mapper.Reset()
+		})
+
 		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
 
-		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK)
+		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK, params.Version)
 		if err != nil {
 			ctrl.Client(ctx).Mapper.Reset()
 			return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)

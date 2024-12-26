@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/davidmdm/conf"
+
 	"github.com/yokecd/yoke/internal/atc"
 )
 
@@ -52,7 +53,6 @@ func LoadConfig() (*Config, error) {
 
 	fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
 
-	conf.Var(fs, &cfg.Service.CABundle, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
 	conf.Var(fs, &cfg.TLS.CA.Data, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
 	conf.Var(fs, &cfg.TLS.ServerCert.Data, cfg.TLS.ServerCert.Path, conf.RequiredNonEmpty[[]byte]())
 	conf.Var(fs, &cfg.TLS.ServerKey.Data, cfg.TLS.ServerKey.Path, conf.RequiredNonEmpty[[]byte]())
@@ -61,6 +61,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.Service.CABundle = cfg.TLS.CA.Data
 	cfg.Concurrency = max(cfg.Concurrency, 1)
 
 	return &cfg, nil
