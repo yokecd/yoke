@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/davidmdm/x/xcontext"
 
@@ -47,7 +49,14 @@ func run() (err error) {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	rest, err := func() (*rest.Config, error) {
+	kubecfg, err := func() (kubecfg *rest.Config, err error) {
+		defer func() {
+			if kubecfg == nil {
+				return
+			}
+			kubecfg.Burst = cmp.Or(kubecfg.Burst, 300)
+			kubecfg.QPS = cmp.Or(kubecfg.QPS, 50)
+		}()
 		if cfg.KubeConfig == "" {
 			return rest.InClusterConfig()
 		}
@@ -57,36 +66,81 @@ func run() (err error) {
 		return fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
-	rest.Burst = cmp.Or(rest.Burst, 300)
-	rest.QPS = cmp.Or(rest.QPS, 50)
-
-	client, err := k8s.NewClient(rest)
+	client, err := k8s.NewClient(kubecfg)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
 	locks := new(wasm.Locks)
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	defer wg.Wait()
+
+	e := make(chan error, 2)
+
 	go func() {
-		// TODO handle errors adn graceful shutdown.
-		_ = http.ListenAndServeTLS(
-			fmt.Sprintf(":%d", cfg.Port),
-			cfg.TLS.ServerCert.Path,
-			cfg.TLS.ServerKey.Path,
-			Handler(locks, logger.With("component", "server")),
-		)
+		wg.Wait()
+		close(e)
 	}()
 
-	controller := ctrl.Instance{
-		Client:      client,
-		Logger:      logger.With("component", "controller"),
-		Concurrency: cfg.Concurrency,
-	}
+	ctx, cancel = context.WithCancel(ctx)
+	defer cancel()
 
-	airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
+	go func() {
+		defer wg.Done()
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
-	defer teardown()
+		svr := http.Server{
+			Handler: Handler(locks, logger),
+			Addr:    fmt.Sprintf(":%d", cfg.Port),
+		}
 
-	return controller.ProcessGroupKind(ctx, airwayGK, reconciler)
+		serverErr := make(chan error)
+
+		go func() {
+			defer close(serverErr)
+			if err := svr.ListenAndServeTLS(cfg.TLS.ServerCert.Path, cfg.TLS.ServerKey.Path); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- err
+			}
+		}()
+
+		select {
+		case err := <-serverErr:
+			e <- fmt.Errorf("failed to ListenAndServeTLS: %w", err)
+			return
+		case <-ctx.Done():
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		logger.Info("shutting down ATC/Server")
+		if err := svr.Shutdown(ctx); err != nil {
+			e <- fmt.Errorf("error occured while shutting down server: %v", err)
+		}
+
+		logger.Info("ATC/Server shutdown completed successfully")
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		controller := ctrl.Instance{
+			Client:      client,
+			Logger:      logger.With("component", "controller"),
+			Concurrency: cfg.Concurrency,
+		}
+
+		airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
+
+		reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
+		defer teardown()
+
+		if err := controller.ProcessGroupKind(ctx, airwayGK, reconciler); err != nil {
+			e <- fmt.Errorf("failed to process group kind: %s: %w", airwayGK, err)
+		}
+	}()
+
+	return <-e
 }
