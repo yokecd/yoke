@@ -92,7 +92,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		_ = unstructured.SetNestedMap(
 			airway.Object,
-			unstructuredObject(v1alpha1.AirwayStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
+			internal.MustUnstructuredObject(v1alpha1.AirwayStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}),
 			"status",
 		)
 
@@ -194,15 +194,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
-	crd := &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "apiextensions.k8s.io/v1",
-			"kind":       "CustomResourceDefinition",
-			"metadata": map[string]interface{}{
-				"name": typedAirway.Name,
-			},
-			"spec": unstructuredObject(typedAirway.Spec.Template),
-		},
+	crd, err := internal.ToUnstructured(typedAirway.CRD())
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to convert airway CRD to unstructured object: %v", err)
 	}
 
 	if err := ctrl.Client(ctx).ApplyResource(ctx, crd, k8s.ApplyOpts{}); err != nil {
@@ -332,7 +326,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 			_ = unstructured.SetNestedMap(
 				flight.Object,
-				unstructuredObject(FlightStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}).(map[string]any),
+				internal.MustUnstructuredObject(FlightStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}),
 				"status",
 			)
 
@@ -438,13 +432,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		return ctrl.Result{RequeueAfter: params.FixDriftInterval}, nil
 	}
-}
-
-func unstructuredObject(value any) any {
-	data, _ := json.Marshal(value)
-	var result any
-	_ = json.Unmarshal(data, &result)
-	return result
 }
 
 type FlightStatus struct {
