@@ -114,6 +114,49 @@ func TestAirTrafficController(t *testing.T) {
 
 	require.NoError(t, commander.Takeoff(ctx, wasmcacheTakeoffParams))
 
+	require.ErrorContains(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release: "backend-airway",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(v1alpha1.Airway{
+					TypeMeta: metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "backends.examples.com",
+					},
+					Spec: v1alpha1.AirwaySpec{
+						WasmURLs: v1alpha1.WasmURLs{
+							Flight: "http://wasmcache/flight.v1.wasm",
+						},
+						Template: apiextv1.CustomResourceDefinitionSpec{
+							Group: "examples.com",
+							Names: apiextv1.CustomResourceDefinitionNames{
+								Plural:     "backends",
+								Singular:   "backend",
+								ShortNames: []string{"be"},
+								Kind:       "Backend",
+							},
+							Scope: apiextv1.NamespaceScoped,
+							Versions: []apiextv1.CustomResourceDefinitionVersion{
+								{
+									Name:    "v1",
+									Served:  true,
+									Storage: false, // THIS SHOULD TRIGGER AN ERROR. Invalid to have no storage version. This should be caught by admission validation.
+									Schema: &apiextv1.CustomResourceValidation{
+										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+									},
+								},
+							},
+						},
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}),
+		`admission webhook "airways.yoke.cd" denied the request`,
+	)
+
 	airwayTakeoffParams := yoke.TakeoffParams{
 		Release: "backend-airway",
 		Flight: yoke.FlightParams{
