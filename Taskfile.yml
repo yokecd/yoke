@@ -17,6 +17,10 @@ tasks:
     cmds:
       - go test -timeout 10m -p 1 -v ./...
 
+  update-tools:
+    cmds:
+      - go install sigs.k8s.io/kind@latest
+
   update-deps:
     cmds:
       - go get -u ./...

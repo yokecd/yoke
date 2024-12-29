@@ -4,6 +4,37 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2024-12-28) atc/v0.3.0 - atc-installer/v0.3.0 - v0.4.0 - yokecd/v0.3.0 - yokecd-installer/v0.3.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: implement graceful shutdown for atc server ([56a7bbc](https://github.com/yokecd/yoke/commit/56a7bbced2aff4a3862a95b609bf49732a455ae0))
+- atc: test conversion endpoint ([f222c3b](https://github.com/yokecd/yoke/commit/f222c3b47547ee2dce7c7d5bc36f48517c2e0a65))
+- deps: update deps ([ac20ecf](https://github.com/yokecd/yoke/commit/ac20ecf83e864eebe66390bdbbc2098e7acbc164))
+- atc: add conversion webhook registration when airway.spec.wasmurls.converter is present ([d5665b8](https://github.com/yokecd/yoke/commit/d5665b8b03ed22fa54b8b25e96396adb5c9032be))
+- atc: add basic handler for conversions ([216a86d](https://github.com/yokecd/yoke/commit/216a86d4cfcfcc6d9eab2a8c35251f9724380279))
+- atc: introduce wasmLock for locking flights and converters separately ([188bb8b](https://github.com/yokecd/yoke/commit/188bb8b0bdcb1470b9bdf7fdbe75f9664358485c))
+- atc: BREAKING CHANGE: change airway.spec.wasmUrls schema and support https atc server ([22d5bcc](https://github.com/yokecd/yoke/commit/22d5bccff8805428087140ffe9621d4720e914b0))
+- atc-installer: add tls certs ([6d1fdc0](https://github.com/yokecd/yoke/commit/6d1fdc04b1d873e05e8fe33d5039056b29bac0f4))
+
+## (2024-12-19) atc/v0.2.1 - v0.3.3 - yokecd/v0.2.1
+
+- internal/releaser: fix gh release of cli ([2ad5f27](https://github.com/yokecd/yoke/commit/2ad5f277bbc2f28c0264d6e5bcc2999671e4de04))
+
+## (2024-12-19) atc-installer/v0.2.0 - yokecd-installer/v0.2.0
+
+- deps: update dependencies ([99e2039](https://github.com/yokecd/yoke/commit/99e2039126b6197dc33c708a1473f4773c943ccd))
+- internal/releaser: release yoke cli executables ([2e77e27](https://github.com/yokecd/yoke/commit/2e77e27f2bf136c84488e0eeaea92bbd44967216))
+
+## (2024-12-14) v0.3.2
+
+- yoke: fix atc back navigation from revision yaml view ([6aefe85](https://github.com/yokecd/yoke/commit/6aefe85dc85d734dcfb42f7e2f4fa9340c5c0f3a))
+
+## (2024-12-13) v0.3.1
+
+- yoke: fix atc back navigation in resource view ([2de8600](https://github.com/yokecd/yoke/commit/2de86002d6ac0543171952984637a787439fdaf9))
+
 ## (2024-12-13) atc/v0.2.0 - v0.3.0 - yokecd/v0.2.0
 
 > [!CAUTION]
