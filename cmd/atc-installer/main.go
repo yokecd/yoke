@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/term"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
@@ -174,6 +176,46 @@ func run() error {
 		},
 	}
 
+	airwayValidation := admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: flight.Release() + "-airway",
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "airways.yoke.cd",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: svc.Namespace,
+						Name:      svc.Name,
+						Path:      ptr.To("/validations/airways.yoke.cd"),
+						Port:      &svc.Spec.Ports[0].Port,
+					},
+					CABundle: tls.RootCA,
+				},
+				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				AdmissionReviewVersions: []string{"v1"},
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Create,
+							admissionregistrationv1.Update,
+						},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"yoke.cd"},
+							APIVersions: []string{"v1alpha1"},
+							Resources:   []string{"airways"},
+							Scope:       ptr.To(admissionregistrationv1.ClusterScope),
+						},
+					},
+				},
+			},
+		},
+	}
+
 	deployment := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -184,7 +226,7 @@ func run() error {
 			Namespace: flight.Namespace(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr[int32](1),
+			Replicas: ptr.To[int32](1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selector,
 			},
@@ -263,7 +305,6 @@ func run() error {
 		deployment,
 		account,
 		binding,
+		airwayValidation,
 	})
 }
-
-func ptr[T any](value T) *T { return &value }
