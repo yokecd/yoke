@@ -2,19 +2,25 @@ package main
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	admissionv1 "k8s.io/api/admission/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc/wasm"
+	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
-func Handler(locks *wasm.Locks, logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, locks *wasm.Locks, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +66,43 @@ func Handler(locks *wasm.Locks, logger *slog.Logger) http.Handler {
 		}
 	})
 
+	mux.HandleFunc("POST /validations/airways.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
+		var review admissionv1.AdmissionReview
+		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var airway v1alpha1.Airway
+		if err := json.Unmarshal(review.Request.Object.Raw, &airway); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		crd, err := internal.ToUnstructured(airway.CRD())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		review.Response = &admissionv1.AdmissionResponse{
+			UID:     review.Request.UID,
+			Allowed: true,
+		}
+		review.Request = nil
+
+		if err := client.ApplyResource(r.Context(), crd, k8s.ApplyOpts{DryRun: true}); err != nil {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Status:  metav1.StatusFailure,
+				Message: fmt.Sprintf("invalid crd template: %v", err),
+				Reason:  metav1.StatusReasonInvalid,
+			}
+		}
+
+		_ = json.NewEncoder(w).Encode(review)
+	})
+
 	return withLogger(logger, mux)
 }
 
@@ -69,6 +112,12 @@ func withLogger(logger *slog.Logger, handler http.Handler) http.Handler {
 		sw := statusWriter{ResponseWriter: w}
 
 		handler.ServeHTTP(sw, r)
+
+		if sw.Code() == 200 && (r.URL.Path == "/live" || r.URL.Path == "/ready") {
+			// Skip logging on simple liveness/readiness check passes as they polute the logs with information
+			// that we don't need to see
+			return
+		}
 
 		logger.Info(
 			"request served",

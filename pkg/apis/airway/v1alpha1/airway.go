@@ -9,6 +9,11 @@ import (
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
+const (
+	KindAirway = "Airway"
+	APIVersion = "yoke.cd/v1alpha1"
+)
+
 type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -35,9 +40,30 @@ type AirwayStatus struct {
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {
-	airway.Kind = "Airway"
-	airway.APIVersion = "yoke.cd/v1alpha1"
+	airway.Kind = KindAirway
+	airway.APIVersion = APIVersion
 
 	type AirwayAlt Airway
 	return json.Marshal(AirwayAlt(airway))
+}
+
+func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
+	return apiextensionsv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+			Kind:       "CustomResourceDefinition",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: airway.Name,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: airway.APIVersion,
+					Kind:       airway.Kind,
+					Name:       airway.Name,
+					UID:        airway.UID,
+				},
+			},
+		},
+		Spec: airway.Spec.Template,
+	}
 }

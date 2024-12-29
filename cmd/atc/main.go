@@ -92,11 +92,11 @@ func run() (err error) {
 		defer wg.Done()
 
 		svr := http.Server{
-			Handler: Handler(locks, logger),
+			Handler: Handler(client, locks, logger.With("component", "server")),
 			Addr:    fmt.Sprintf(":%d", cfg.Port),
 		}
 
-		serverErr := make(chan error)
+		serverErr := make(chan error, 1)
 
 		go func() {
 			defer close(serverErr)
