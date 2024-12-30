@@ -1,6 +1,12 @@
 package wasm
 
-import "path/filepath"
+import (
+	"context"
+	"path/filepath"
+	"sync"
+
+	"github.com/tetratelabs/wazero"
+)
 
 type Type interface {
 	string() string
@@ -23,4 +29,55 @@ func AirwayModuleDir(airwayName string) string {
 
 func AirwayModulePath(airwayName string, typ Type) string {
 	return filepath.Join(AirwayModuleDir(airwayName), typ.string())
+}
+
+type ModuleCache struct {
+	locks sync.Map
+}
+
+func (cache *ModuleCache) Get(name string) *Modules {
+	lock, _ := cache.locks.LoadOrStore(name, &Modules{
+		Flight:    &Module{},
+		Converter: &Module{},
+	})
+	return lock.(*Modules)
+}
+
+func (cache *ModuleCache) Delete(name string) {
+	cache.locks.Delete(name)
+}
+
+type Modules struct {
+	Flight    *Module
+	Converter *Module
+}
+
+func (modules *Modules) Reset() {
+	modules.Converter.Close()
+	modules.Flight.Close()
+}
+
+func (modules *Modules) LockAll() {
+	modules.Flight.Lock()
+	modules.Converter.Lock()
+}
+
+// func (modules *Modules)
+
+func (modules *Modules) UnlockAll() {
+	modules.Flight.Unlock()
+	modules.Converter.Unlock()
+}
+
+type Module struct {
+	wazero.CompiledModule
+	sync.RWMutex
+}
+
+func (mod *Module) Close() {
+	if mod.CompiledModule == nil {
+		return
+	}
+	_ = mod.CompiledModule.Close(context.Background())
+	mod.CompiledModule = nil
 }

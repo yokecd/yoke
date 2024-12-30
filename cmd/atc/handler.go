@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/yokecd/yoke/internal"
@@ -20,7 +18,7 @@ import (
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
-func Handler(client *k8s.Client, locks *wasm.Locks, logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -35,26 +33,16 @@ func Handler(client *k8s.Client, locks *wasm.Locks, logger *slog.Logger) http.Ha
 		ctx := r.Context()
 		airway := r.PathValue("airway")
 
-		lock := locks.Get(airway)
+		modules := cache.Get(airway)
 
-		lock.Converter.RLock()
-		defer lock.Converter.RUnlock()
-
-		data, err := os.ReadFile(wasm.AirwayModulePath(airway, wasm.Converter))
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				http.Error(w, "airway does not have converter module setup", http.StatusNotFound)
-				return
-			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		modules.Converter.RLock()
+		defer modules.Converter.RUnlock()
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			Wasm:     data,
-			Stdin:    r.Body,
-			Release:  "converter",
-			CacheDir: wasm.AirwayModuleDir(airway),
+			CompiledModule: modules.Converter.CompiledModule,
+			Stdin:          r.Body,
+			Release:        "converter",
+			CacheDir:       wasm.AirwayModuleDir(airway),
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
