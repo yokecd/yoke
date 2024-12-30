@@ -93,21 +93,27 @@ func gzipReader(r io.Reader) io.Reader {
 }
 
 func EvalFlight(ctx context.Context, release string, flight FlightParams) ([]byte, []byte, error) {
-	if flight.Input != nil && flight.Path == "" {
+	if flight.Input != nil && flight.Path == "" && flight.WasmModule == nil {
 		output, err := io.ReadAll(flight.Input)
 		return output, nil, err
 	}
 
-	wasm, err := LoadWasm(ctx, flight.Path)
+	wasm, err := func() ([]byte, error) {
+		if flight.WasmModule != nil {
+			return nil, nil
+		}
+		return LoadWasm(ctx, flight.Path)
+	}()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)
 	}
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
-		Wasm:    wasm,
-		Release: release,
-		Stdin:   flight.Input,
-		Args:    flight.Args,
+		Wasm:           wasm,
+		CompiledModule: flight.WasmModule,
+		Release:        release,
+		Stdin:          flight.Input,
+		Args:           flight.Args,
 		Env: map[string]string{
 			"YOKE_RELEASE":   release,
 			"YOKE_NAMESPACE": flight.Namespace,

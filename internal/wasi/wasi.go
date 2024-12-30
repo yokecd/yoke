@@ -16,12 +16,13 @@ import (
 )
 
 type ExecParams struct {
-	Wasm     []byte
-	Release  string
-	Stdin    io.Reader
-	Args     []string
-	Env      map[string]string
-	CacheDir string
+	Wasm           []byte
+	CompiledModule wazero.CompiledModule
+	Release        string
+	Stdin          io.Reader
+	Args           []string
+	Env            map[string]string
+	CacheDir       string
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
@@ -69,7 +70,24 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		moduleCfg = moduleCfg.WithEnv(key, value)
 	}
 
-	module, err := runtime.InstantiateWithConfig(ctx, params.Wasm, moduleCfg)
+	guest, teardown, err := func() (wazero.CompiledModule, func(ctx context.Context) error, error) {
+		if params.CompiledModule != nil {
+			// Return a noop teardown since we do not own the compiledModule. Let the caller close it when they are ready.
+			return params.CompiledModule, func(context.Context) error { return nil }, nil
+		}
+
+		guest, err := runtime.CompileModule(ctx, params.Wasm)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
+		}
+		return guest, guest.Close, nil
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile module: %w", err)
+	}
+	defer teardown(ctx)
+
+	module, err := runtime.InstantiateModule(ctx, guest, moduleCfg)
 	defer func() {
 		if module != nil {
 			err = xerr.MultiErrFrom("", err, module.Close(ctx))
@@ -91,7 +109,7 @@ type CompileParams struct {
 	CacheDir string
 }
 
-func Compile(ctx context.Context, params CompileParams) (err error) {
+func Compile(ctx context.Context, params CompileParams) (mod wazero.CompiledModule, err error) {
 	defer internal.DebugTimer(ctx, "wasm compile")()
 
 	cfg := wazero.
@@ -101,7 +119,7 @@ func Compile(ctx context.Context, params CompileParams) (err error) {
 	if params.CacheDir != "" {
 		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
 		if err != nil {
-			return fmt.Errorf("failed to instantiate compilation cache: %w", err)
+			return nil, fmt.Errorf("failed to instantiate compilation cache: %w", err)
 		}
 		cfg = cfg.WithCompilationCache(cache)
 	}
@@ -111,15 +129,8 @@ func Compile(ctx context.Context, params CompileParams) (err error) {
 		err = xerr.MultiErrFrom("", err, runtime.Close(ctx))
 	}()
 
+	// TODO: check if this is needed for compilation? If not remove.
 	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
 
-	module, err := runtime.CompileModule(ctx, params.Wasm)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err = xerr.MultiErrFrom("", err, module.Close(ctx))
-	}()
-
-	return nil
+	return runtime.CompileModule(ctx, params.Wasm)
 }

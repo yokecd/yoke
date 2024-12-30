@@ -71,7 +71,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
-	locks := new(wasm.Locks)
+	locks := new(wasm.ModuleCache)
 
 	var wg sync.WaitGroup
 	wg.Add(2)

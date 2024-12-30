@@ -13,6 +13,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/tetratelabs/wazero"
+
 	"github.com/davidmdm/x/xerr"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,6 +29,7 @@ import (
 
 type FlightParams struct {
 	Path                string
+	WasmModule          wazero.CompiledModule
 	Input               io.Reader
 	Args                []string
 	Namespace           string

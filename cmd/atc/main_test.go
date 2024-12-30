@@ -47,6 +47,11 @@ func TestAirTrafficController(t *testing.T) {
         protocol: TCP
     `))))
 
+	if ci, _ := strconv.ParseBool(os.Getenv("CI")); !ci {
+		require.NoError(t, x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
+		require.NoError(t, x.X(`kubectl patch -n kube-system deployment metrics-server --type=json -p [{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]`))
+	}
+
 	require.NoError(t, x.X(
 		"go build -o ./test_output/atc-installer.wasm ../atc-installer",
 		x.Env("GOOS=wasip1", "GOARCH=wasm"),
