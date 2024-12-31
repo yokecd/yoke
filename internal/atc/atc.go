@@ -135,14 +135,17 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	modules := atc.moduleCache.Get(typedAirway.Name)
+
 	if typedAirway.DeletionTimestamp != nil {
 		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
-			modules.LockAll()
-			defer modules.UnlockAll()
+			// Since deleting the airway does not delete the CRD for safety reasons, we cannot remove
+			// the converter from the module list.
+			//
+			// We can however drop the flight module and reclaim that little piece of the heap.
+			modules.Flight.Lock()
+			defer modules.Flight.Unlock()
 
-			modules.Reset()
-
-			atc.moduleCache.Delete(typedAirway.Name)
+			modules.Flight.Close()
 
 			finalizers := slices.Delete(typedAirway.Finalizers, idx, idx+1)
 			airway.SetFinalizers(finalizers)

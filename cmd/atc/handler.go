@@ -104,7 +104,7 @@ func withLogger(logger *slog.Logger, handler http.Handler) http.Handler {
 		start := time.Now()
 		sw := statusWriter{ResponseWriter: w}
 
-		handler.ServeHTTP(sw, r)
+		handler.ServeHTTP(&sw, r)
 
 		if sw.Code() == 200 && (r.URL.Path == "/live" || r.URL.Path == "/ready") {
 			// Skip logging on simple liveness/readiness check passes as they polute the logs with information
@@ -127,8 +127,9 @@ type statusWriter struct {
 	status int
 }
 
-func (w *statusWriter) WriteHead(code int) {
+func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w statusWriter) Code() int {
