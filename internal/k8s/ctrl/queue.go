@@ -11,6 +11,7 @@ type Queue[T fmt.Stringer] struct {
 	buffer  []T
 	lock    *sync.Mutex
 	pipe    chan T
+	C       chan T
 }
 
 func (queue *Queue[T]) Enqueue(value T) {
@@ -19,39 +20,6 @@ func (queue *Queue[T]) Enqueue(value T) {
 	}
 	queue.append(value)
 	queue.tryUnshift()
-}
-
-func (queue *Queue[T]) Dequeue() (value T) {
-	defer func() {
-		queue.tryUnshift()
-		queue.barrier.Delete(value.String())
-	}()
-	return <-queue.pipe
-}
-
-func (queue *Queue[T]) C() (chan T, func()) {
-	result := make(chan T)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case result <- queue.Dequeue():
-			}
-		}
-	}()
-
-	stop := once(func() {
-		cancel()
-		<-done
-	})
-
-	return result, stop
 }
 
 func (queue *Queue[T]) append(value T) {
@@ -88,32 +56,53 @@ func QueueFromChannel[T fmt.Stringer](c chan T) (*Queue[T], func()) {
 		buffer:  []T{},
 		lock:    &sync.Mutex{},
 		pipe:    make(chan T, 1),
+		C:       make(chan T),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	go func() {
-		defer close(done)
+		defer wg.Done()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case value := <-c:
+			case value, ok := <-c:
+				if !ok {
+					return
+				}
 				queue.Enqueue(value)
 			}
 		}
 	}()
 
-	stop := once(func() {
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case value := <-queue.pipe:
+				select {
+				case <-ctx.Done():
+					return
+				case queue.C <- value:
+					queue.tryUnshift()
+					queue.barrier.Delete(value.String())
+				}
+			}
+		}
+	}()
+
+	stop := func() {
 		cancel()
-		<-done
-	})
+		wg.Wait()
+	}
 
 	return &queue, stop
-}
-
-func once(fn func()) func() {
-	var once sync.Once
-	return func() { once.Do(fn) }
 }
