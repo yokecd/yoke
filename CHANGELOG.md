@@ -4,6 +4,17 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2024-12-31) atc/v0.3.2 - v0.4.2 - yokecd/v0.3.2
+
+- atc: add airway finalizer ([4eb520e](https://github.com/yokecd/yoke/commit/4eb520e402318f6a4d7ecb0f7aee1caaeb39642f))
+- k9s/ctrl: simplify queue to not wait for dequeue but expose a public channel and fix watcher to exit on not found ([e9edee5](https://github.com/yokecd/yoke/commit/e9edee50576575bb76c25ab88188eb63fb30266d))
+- atc: use a compiled module cache to improve performance ([ffcddae](https://github.com/yokecd/yoke/commit/ffcddaed9f913741a574613234247fe402571222))
+
+## (2024-12-29) atc/v0.3.1 - atc-installer/v0.3.1 - v0.4.1 - yokecd/v0.3.1 - yokecd-installer/v0.3.1
+
+- atc-installer: add a validation webhook configuration for airways and test ([b05851d](https://github.com/yokecd/yoke/commit/b05851deaa8402d05dc0e230d7088a1e334cc297))
+- atc: add airway admission validation logic to check crds ([7953c38](https://github.com/yokecd/yoke/commit/7953c3884d714f3c87cb24c2806a3fe5cc1e1ffe))
+
 ## (2024-12-28) atc/v0.3.0 - atc-installer/v0.3.0 - v0.4.0 - yokecd/v0.3.0 - yokecd-installer/v0.3.0
 
 > [!CAUTION]
