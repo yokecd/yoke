@@ -35,8 +35,9 @@ import (
 )
 
 const (
-	fieldManager     = "yoke.cd/atc"
-	cleanupFinalizer = "yoke.cd/mayday.flight"
+	fieldManager           = "yoke.cd/atc"
+	cleanupFinalizer       = "yoke.cd/mayday.flight"
+	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
 )
 
 func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, concurrency int) (ctrl.HandleFunc, func()) {
@@ -110,9 +111,47 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
+	if typedAirway.DeletionTimestamp == nil && !slices.Contains(typedAirway.Finalizers, cleanupAirwayFinalizer) {
+		finalizers := append(typedAirway.Finalizers, cleanupAirwayFinalizer)
+		airway.SetFinalizers(finalizers)
+		if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to add cleanup finalizer to airway: %v", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
 		airwayStatus("InProgress", "Cleaning up previous flight controller")
 		cleanup()
+
+		// cleanup will cause status changes to the airway. Refresh the airway before proceeding.
+		airway, err = airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	modules := atc.moduleCache.Get(typedAirway.Name)
+	if typedAirway.DeletionTimestamp != nil {
+		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
+			modules.LockAll()
+			defer modules.UnlockAll()
+
+			modules.Reset()
+
+			atc.moduleCache.Delete(typedAirway.Name)
+
+			finalizers := slices.Delete(typedAirway.Finalizers, idx, idx+1)
+			airway.SetFinalizers(finalizers)
+
+			if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to remove cleanup finalizer to airway: %v", err)
+			}
+			return ctrl.Result{}, nil
+		}
 	}
 
 	airwayStatus("InProgress", "Initializing flight controller")
@@ -122,8 +161,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			airwayStatus("Error", err)
 		}
 	}()
-
-	modules := atc.moduleCache.Get(typedAirway.Name)
 
 	if err := func() error {
 		modules.LockAll()

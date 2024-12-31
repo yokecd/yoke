@@ -33,13 +33,18 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		ctx := r.Context()
 		airway := r.PathValue("airway")
 
-		modules := cache.Get(airway)
+		converter := cache.Get(airway).Converter
 
-		modules.Converter.RLock()
-		defer modules.Converter.RUnlock()
+		converter.RLock()
+		defer converter.RUnlock()
+
+		if converter.CompiledModule == nil {
+			http.Error(w, "converter module not ready or validations not managed by this server", http.StatusNotFound)
+			return
+		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			CompiledModule: modules.Converter.CompiledModule,
+			CompiledModule: converter.CompiledModule,
 			Stdin:          r.Body,
 			Release:        "converter",
 			CacheDir:       wasm.AirwayModuleDir(airway),
