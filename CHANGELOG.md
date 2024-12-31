@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2024-12-31) atc/v0.3.3 - v0.4.3
+
+- atc: on airway removal do not drop converter module as we keep CRDs around ([1bdd52f](https://github.com/yokecd/yoke/commit/1bdd52ffe23809b24ded2bd73d180fa8049b27ea))
+
 ## (2024-12-31) atc/v0.3.2 - v0.4.2 - yokecd/v0.3.2
 
 - atc: add airway finalizer ([4eb520e](https://github.com/yokecd/yoke/commit/4eb520e402318f6a4d7ecb0f7aee1caaeb39642f))
