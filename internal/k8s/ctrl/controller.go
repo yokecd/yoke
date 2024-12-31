@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -84,9 +85,6 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 	queue, stop := QueueFromChannel(events)
 	defer stop()
 
-	queueCh, stop := queue.C()
-	defer stop()
-
 	for range concurrency {
 		go func() {
 			defer wg.Done()
@@ -95,7 +93,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 				select {
 				case <-ctx.Done():
 					return
-				case event := <-queueCh:
+				case event := <-queue.C:
 					func() {
 						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
 						if loaded {
@@ -176,20 +174,31 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 	cache := make(map[Event]*unstructured.Unstructured)
 	backoff := time.Second
 
-	setupWatcher := func() watch.Interface {
+	setupWatcher := func() (watch.Interface, bool) {
 		for {
 			watcher, err := getter.Watch(context.Background(), metav1.ListOptions{})
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return nil, false
+				}
 				Logger(ctx).Error("failed to setup watcher", "error", err, "backoff", backoff.String())
 				time.Sleep(backoff)
 				continue
 			}
-			return watcher
+			return watcher, true
 		}
 	}
 
 	go func() {
-		watcher := setupWatcher()
+		defer func() {
+			Logger(ctx).Warn("watcher exited", "resource", mapping.Resource)
+			close(events)
+		}()
+
+		watcher, ok := setupWatcher()
+		if !ok {
+			return
+		}
 		defer watcher.Stop()
 
 		kubeEvents := watcher.ResultChan()
@@ -197,13 +206,15 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 		for {
 			select {
 			case <-ctx.Done():
-				close(events)
 				return
 			case event, ok := <-kubeEvents:
 				if !ok {
 					Logger(ctx).Error("unexpected close of kube events channel")
 					watcher.Stop()
-					watcher = setupWatcher()
+					watcher, ok = setupWatcher()
+					if !ok {
+						return
+					}
 					kubeEvents = watcher.ResultChan()
 					continue
 				}
