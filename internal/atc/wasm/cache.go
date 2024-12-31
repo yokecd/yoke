@@ -32,11 +32,11 @@ func AirwayModulePath(airwayName string, typ Type) string {
 }
 
 type ModuleCache struct {
-	locks sync.Map
+	modules sync.Map
 }
 
 func (cache *ModuleCache) Get(name string) *Modules {
-	lock, _ := cache.locks.LoadOrStore(name, &Modules{
+	lock, _ := cache.modules.LoadOrStore(name, &Modules{
 		Flight:    &Module{},
 		Converter: &Module{},
 	})
@@ -44,7 +44,7 @@ func (cache *ModuleCache) Get(name string) *Modules {
 }
 
 func (cache *ModuleCache) Delete(name string) {
-	cache.locks.Delete(name)
+	cache.modules.Delete(name)
 }
 
 type Modules struct {

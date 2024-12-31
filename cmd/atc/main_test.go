@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -389,5 +390,35 @@ func TestAirTrafficController(t *testing.T) {
 			},
 		},
 		bv2.Spec,
+	)
+
+	airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "yoke.cd",
+		Version:  "v1alpha1",
+		Resource: "airways",
+	})
+
+	airway, err := airwayIntf.Get(context.Background(), "backends.examples.com", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.EqualValues(t, []string{"yoke.cd/strip.airway"}, airway.GetFinalizers())
+
+	require.NoError(t, airwayIntf.Delete(context.Background(), airway.GetName(), metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			value, err := airwayIntf.Get(context.Background(), airway.GetName(), metav1.GetOptions{})
+			if value != nil {
+				return fmt.Errorf("expected airway resource to be deleted but is non nil")
+			}
+			if !kerrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to delete the backend airway",
 	)
 }
