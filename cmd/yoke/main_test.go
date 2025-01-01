@@ -157,7 +157,7 @@ func TestCreateWithWait(t *testing.T) {
 
 	// Expectation split into two to remove flakiness. The context being canceled can trigger errors from different places
 	// either directly within yoke or within client-go, hence we capture the cause and the top level message only
-	require.Contains(t, err.Error(), "release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default.apps.v1.deployment.sample-app")
+	require.Contains(t, err.Error(), "release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default/apps/v1/deployment/sample-app")
 	require.Contains(t, err.Error(), "1ns timeout reached")
 
 	require.NoError(t, mayday())
@@ -178,7 +178,7 @@ func TestFailApplyDryRun(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params),
-		`failed to apply resources: dry run: does-not-exist.apps.v1.deployment.sample-app: namespaces "does-not-exist" not found`,
+		`failed to apply resources: dry run: does-not-exist/apps/v1/deployment/sample-app: namespaces "does-not-exist" not found`,
 	)
 }
 
@@ -205,7 +205,7 @@ func TestReleaseOwnership(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, makeParams("bar")),
-		`failed to apply resources: dry run: default.apps.v1.deployment.sample-app: failed to validate resource release: expected release "bar" but resource is already owned by "foo"`,
+		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "bar" but resource is already owned by "foo"`,
 	)
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
@@ -311,7 +311,7 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params(false)),
-		`failed to apply resources: dry run: test-ns-resource.core.v1.configmap.test-cm: namespaces "test-ns-resource" not found`,
+		`failed to apply resources: dry run: test-ns-resource/core/v1/configmap/test-cm: namespaces "test-ns-resource" not found`,
 	)
 
 	require.NoError(t, TakeOff(background, params(true)))
@@ -399,7 +399,7 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params(false)),
-		`failed to apply resources: dry run: _.stable.example.com.v1.crontab.test: failed to resolve resource: no matches for kind "CronTab" in version "stable.example.com/v1"`,
+		`failed to apply resources: dry run: _/stable.example.com/v1/crontab/test: failed to resolve resource: no matches for kind "CronTab" in version "stable.example.com/v1"`,
 	)
 
 	require.NoError(t, TakeOff(background, params(true)))
@@ -538,7 +538,7 @@ func TestTurbulenceFix(t *testing.T) {
 	)
 
 	require.NoError(t, Turbulence(ctx, TurbulenceParams{GlobalSettings: settings, Release: "foo", Fix: true}))
-	require.Equal(t, "fixed drift for: default.core.v1.configmap.test\n", stderr.String())
+	require.Equal(t, "fixed drift for: default/core/v1/configmap/test\n", stderr.String())
 
 	configmap, err = client.CoreV1().ConfigMaps("default").Get(background, "test", metav1.GetOptions{})
 	require.NoError(t, err)

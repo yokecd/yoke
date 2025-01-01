@@ -31,6 +31,10 @@ func run() error {
 	}
 
 	dep := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: labels,

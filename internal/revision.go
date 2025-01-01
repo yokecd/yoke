@@ -112,7 +112,7 @@ func Canonical(resource *unstructured.Unstructured) string {
 			resource.GetKind(),
 			resource.GetName(),
 		},
-		".",
+		"/",
 	))
 }
 
