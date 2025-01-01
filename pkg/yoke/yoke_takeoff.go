@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -302,7 +303,18 @@ func ExportToFS(dir, release string, resources []*unstructured.Unstructured) err
 func ExportToStdout(ctx context.Context, resources []*unstructured.Unstructured) error {
 	output := make(map[string]any, len(resources))
 	for _, resource := range resources {
-		output[internal.Canonical(resource)] = resource.Object
+		segments := strings.Split(internal.Canonical(resource), "/")
+		obj := output
+		for i, segment := range segments {
+			if i == len(segments)-1 {
+				obj[segment] = resource.Object
+				break
+			}
+			if _, ok := obj[segment]; !ok {
+				obj[segment] = map[string]any{}
+			}
+			obj = obj[segment].(map[string]any)
+		}
 	}
 
 	encoder := yaml.NewEncoder(internal.Stdout(ctx))
