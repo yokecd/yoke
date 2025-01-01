@@ -37,7 +37,7 @@ type FlightParams struct {
 }
 
 type TakeoffParams struct {
-	TestRun          bool
+	SendToStdout     bool
 	SkipDryRun       bool
 	ForceConflicts   bool
 	Release          string
@@ -61,7 +61,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}
 
-	if params.TestRun {
+	if params.SendToStdout {
 		_, err = internal.Stdout(ctx).Write(output)
 		return err
 	}

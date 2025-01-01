@@ -53,7 +53,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
-	flagset.BoolVar(&params.TestRun, "test-run", false, "test-run executes the underlying wasm and outputs it to stdout but does not apply any resources to the cluster")
+	flagset.BoolVar(&params.SendToStdout, "stdout", false, "execute the underlying wasm and outputs it to stdout but does not apply any resources to the cluster")
 	flagset.BoolVar(&params.SkipDryRun, "skip-dry-run", false, "disables running dry run to resources before applying them")
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.CreateCRDs, "create-crds", true, "applies custom resource definitions found in flights")
