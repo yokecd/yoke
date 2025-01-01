@@ -281,13 +281,15 @@ func ExportToFS(dir, release string, resources []*unstructured.Unstructured) err
 		return fmt.Errorf("failed remove previous flight export: %w", err)
 	}
 
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return fmt.Errorf("failed to create release output directory: %w", err)
-	}
-
 	var errs []error
 	for _, resource := range resources {
 		path := filepath.Join(root, internal.Canonical(resource)+".yaml")
+
+		parent, _ := filepath.Split(path)
+
+		if err := os.MkdirAll(parent, 0o755); err != nil {
+			return fmt.Errorf("failed to create release output directory: %w", err)
+		}
 
 		if err := internal.WriteYAML(path, resource.Object); err != nil {
 			errs = append(errs, err)
