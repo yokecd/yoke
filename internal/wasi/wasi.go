@@ -26,8 +26,6 @@ type ExecParams struct {
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
-	defer internal.DebugTimer(ctx, "wasm compile and execute")()
-
 	cfg := wazero.
 		NewRuntimeConfig().
 		WithCloseOnContextDone(true)
@@ -71,6 +69,8 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 	}
 
 	guest, teardown, err := func() (wazero.CompiledModule, func(ctx context.Context) error, error) {
+		defer internal.DebugTimer(ctx, "compile wasm module")()
+
 		if params.CompiledModule != nil {
 			// Return a noop teardown since we do not own the compiledModule. Let the caller close it when they are ready.
 			return params.CompiledModule, func(context.Context) error { return nil }, nil
@@ -86,6 +86,8 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		return nil, fmt.Errorf("failed to compile module: %w", err)
 	}
 	defer teardown(ctx)
+
+	defer internal.DebugTimer(ctx, "execute wasm module")()
 
 	module, err := runtime.InstantiateModule(ctx, guest, moduleCfg)
 	defer func() {
