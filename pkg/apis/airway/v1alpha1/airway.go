@@ -5,6 +5,7 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/yokecd/yoke/pkg/openapi"
 )
@@ -65,5 +66,12 @@ func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
 			},
 		},
 		Spec: airway.Spec.Template,
+	}
+}
+
+func (airway Airway) CRGroupResource() schema.GroupResource {
+	return schema.GroupResource{
+		Group:    airway.Spec.Template.Group,
+		Resource: airway.Spec.Template.Names.Plural,
 	}
 }
