@@ -11,6 +11,7 @@ require (
 	github.com/davidmdm/conf v0.0.8
 	github.com/davidmdm/x/xcontext v0.0.3
 	github.com/davidmdm/x/xerr v0.0.3
+	github.com/davidmdm/x/xruntime v0.0.5
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2

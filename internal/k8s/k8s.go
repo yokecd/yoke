@@ -78,6 +78,7 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 }
 
 type ApplyResourcesOpts struct {
+	DryRunOnly     bool
 	SkipDryRun     bool
 	ForceConflicts bool
 	Release        string
@@ -86,14 +87,20 @@ type ApplyResourcesOpts struct {
 func (client Client) ApplyResources(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyResourcesOpts) error {
 	defer internal.DebugTimer(ctx, "apply resources")()
 
-	applyOpts := ApplyOpts{DryRun: false, ForceConflicts: opts.ForceConflicts, Release: opts.Release}
+	applyOpts := ApplyOpts{
+		ForceConflicts: opts.ForceConflicts,
+		Release:        opts.Release,
+	}
 
-	if !opts.SkipDryRun {
+	if opts.DryRunOnly || !opts.SkipDryRun {
 		applyOpts := applyOpts
 		applyOpts.DryRun = true
 
 		if err := xerr.MultiErrOrderedFrom("dry run", client.applyMany(ctx, resources, applyOpts)...); err != nil {
 			return err
+		}
+		if opts.DryRunOnly {
+			return nil
 		}
 	}
 

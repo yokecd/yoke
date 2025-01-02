@@ -57,6 +57,8 @@ github.com/davidmdm/x/xcontext v0.0.3 h1:PuqBczX15qx/4128vRVyK+xbLi2ffCWG6JT8rCK
 github.com/davidmdm/x/xcontext v0.0.3/go.mod h1:ER3jrDtsl/eNmxrGpbO0/7Ep+0waYnohBR1vKznub1U=
 github.com/davidmdm/x/xerr v0.0.3 h1:WwHvo6qzR+eRmHq69Ftgb7PL9832iwy313XpQyJRGtM=
 github.com/davidmdm/x/xerr v0.0.3/go.mod h1:nEfdhUc3O/FmGUGLiJp2hHRhBeANkon7PJexIQ1DlAE=
+github.com/davidmdm/x/xruntime v0.0.5 h1:qIL9l5vHae7IDbSRTAAmjb1Tsldespr0uMMYqxpproI=
+github.com/davidmdm/x/xruntime v0.0.5/go.mod h1:kWVLaIS0EKxZ5NkeSytIDmKBlZjDrAnqbClPhdmUDu4=
 github.com/dlclark/regexp2 v1.11.4 h1:rPYF9/LECdNymJufQKmri9gV604RvvABwgOA8un7yAo=
 github.com/dlclark/regexp2 v1.11.4/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/elazarl/goproxy v0.0.0-20230808193330-2592e75ae04a h1:mATvB/9r/3gvcejNsXKSkQ6lcIaNec2nyfOdlTBR2lU=

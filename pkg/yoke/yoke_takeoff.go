@@ -40,6 +40,7 @@ type FlightParams struct {
 type TakeoffParams struct {
 	SendToStdout     bool
 	SkipDryRun       bool
+	DryRun           bool
 	ForceConflicts   bool
 	Release          string
 	Out              string
@@ -55,7 +56,7 @@ type TakeoffParams struct {
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
-	defer internal.DebugTimer(ctx, "takeoff")()
+	defer internal.DebugTimer(ctx, "takeoff of "+params.Release)()
 
 	output, wasm, err := EvalFlight(ctx, params.Release, params.Flight)
 	if err != nil {
@@ -169,6 +170,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	}
 
 	applyOpts := k8s.ApplyResourcesOpts{
+		DryRunOnly:     params.DryRun,
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
 		Release:        params.Release,
@@ -176,6 +178,11 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if err := commander.k8s.ApplyResources(ctx, resources, applyOpts); err != nil {
 		return fmt.Errorf("failed to apply resources: %w", err)
+	}
+
+	if params.DryRun {
+		fmt.Fprintf(internal.Stderr(ctx), "successful dry-run takeoff of %s\n", params.Release)
+		return nil
 	}
 
 	now := time.Now()
@@ -215,6 +222,7 @@ func (commander Commander) applyDependencies(ctx context.Context, dependencies F
 	errs := make([]error, 2)
 
 	applyOpts := k8s.ApplyResourcesOpts{
+		DryRunOnly:     params.DryRun,
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
 		Release:        params.Release,

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/ptr"
 
@@ -138,6 +140,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	if typedAirway.DeletionTimestamp != nil {
 		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
+			if err := ctrl.Client(ctx).Clientset.
+				AdmissionregistrationV1().
+				ValidatingWebhookConfigurations().
+				Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
+			}
+
 			// Since deleting the airway does not delete the CRD for safety reasons, we cannot remove
 			// the converter from the module list.
 			//
@@ -189,15 +198,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
-
 			if typ == wasm.Converter {
 				modules.Converter.CompiledModule = mod
 			} else {
 				modules.Flight.CompiledModule = mod
-			}
-
-			if err := os.WriteFile(wasm.AirwayModulePath(typedAirway.Name, typ), data, 0o644); err != nil {
-				return fmt.Errorf("failed to cache wasm asset: %w", err)
 			}
 		}
 		return nil
@@ -257,6 +261,71 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
 	}
 
+	validationWebhook := admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: airway.GetName(),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: typedAirway.APIVersion,
+					Kind:       typedAirway.Kind,
+					Name:       typedAirway.Name,
+					UID:        typedAirway.UID,
+				},
+			},
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: typedAirway.CRGroupResource().String(),
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: atc.service.Namespace,
+						Name:      atc.service.Name,
+						Path:      ptr.To("/validations/" + typedAirway.Name),
+						Port:      &atc.service.Port,
+					},
+					CABundle: atc.service.CABundle,
+				},
+				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				AdmissionReviewVersions: []string{"v1"},
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Create,
+							admissionregistrationv1.Update,
+						},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{typedAirway.Spec.Template.Group},
+							APIVersions: []string{storageVersion},
+							Resources:   []string{typedAirway.Spec.Template.Names.Plural},
+							Scope: func() *admissionregistrationv1.ScopeType {
+								if typedAirway.Spec.Template.Scope == apiextv1.ClusterScoped {
+									return ptr.To(admissionregistrationv1.ClusterScope)
+								}
+								return ptr.To(admissionregistrationv1.NamespacedScope)
+							}(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rawValidationWebhook, err := json.Marshal(validationWebhook)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to serialize validation webhook: %w", err)
+	}
+
+	if _, err := ctrl.Client(ctx).Clientset.
+		AdmissionregistrationV1().
+		ValidatingWebhookConfigurations().
+		Patch(ctx, validationWebhook.Name, types.ApplyPatchType, rawValidationWebhook, metav1.PatchOptions{FieldManager: fieldManager}); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create validation webhook: %w", err)
+	}
+
 	flightCtx, cancel := context.WithCancel(ctx)
 
 	done := make(chan struct{})
@@ -285,7 +354,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		FlightMod:        modules.Flight,
 		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
 		CreateCrds:       typedAirway.Spec.CreateCRDs,
-		ObjectPath:       []string{},
+		ObjectPath:       typedAirway.Spec.ObjectPath,
 	})
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
