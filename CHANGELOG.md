@@ -4,6 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-01) atc/v0.4.0 - v0.5.0 - yokecd/v0.4.0 - yokecd-installer/v0.4.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: takeoff with export to stdout via -out flag is hierarchical by namespace, group, version, kind, name, instead of flat ([c2bb52b](https://github.com/yokecd/yoke/commit/c2bb52bee04631a0454b60f81a59607cdb2777fb))
+- yoke: breaking change: use a forward slash to separate segments in internal canonical representation of resources ([5068867](https://github.com/yokecd/yoke/commit/506886740b62ef431ed01bd160e8a43b948cfde9))
+- debug: split wasi execute debugging into two separate calls for compilating and execution ([a3f98b7](https://github.com/yokecd/yoke/commit/a3f98b7cc5ed331f493593bc700d04104d1a8ed3))
+- yoke: rename takeoff flag test-run to stdout ([a778860](https://github.com/yokecd/yoke/commit/a778860678a1181e54e5064e24f10dc169cfe169))
+
 ## (2024-12-31) atc/v0.3.3 - v0.4.3
 
 - atc: on airway removal do not drop converter module as we keep CRDs around ([1bdd52f](https://github.com/yokecd/yoke/commit/1bdd52ffe23809b24ded2bd73d180fa8049b27ea))
