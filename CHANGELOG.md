@@ -4,6 +4,11 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-03) atc/v0.4.1 - atc-installer/v0.4.0 - v0.5.1 - yokecd/v0.4.1
+
+- atc: test validation webhook for airway custom resources ([b2beb8c](https://github.com/yokecd/yoke/commit/b2beb8cbcfda9d135c32672d68116aaa929c3407))
+- atc: added generic flight validation handler ([162d825](https://github.com/yokecd/yoke/commit/162d8250e956ca5c46a83c45e5a2700fb2686640))
+
 ## (2025-01-01) atc/v0.4.0 - v0.5.0 - yokecd/v0.4.0 - yokecd-installer/v0.4.0
 
 > [!CAUTION]
