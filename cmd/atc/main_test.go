@@ -15,6 +15,7 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -204,31 +205,68 @@ func TestAirTrafficController(t *testing.T) {
 
 	require.NoError(t, commander.Takeoff(ctx, airwayTakeoffParams))
 
+	airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "yoke.cd",
+		Version:  "v1alpha1",
+		Resource: "airways",
+	})
+
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
-			return commander.Takeoff(ctx, yoke.TakeoffParams{
-				Release: "c4ts",
-				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(backendv1.Backend{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "c4ts",
-						},
-						Spec: backendv1.BackendSpec{
-							Image:    "yokecd/c4ts:test",
-							Replicas: 3,
-							Labels:   map[string]string{"test.app": "c4ts"},
-						},
-					}),
-				},
-				Wait: 30 * time.Second,
-				Poll: time.Second,
-			})
+			resource, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if status, _, _ := unstructured.NestedString(resource.Object, "status", "status"); status != "Ready" {
+				return fmt.Errorf("expected airway to be Ready but got: %s", status)
+			}
+			return nil
 		},
 		time.Second,
 		30*time.Second,
-		"failed to create backend resource",
+		"airway never became ready",
 	)
+
+	takeoffErr := commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "c4ts",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(backendv1.Backend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "c4ts",
+				},
+				Spec: backendv1.BackendSpec{
+					Image:    "yokecd/c4ts:test",
+					Replicas: -5,
+					Labels:   map[string]string{"invalid-label": "!@#$%^&*()"},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	})
+
+	require.ErrorContains(t, takeoffErr, `admission webhook "backends.examples.com" denied the request`)
+	require.ErrorContains(t, takeoffErr, `metadata.labels: Invalid value`)
+	require.ErrorContains(t, takeoffErr, `spec.replicas: Invalid value`)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "c4ts",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(backendv1.Backend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "c4ts",
+				},
+				Spec: backendv1.BackendSpec{
+					Image:    "yokecd/c4ts:test",
+					Replicas: 3,
+					Labels:   map[string]string{"test.app": "c4ts"},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
 
 	listCatOpts := metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
@@ -392,18 +430,15 @@ func TestAirTrafficController(t *testing.T) {
 		bv2.Spec,
 	)
 
-	airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
-		Group:    "yoke.cd",
-		Version:  "v1alpha1",
-		Resource: "airways",
-	})
-
 	airway, err := airwayIntf.Get(context.Background(), "backends.examples.com", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.EqualValues(t, []string{"yoke.cd/strip.airway"}, airway.GetFinalizers())
+	var typedAirway v1alpha1.Airway
+	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway))
 
-	require.NoError(t, airwayIntf.Delete(context.Background(), airway.GetName(), metav1.DeleteOptions{}))
+	require.EqualValues(t, []string{"yoke.cd/strip.airway"}, typedAirway.Finalizers)
+
+	require.NoError(t, airwayIntf.Delete(context.Background(), typedAirway.Name, metav1.DeleteOptions{}))
 
 	testutils.EventuallyNoErrorf(
 		t,
@@ -421,4 +456,9 @@ func TestAirTrafficController(t *testing.T) {
 		30*time.Second,
 		"failed to delete the backend airway",
 	)
+
+	validationWebhookIntf := client.Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+
+	_, err = validationWebhookIntf.Get(ctx, typedAirway.CRGroupResource().String(), metav1.GetOptions{})
+	require.True(t, kerrors.IsNotFound(err))
 }

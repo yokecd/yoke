@@ -69,7 +69,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for groupkind %s: %w", atc.airway, err)
 	}
 
-	airwayIntf := ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
+	var (
+		airwayIntf  = ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
+		webhookIntf = ctrl.Client(ctx).Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+	)
 
 	airway, err := airwayIntf.Get(ctx, event.Name, metav1.GetOptions{})
 	if err != nil {
@@ -140,10 +143,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	if typedAirway.DeletionTimestamp != nil {
 		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
-			if err := ctrl.Client(ctx).Clientset.
-				AdmissionregistrationV1().
-				ValidatingWebhookConfigurations().
-				Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
 			}
 
@@ -319,10 +319,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to serialize validation webhook: %w", err)
 	}
 
-	if _, err := ctrl.Client(ctx).Clientset.
-		AdmissionregistrationV1().
-		ValidatingWebhookConfigurations().
-		Patch(ctx, validationWebhook.Name, types.ApplyPatchType, rawValidationWebhook, metav1.PatchOptions{FieldManager: fieldManager}); err != nil {
+	if _, err := webhookIntf.Patch(ctx, validationWebhook.Name, types.ApplyPatchType, rawValidationWebhook, metav1.PatchOptions{FieldManager: fieldManager}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create validation webhook: %w", err)
 	}
 
