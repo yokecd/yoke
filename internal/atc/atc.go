@@ -179,6 +179,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		modules.LockAll()
 		defer modules.UnlockAll()
 
+		if err := os.RemoveAll(wasm.AirwayModuleDir(typedAirway.Name)); err != nil {
+			// This is simply removing the airway compilation cache so that we don't accumulate large wasm files on the filesystem.
+			// This is unlikely to be an issue and doesn't warrant erroring out. Just warn.
+			ctrl.Logger(ctx).Warn("failed to clear airway's cache module directory", "error", err)
+		}
+
 		modules.Reset()
 
 		for _, value := range []struct {
