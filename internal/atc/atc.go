@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/ptr"
 
+	"github.com/tetratelabs/wazero"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -180,14 +181,23 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		modules.Reset()
 
-		for typ, url := range map[wasm.Type]string{
-			wasm.Flight:    typedAirway.Spec.WasmURLs.Flight,
-			wasm.Converter: typedAirway.Spec.WasmURLs.Converter,
+		for _, value := range []struct {
+			URL string
+			Mod *wazero.CompiledModule
+		}{
+			{
+				URL: typedAirway.Spec.WasmURLs.Flight,
+				Mod: &modules.Flight.CompiledModule,
+			},
+			{
+				URL: typedAirway.Spec.WasmURLs.Converter,
+				Mod: &modules.Converter.CompiledModule,
+			},
 		} {
-			if url == "" {
+			if value.URL == "" {
 				continue
 			}
-			data, err := yoke.LoadWasm(ctx, url)
+			data, err := yoke.LoadWasm(ctx, value.URL)
 			if err != nil {
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
@@ -198,11 +208,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
-			if typ == wasm.Converter {
-				modules.Converter.CompiledModule = mod
-			} else {
-				modules.Flight.CompiledModule = mod
-			}
+			*value.Mod = mod
 		}
 		return nil
 	}(); err != nil {
