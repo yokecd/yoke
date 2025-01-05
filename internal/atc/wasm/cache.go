@@ -27,10 +27,6 @@ func AirwayModuleDir(airwayName string) string {
 	return filepath.Join("/conf", airwayName)
 }
 
-func AirwayModulePath(airwayName string, typ Type) string {
-	return filepath.Join(AirwayModuleDir(airwayName), typ.string())
-}
-
 type ModuleCache struct {
 	modules sync.Map
 }
