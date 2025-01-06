@@ -24,6 +24,7 @@ import (
 type BlackboxParams struct {
 	GlobalSettings
 	Release        string
+	Namespace      string
 	RevisionID     int
 	DiffRevisionID int
 	Context        int
@@ -48,6 +49,7 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
+	flagset.StringVar(&params.Namespace, "namespace", "", "namespace of release to inspect")
 	flagset.Parse(args)
 
 	params.Release = flagset.Arg(0)
@@ -82,35 +84,46 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
 
-	allReleases, err := client.GetAllRevisions(ctx)
+	releases, err := func() ([]internal.Release, error) {
+		if ns := params.Namespace; ns != "" {
+			return client.GetReleasesByNS(ctx, ns)
+		}
+		return client.GetReleases(ctx)
+	}()
 	if err != nil {
 		return fmt.Errorf("failed to get revisions: %w", err)
 	}
+
 	if params.Release == "" {
 		tbl := table.NewWriter()
 		tbl.SetStyle(table.StyleRounded)
 
-		tbl.AppendHeader(table.Row{"release", "revision id"})
-		for _, revisions := range allReleases {
-			tbl.AppendRow(table.Row{revisions.Release, revisions.ActiveIndex() + 1})
+		tbl.AppendHeader(table.Row{"release", "namespace", "revision id"})
+		for _, release := range releases {
+			tbl.AppendRow(table.Row{release.Name, release.Namespace, release.ActiveIndex() + 1})
 		}
 
 		_, err = io.WriteString(os.Stdout, tbl.Render()+"\n")
 		return err
 	}
 
-	revisions, ok := internal.Find(allReleases, func(revisions internal.Revisions) bool {
-		return revisions.Release == params.Release
+	matchingReleases := internal.FindAll(releases, func(release internal.Release) bool {
+		return release.Name == params.Release
 	})
-	if !ok {
+	if len(matchingReleases) == 0 {
 		return fmt.Errorf("release %q not found", params.Release)
 	}
+	if len(matchingReleases) > 1 {
+		return fmt.Errorf("release %q found in more than one namespace: specify namespace", params.Release)
+	}
+
+	release := matchingReleases[0]
 
 	if params.RevisionID == 0 {
 		tbl := table.NewWriter()
 		tbl.SetStyle(table.StyleRounded)
 
-		history := revisions.History
+		history := release.History
 		slices.Reverse(history)
 
 		tbl.AppendHeader(table.Row{"id", "resources", "flight", "sha", "created at"})
@@ -122,11 +135,11 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return err
 	}
 
-	if params.RevisionID > len(revisions.History) {
+	if params.RevisionID > len(release.History) {
 		return fmt.Errorf("revision %d not found", params.RevisionID)
 	}
 
-	resources, err := client.GetRevisionResources(ctx, revisions.History[params.RevisionID-1])
+	resources, err := client.GetRevisionResources(ctx, release.History[params.RevisionID-1])
 	if err != nil {
 		return fmt.Errorf("failed to get resources for revision %d: %w", params.RevisionID, err)
 	}
@@ -143,11 +156,11 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return nil
 	}
 
-	if params.DiffRevisionID > len(revisions.History) {
+	if params.DiffRevisionID > len(release.History) {
 		return fmt.Errorf("revision %d not found", params.DiffRevisionID)
 	}
 
-	resources, err = client.GetRevisionResources(ctx, revisions.History[params.DiffRevisionID-1])
+	resources, err = client.GetRevisionResources(ctx, release.History[params.DiffRevisionID-1])
 	if err != nil {
 		return fmt.Errorf("failed to get resources for revision %d: %w", params.DiffRevisionID, err)
 	}

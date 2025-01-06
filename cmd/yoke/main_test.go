@@ -94,7 +94,7 @@ func TestCreateDeleteCycle(t *testing.T) {
 	client, err := k8s.NewClient(restcfg)
 	require.NoError(t, err)
 
-	revisions, err := client.GetAllRevisions(background)
+	revisions, err := client.GetReleases(background)
 	require.NoError(t, err)
 	require.Len(t, revisions, 0)
 

@@ -11,3 +11,13 @@ func Find[S ~[]E, E any](slice S, fn func(E) bool) (E, bool) {
 		return slice[idx], true
 	}
 }
+
+func FindAll[S ~[]E, E any](slice S, fn func(E) bool) []E {
+	var result []E
+	for _, elem := range slice {
+		if fn(elem) {
+			result = append(result, elem)
+		}
+	}
+	return result
+}

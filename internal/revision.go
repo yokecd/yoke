@@ -15,15 +15,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type Revisions struct {
-	Release   string     `json:"release"`
+type Release struct {
+	Name      string     `json:"release"`
 	Namespace string     `json:"namespace"`
 	History   []Revision `json:"history"`
 }
 
-func (revisions Revisions) Active() Revision {
+func (release Release) Active() Revision {
 	var active Revision
-	for _, revision := range revisions.History {
+	for _, revision := range release.History {
 		if revision.ActiveAt.After(active.ActiveAt) {
 			active = revision
 		}
@@ -31,10 +31,10 @@ func (revisions Revisions) Active() Revision {
 	return active
 }
 
-func (revisions Revisions) ActiveIndex() int {
+func (release Release) ActiveIndex() int {
 	var active int
-	for i, revision := range revisions.History {
-		if revision.ActiveAt.After(revisions.History[active].ActiveAt) {
+	for i, revision := range release.History {
+		if revision.ActiveAt.After(release.History[active].ActiveAt) {
 			active = i
 		}
 	}
@@ -63,8 +63,8 @@ func SourceFrom(ref string, wasm []byte) (src Source) {
 	return
 }
 
-func (revisions *Revisions) Add(revision Revision) {
-	idx, _ := slices.BinarySearchFunc(revisions.History, revision, func(a, b Revision) int {
+func (release *Release) Add(revision Revision) {
+	idx, _ := slices.BinarySearchFunc(release.History, revision, func(a, b Revision) int {
 		switch {
 		case a.CreatedAt.Before(b.CreatedAt):
 			return -1
@@ -74,7 +74,7 @@ func (revisions *Revisions) Add(revision Revision) {
 			return 0
 		}
 	})
-	revisions.History = slices.Insert(revisions.History, idx, revision)
+	release.History = slices.Insert(release.History, idx, revision)
 }
 
 type Revision struct {
