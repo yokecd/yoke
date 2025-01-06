@@ -32,8 +32,7 @@ import (
 )
 
 const (
-	NSKubeSystem = "kube-system"
-	yoke         = "yoke"
+	yoke = "yoke"
 )
 
 type Client struct {
@@ -252,7 +251,7 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current []*uns
 	return removedResources, xerr.MultiErrOrderedFrom("", errs...)
 }
 
-func (client Client) GetRevisions(ctx context.Context, release string) (*internal.Revisions, error) {
+func (client Client) GetRevisions(ctx context.Context, release, ns string) (*internal.Revisions, error) {
 	defer internal.DebugTimer(ctx, "get revisions for "+release)
 
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
@@ -263,17 +262,18 @@ func (client Client) GetRevisions(ctx context.Context, release string) (*interna
 	var labelSelector metav1.LabelSelector
 	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, release)
 
-	list, err := client.Meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
+	list, err := client.Meta.Resource(mapping.Resource).Namespace(ns).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list revision items: %w", err)
 	}
 
-	revisions := internal.Revisions{Release: release}
+	revisions := internal.Revisions{Release: release, Namespace: ns}
 	for _, item := range list.Items {
 		revisions.Add(internal.Revision{
-			Name: item.Name,
+			Name:      item.Name,
+			Namespace: ns,
 			Source: internal.Source{
 				Ref:      item.Annotations[internal.AnnotationSourceURL],
 				Checksum: item.Annotations[internal.AnnotationSourceChecksum],
@@ -290,7 +290,7 @@ func (client Client) GetRevisions(ctx context.Context, release string) (*interna
 func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Revisions) error {
 	defer internal.DebugTimer(ctx, "delete revision history "+revisions.Release)()
 
-	secrets := client.Clientset.CoreV1().Secrets(NSKubeSystem)
+	secrets := client.Clientset.CoreV1().Secrets(revisions.Namespace)
 
 	var errs []error
 	for _, revision := range revisions.History {
@@ -303,6 +303,52 @@ func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Rev
 }
 
 func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions, error) {
+	list, err := client.Clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, len(list.Items))
+	revisions := make([][]internal.Revisions, len(list.Items))
+
+	for i, ns := range list.Items {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			result, err := client.GetAllRevisionInNS(ctx, ns.Name)
+			if err != nil {
+				if kerrors.IsNotFound(err) || kerrors.IsForbidden(err) {
+					// If is forbidden the user simply does not have access to these revisions and can simply ignore.
+					return
+				}
+				errs[i] = fmt.Errorf("%s: %w", ns.Name, err)
+				return
+			}
+			revisions[i] = result
+		}()
+	}
+
+	wg.Wait()
+
+	if err := xerr.MultiErrOrderedFrom("loading revisions from namespaces", errs...); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, context.Canceled
+		}
+		return nil, err
+	}
+
+	var result []internal.Revisions
+	for _, revision := range revisions {
+		result = append(result, revision...)
+	}
+
+	return result, nil
+}
+
+func (client Client) GetAllRevisionInNS(ctx context.Context, ns string) ([]internal.Revisions, error) {
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource mapping for Secret: %w", err)
@@ -311,7 +357,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 	var selector metav1.LabelSelector
 	metav1.AddLabelToSelector(&selector, internal.LabelKind, "revision")
 
-	list, err := client.Meta.Resource(mapping.Resource).Namespace(NSKubeSystem).List(ctx, metav1.ListOptions{
+	list, err := client.Meta.Resource(mapping.Resource).Namespace(ns).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&selector),
 	})
 	if err != nil {
@@ -325,7 +371,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 
 	var result []internal.Revisions
 	for release := range releases {
-		revisions, err := client.GetRevisions(ctx, release)
+		revisions, err := client.GetRevisions(ctx, release, ns)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get revisions for release %s: %w", release, err)
 		}
@@ -335,19 +381,17 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 	return result, nil
 }
 
-func (client Client) CreateRevision(ctx context.Context, release string, revision internal.Revision, resources []*unstructured.Unstructured) error {
-	name := "yoke." + internal.RandomString()
-
+func (client Client) CreateRevision(ctx context.Context, release, ns string, revision internal.Revision, resources []*unstructured.Unstructured) error {
 	data, err := json.Marshal(resources)
 	if err != nil {
 		return fmt.Errorf("failed to marshal resources: %w", err)
 	}
 
-	_, err = client.Clientset.CoreV1().Secrets(NSKubeSystem).Create(
+	_, err = client.Clientset.CoreV1().Secrets(ns).Create(
 		ctx,
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name: "yoke." + internal.RandomString(),
 				Labels: map[string]string{
 					internal.LabelKind:    "revision",
 					internal.LabelRelease: release,
@@ -360,8 +404,8 @@ func (client Client) CreateRevision(ctx context.Context, release string, revisio
 					internal.AnnotationSourceChecksum: revision.Source.Checksum,
 				},
 			},
-			StringData: map[string]string{
-				internal.KeyResources: string(data),
+			Data: map[string][]byte{
+				internal.KeyResources: data,
 			},
 		},
 		metav1.CreateOptions{FieldManager: yoke},
@@ -370,10 +414,10 @@ func (client Client) CreateRevision(ctx context.Context, release string, revisio
 	return err
 }
 
-func (client Client) UpdateRevisionActiveState(ctx context.Context, name string) error {
-	secrets := client.Clientset.CoreV1().Secrets(NSKubeSystem)
+func (client Client) UpdateRevisionActiveState(ctx context.Context, revision internal.Revision) error {
+	secrets := client.Clientset.CoreV1().Secrets(revision.Namespace)
 
-	secret, err := secrets.Get(ctx, name, metav1.GetOptions{})
+	secret, err := secrets.Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get revision secret: %w", err)
 	}
@@ -385,7 +429,7 @@ func (client Client) UpdateRevisionActiveState(ctx context.Context, name string)
 }
 
 func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) ([]*unstructured.Unstructured, error) {
-	secret, err := client.Clientset.CoreV1().Secrets(NSKubeSystem).Get(ctx, revision.Name, metav1.GetOptions{})
+	secret, err := client.Clientset.CoreV1().Secrets(revision.Namespace).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

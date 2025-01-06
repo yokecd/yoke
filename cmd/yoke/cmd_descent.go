@@ -39,6 +39,7 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
+	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release")
 	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
 	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
 

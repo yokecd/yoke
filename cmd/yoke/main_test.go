@@ -170,16 +170,16 @@ func TestFailApplyDryRun(t *testing.T) {
 		TakeoffParams: yoke.TakeoffParams{
 			Release: "foo",
 			Flight: yoke.FlightParams{
-				Input:     createBasicDeployment(t, "sample-app", "does-not-exist"),
+				Input:     createBasicDeployment(t, "%invalid-chars&*", "does-not-exist"),
 				Namespace: "does-not-exist",
 			},
 		},
 	}
 
-	require.EqualError(
+	require.ErrorContains(
 		t,
 		TakeOff(background, params),
-		`failed to apply resources: dry run: does-not-exist/apps/v1/deployment/sample-app: namespaces "does-not-exist" not found`,
+		`failed to apply resources: dry run: does-not-exist/apps/v1/deployment/%invalid-chars&*: failed to validate resource release`,
 	)
 }
 
@@ -290,9 +290,9 @@ func TestTakeoffWithNamespace(t *testing.T) {
 	client, err := kubernetes.NewForConfig(rest)
 	require.NoError(t, err)
 
-	namespaceName := fmt.Sprintf("test-ns-%x", strconv.Itoa(rand.IntN(1024)))
+	ns := fmt.Sprintf("test-ns-%x", strconv.Itoa(rand.IntN(1024)))
 
-	_, err = client.CoreV1().Namespaces().Get(background, namespaceName, metav1.GetOptions{})
+	_, err = client.CoreV1().Namespaces().Get(background, ns, metav1.GetOptions{})
 	require.True(t, kerrors.IsNotFound(err))
 
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
@@ -302,8 +302,8 @@ func TestTakeoffWithNamespace(t *testing.T) {
 		TakeoffParams: yoke.TakeoffParams{
 			Release: "foo",
 			Flight: yoke.FlightParams{
-				Input:     createBasicDeployment(t, "sample-app", namespaceName),
-				Namespace: namespaceName,
+				Input:     createBasicDeployment(t, "sample-app", ns),
+				Namespace: ns,
 			},
 			CreateNamespaces: true,
 		},
@@ -311,14 +311,14 @@ func TestTakeoffWithNamespace(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, params))
 	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", GlobalSettings: settings}))
-		require.NoError(t, client.CoreV1().Namespaces().Delete(background, namespaceName, metav1.DeleteOptions{}))
+		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", Namespace: ns, GlobalSettings: settings}))
+		require.NoError(t, client.CoreV1().Namespaces().Delete(background, ns, metav1.DeleteOptions{}))
 	}()
 
-	_, err = client.CoreV1().Namespaces().Get(background, namespaceName, metav1.GetOptions{})
+	_, err = client.CoreV1().Namespaces().Get(background, ns, metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.NoError(t, client.CoreV1().Namespaces().Delete(background, namespaceName, metav1.DeleteOptions{}))
+	require.NoError(t, client.CoreV1().Namespaces().Delete(background, ns, metav1.DeleteOptions{}))
 }
 
 func TestTakeoffWithNamespaceResource(t *testing.T) {
@@ -340,9 +340,9 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:          "foo",
+				MultiNamespaces:  true,
 				CreateNamespaces: createNamespaces,
 				Flight: yoke.FlightParams{
-					Namespace: "test-ns-resource",
 					Input: strings.NewReader(`[
 						{
 							apiVersion: v1,
@@ -580,7 +580,18 @@ func TestTurbulenceFix(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	ctx := internal.WithStdio(background, &stdout, &stderr, nil)
 
-	require.NoError(t, Turbulence(ctx, TurbulenceParams{GlobalSettings: settings, Release: "foo", Fix: false, ConflictsOnly: true}))
+	require.NoError(
+		t,
+		Turbulence(ctx, TurbulenceParams{
+			GlobalSettings: settings,
+			TurbulenceParams: yoke.TurbulenceParams{
+				Release:       "foo",
+				Fix:           false,
+				ConflictsOnly: true,
+			},
+		}),
+	)
+
 	require.Equal(
 		t,
 		strings.Join(
@@ -597,7 +608,19 @@ func TestTurbulenceFix(t *testing.T) {
 		stdout.String(),
 	)
 
-	require.NoError(t, Turbulence(ctx, TurbulenceParams{GlobalSettings: settings, Release: "foo", Fix: true}))
+	require.NoError(
+		t,
+		Turbulence(
+			ctx,
+			TurbulenceParams{
+				GlobalSettings: settings,
+				TurbulenceParams: yoke.TurbulenceParams{
+					Release: "foo",
+					Fix:     true,
+				},
+			},
+		),
+	)
 	require.Equal(t, "fixed drift for: default/core/v1/configmap/test\n", stderr.String())
 
 	configmap, err = client.CoreV1().ConfigMaps("default").Get(background, "test", metav1.GetOptions{})
