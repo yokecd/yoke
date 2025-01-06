@@ -297,7 +297,7 @@ func TestAirTrafficController(t *testing.T) {
 		return
 	}
 
-	require.NoError(t, commander.Mayday(ctx, "c4ts"))
+	require.NoError(t, commander.Mayday(ctx, "c4ts", "default"))
 
 	testutils.EventuallyNoErrorf(
 		t,

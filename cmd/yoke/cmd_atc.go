@@ -119,7 +119,7 @@ func ATC(ctx context.Context) error {
 
 				GetRevisionResources: func(name string) tea.Cmd {
 					return func() tea.Msg {
-						revisions, err := client.GetRevisions(ctx, name)
+						revisions, err := client.GetRevisions(ctx, name, "TODO")
 						if err != nil {
 							return fmt.Errorf("failed to get revisions for %q: %w", name, err)
 						}

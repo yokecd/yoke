@@ -1,6 +1,7 @@
 package yoke
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -35,6 +36,7 @@ func FromK8Client(client *k8s.Client) *Commander {
 type DescentParams struct {
 	Release    string
 	RevisionID int
+	Namespace  string
 	Wait       time.Duration
 	Poll       time.Duration
 }
@@ -42,7 +44,7 @@ type DescentParams struct {
 func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
 	defer internal.DebugTimer(ctx, "descent")()
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
+	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, params.Namespace)
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
 	}
@@ -67,7 +69,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to apply resources: %w", err)
 	}
 
-	if err := commander.k8s.UpdateRevisionActiveState(ctx, targetRevision.Name); err != nil {
+	if err := commander.k8s.UpdateRevisionActiveState(ctx, targetRevision); err != nil {
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
@@ -84,10 +86,12 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	return nil
 }
 
-func (client Commander) Mayday(ctx context.Context, release string) error {
+func (client Commander) Mayday(ctx context.Context, release, ns string) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
-	revisions, err := client.k8s.GetRevisions(ctx, release)
+	targetNS := cmp.Or(ns, "default")
+
+	revisions, err := client.k8s.GetRevisions(ctx, release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
@@ -113,6 +117,7 @@ func (client Commander) Mayday(ctx context.Context, release string) error {
 }
 
 type TurbulenceParams struct {
+	Namespace     string
 	Release       string
 	Context       int
 	ConflictsOnly bool
@@ -124,11 +129,13 @@ type TurbulenceParams struct {
 func (commander Commander) Turbulence(ctx context.Context, params TurbulenceParams) error {
 	defer internal.DebugTimer(ctx, "turbulence")()
 
+	targetNS := cmp.Or(params.Namespace, "default")
+
 	if params.Silent {
 		ctx = internal.WithStderr(ctx, io.Discard)
 	}
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
+	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %s: %w", params.Release, err)
 	}

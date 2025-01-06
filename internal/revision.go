@@ -16,8 +16,9 @@ import (
 )
 
 type Revisions struct {
-	Release string     `json:"release"`
-	History []Revision `json:"history"`
+	Release   string     `json:"release"`
+	Namespace string     `json:"namespace"`
+	History   []Revision `json:"history"`
 }
 
 func (revisions Revisions) Active() Revision {
@@ -78,6 +79,7 @@ func (revisions *Revisions) Add(revision Revision) {
 
 type Revision struct {
 	Name      string    `json:"-"`
+	Namespace string    `json:"-"`
 	Source    Source    `json:"source"`
 	CreatedAt time.Time `json:"createdAt"`
 	ActiveAt  time.Time `json:"-"`

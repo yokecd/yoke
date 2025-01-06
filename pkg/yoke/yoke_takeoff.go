@@ -99,8 +99,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 				ns := resource.GetNamespace()
 				if ns == "" {
 					resource.SetNamespace(targetNS)
-				}
-				if !params.MultiNamespaces && ns != targetNS {
+				} else if !params.MultiNamespaces && ns != targetNS {
 					errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
 				}
 			}
@@ -120,7 +119,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	}
 
 	if params.DiffOnly {
-		revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
+		revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
 		if err != nil {
 			return fmt.Errorf("failed to get revision history: %w", err)
 		}
@@ -150,7 +149,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return err
 	}
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release)
+	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
@@ -169,7 +168,14 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
-	dependencies.Namespaces = append(dependencies.Namespaces, toUnstructuredNS(targetNS))
+	if namespace := params.Flight.Namespace; namespace != "" {
+		if err := commander.k8s.EnsureNamespace(ctx, namespace); err != nil {
+			return fmt.Errorf("failed to ensure namespace: %w", err)
+		}
+		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(namespace), k8s.WaitOptions{Interval: params.Poll}); err != nil {
+			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", namespace, err)
+		}
+	}
 
 	if params.CreateCRDs || params.CreateNamespaces {
 		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {
@@ -197,6 +203,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	if err := commander.k8s.CreateRevision(
 		ctx,
 		params.Release,
+		targetNS,
 		internal.Revision{
 			Source:    internal.SourceFrom(params.Flight.Path, wasm),
 			CreatedAt: now,

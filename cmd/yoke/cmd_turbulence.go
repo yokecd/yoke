@@ -16,11 +16,7 @@ import (
 
 type TurbulenceParams struct {
 	GlobalSettings
-	Release       string
-	Context       int
-	ConflictsOnly bool
-	Fix           bool
-	Color         bool
+	yoke.TurbulenceParams
 }
 
 //go:embed cmd_turbulence_help.txt
@@ -53,6 +49,7 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 	)
 	flagset.BoolVar(&params.Fix, "fix", false, "fix the drift. If present conflict-only will be true.")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "outputs diff with color")
+	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release")
 
 	flagset.Parse(args)
 

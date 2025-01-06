@@ -13,7 +13,8 @@ import (
 
 type MaydayParams struct {
 	GlobalSettings
-	Release string
+	Release   string
+	Namespace string
 }
 
 //go:embed cmd_mayday_help.txt
@@ -35,6 +36,8 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
+	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release to remove")
+
 	flagset.Parse(args)
 
 	params.Release = flagset.Arg(0)
@@ -50,5 +53,5 @@ func Mayday(ctx context.Context, params MaydayParams) error {
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
-	return commander.Mayday(ctx, params.Release)
+	return commander.Mayday(ctx, params.Release, params.Namespace)
 }
