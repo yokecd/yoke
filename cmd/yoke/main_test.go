@@ -170,7 +170,8 @@ func TestFailApplyDryRun(t *testing.T) {
 		TakeoffParams: yoke.TakeoffParams{
 			Release: "foo",
 			Flight: yoke.FlightParams{
-				Input: createBasicDeployment(t, "sample-app", "does-not-exist"),
+				Input:     createBasicDeployment(t, "sample-app", "does-not-exist"),
+				Namespace: "does-not-exist",
 			},
 		},
 	}
@@ -180,6 +181,63 @@ func TestFailApplyDryRun(t *testing.T) {
 		TakeOff(background, params),
 		`failed to apply resources: dry run: does-not-exist/apps/v1/deployment/sample-app: namespaces "does-not-exist" not found`,
 	)
+}
+
+func TestMultiNamespaceValidation(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	for _, ns := range []string{"alpha", "beta"} {
+		require.NoError(t, client.EnsureNamespace(context.Background(), ns))
+		defer func() {
+			require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{}))
+		}()
+	}
+
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+
+	makeParams := func(multiNamespace bool) TakeoffParams {
+		return TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:         "foo",
+				MultiNamespaces: multiNamespace,
+				Flight: yoke.FlightParams{
+					Input: strings.NewReader(`[
+            {
+              apiVersion: v1,
+              kind: ConfigMap,
+              metadata: {
+                name: alpha,
+                namespace: alpha,
+              },
+              data: {},
+            },
+            {
+              apiVersion: v1,
+              kind: ConfigMap,
+              metadata: {
+                name: beta,
+                namespace: beta,
+              },
+              data: {},
+            },
+          ]`),
+				},
+			},
+		}
+	}
+
+	err = TakeOff(context.Background(), makeParams(false))
+	require.ErrorContains(t, err, "Multiple namespaces detected")
+	require.ErrorContains(t, err, `namespace "alpha" does not match target namespace "default"`)
+	require.ErrorContains(t, err, `namespace "beta" does not match target namespace "default"`)
+
+	require.NoError(t, TakeOff(context.Background(), makeParams(true)))
+	require.NoError(t, Mayday(context.Background(), MaydayParams{
+		Release:        "foo",
+		GlobalSettings: settings,
+	}))
 }
 
 func TestReleaseOwnership(t *testing.T) {
@@ -244,9 +302,10 @@ func TestTakeoffWithNamespace(t *testing.T) {
 		TakeoffParams: yoke.TakeoffParams{
 			Release: "foo",
 			Flight: yoke.FlightParams{
-				Input:     createBasicDeployment(t, "sample-app", "default"),
+				Input:     createBasicDeployment(t, "sample-app", namespaceName),
 				Namespace: namespaceName,
 			},
+			CreateNamespaces: true,
 		},
 	}
 
@@ -283,6 +342,7 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 				Release:          "foo",
 				CreateNamespaces: createNamespaces,
 				Flight: yoke.FlightParams{
+					Namespace: "test-ns-resource",
 					Input: strings.NewReader(`[
 						{
 							apiVersion: v1,
