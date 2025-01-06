@@ -484,7 +484,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if !flight.GetDeletionTimestamp().IsZero() {
 			flightStatus("Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, event.String(), event.Namespace); err != nil {
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, ReleaseName(flight), event.Namespace); err != nil {
 				if !internal.IsWarning(err) {
 					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 				}
