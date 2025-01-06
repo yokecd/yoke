@@ -251,7 +251,7 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current []*uns
 	return removedResources, xerr.MultiErrOrderedFrom("", errs...)
 }
 
-func (client Client) GetRevisions(ctx context.Context, release, ns string) (*internal.Revisions, error) {
+func (client Client) GetRevisions(ctx context.Context, release, ns string) (*internal.Release, error) {
 	defer internal.DebugTimer(ctx, "get revisions for "+release)
 
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
@@ -269,7 +269,7 @@ func (client Client) GetRevisions(ctx context.Context, release, ns string) (*int
 		return nil, fmt.Errorf("failed to list revision items: %w", err)
 	}
 
-	revisions := internal.Revisions{Release: release, Namespace: ns}
+	revisions := internal.Release{Name: release, Namespace: ns}
 	for _, item := range list.Items {
 		revisions.Add(internal.Revision{
 			Name:      item.Name,
@@ -287,8 +287,8 @@ func (client Client) GetRevisions(ctx context.Context, release, ns string) (*int
 	return &revisions, nil
 }
 
-func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Revisions) error {
-	defer internal.DebugTimer(ctx, "delete revision history "+revisions.Release)()
+func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Release) error {
+	defer internal.DebugTimer(ctx, "delete revision history "+revisions.Name)()
 
 	secrets := client.Clientset.CoreV1().Secrets(revisions.Namespace)
 
@@ -302,7 +302,7 @@ func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Rev
 	return xerr.MultiErrOrderedFrom("removing revision history secrets", errs...)
 }
 
-func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions, error) {
+func (client Client) GetReleases(ctx context.Context) ([]internal.Release, error) {
 	list, err := client.Clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list namespaces: %w", err)
@@ -310,7 +310,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 
 	var wg sync.WaitGroup
 	errs := make([]error, len(list.Items))
-	revisions := make([][]internal.Revisions, len(list.Items))
+	revisions := make([][]internal.Release, len(list.Items))
 
 	for i, ns := range list.Items {
 		wg.Add(1)
@@ -318,7 +318,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 		go func() {
 			defer wg.Done()
 
-			result, err := client.GetAllRevisionInNS(ctx, ns.Name)
+			result, err := client.GetReleasesByNS(ctx, ns.Name)
 			if err != nil {
 				if kerrors.IsNotFound(err) || kerrors.IsForbidden(err) {
 					// If is forbidden the user simply does not have access to these revisions and can simply ignore.
@@ -340,7 +340,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 		return nil, err
 	}
 
-	var result []internal.Revisions
+	var result []internal.Release
 	for _, revision := range revisions {
 		result = append(result, revision...)
 	}
@@ -348,7 +348,7 @@ func (client Client) GetAllRevisions(ctx context.Context) ([]internal.Revisions,
 	return result, nil
 }
 
-func (client Client) GetAllRevisionInNS(ctx context.Context, ns string) ([]internal.Revisions, error) {
+func (client Client) GetReleasesByNS(ctx context.Context, ns string) ([]internal.Release, error) {
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource mapping for Secret: %w", err)
@@ -369,7 +369,7 @@ func (client Client) GetAllRevisionInNS(ctx context.Context, ns string) ([]inter
 		releases[item.Labels[internal.LabelRelease]] = struct{}{}
 	}
 
-	var result []internal.Revisions
+	var result []internal.Release
 	for release := range releases {
 		revisions, err := client.GetRevisions(ctx, release, ns)
 		if err != nil {
