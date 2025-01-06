@@ -42,6 +42,7 @@ type TakeoffParams struct {
 	SkipDryRun       bool
 	DryRun           bool
 	ForceConflicts   bool
+	MultiNamespaces  bool
 	Release          string
 	Out              string
 	Flight           FlightParams
@@ -79,23 +80,37 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	internal.AddYokeMetadata(dependencies.Namespaces, params.Release)
 	internal.AddYokeMetadata(resources, params.Release)
 
-	complete := internal.DebugTimer(ctx, "looking up resource mappings")
+	targetNS := cmp.Or(params.Flight.Namespace, "default")
 
-	for _, resource := range resources {
-		mapping, err := commander.k8s.LookupResourceMapping(resource)
-		if err != nil {
-			if meta.IsNoMatchError(err) {
-				continue
+	if err := func() error {
+		defer internal.DebugTimer(ctx, "looking up resource mappings")()
+
+		var errs []error
+		for _, resource := range resources {
+			mapping, err := commander.k8s.LookupResourceMapping(resource)
+			if err != nil {
+				if meta.IsNoMatchError(err) {
+					continue
+				}
+
+				return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
 			}
-			return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
+			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+				ns := resource.GetNamespace()
+				if ns == "" {
+					resource.SetNamespace(targetNS)
+				}
+				if !params.MultiNamespaces && ns != targetNS {
+					errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
+				}
+			}
+			resource.SetOwnerReferences(params.OwnerReferences)
 		}
-		if mapping.Scope.Name() == meta.RESTScopeNameNamespace && resource.GetNamespace() == "" {
-			resource.SetNamespace(cmp.Or(params.Flight.Namespace, "default"))
-		}
-		resource.SetOwnerReferences(params.OwnerReferences)
-	}
 
-	complete()
+		return xerr.MultiErrFrom("Multiple namespaces detected (if desired enable multinamespace releases)", errs...)
+	}(); err != nil {
+		return err
+	}
 
 	if params.Out != "" {
 		if params.Out == "-" {
@@ -154,14 +169,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
-	if namespace := params.Flight.Namespace; namespace != "" {
-		if err := commander.k8s.EnsureNamespace(ctx, namespace); err != nil {
-			return fmt.Errorf("failed to ensure namespace: %w", err)
-		}
-		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(namespace), k8s.WaitOptions{Interval: params.Poll}); err != nil {
-			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", namespace, err)
-		}
-	}
+	dependencies.Namespaces = append(dependencies.Namespaces, toUnstructuredNS(targetNS))
 
 	if params.CreateCRDs || params.CreateNamespaces {
 		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {

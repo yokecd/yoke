@@ -59,6 +59,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.CreateCRDs, "create-crds", true, "applies custom resource definitions found in flights")
 	flagset.BoolVar(&params.CreateNamespaces, "create-namespaces", false, "applies namespace resources found in flights")
+	flagset.BoolVar(&params.MultiNamespaces, "multi-namespaces", false, "allows releases to create resources in other namespaces than the target namespace")
 
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "use colored output in diffs")
