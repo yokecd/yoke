@@ -10,7 +10,12 @@ import (
 )
 
 func TestGenerateSchema(t *testing.T) {
+	type Embedded struct {
+		Embedded bool `json:"embed"`
+	}
+
 	type S struct {
+		Embedded
 		Name   string            `json:"name" MinLength:"3"`
 		Age    int               `json:"age" Minimum:"18"`
 		Labels map[string]string `json:"labels,omitempty"`
@@ -57,6 +62,9 @@ func TestGenerateSchema(t *testing.T) {
 							Message: "something",
 						},
 					},
+				},
+				"embed": {
+					Type: "boolean",
 				},
 			},
 			Required: []string{"name", "age", "active", "choice", "rule"},

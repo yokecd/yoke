@@ -3,6 +3,7 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -75,6 +76,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 		if _, ok := cache[typ]; !ok {
 			cache[typ] = nil
 		}
+
 		schema := &apiext.JSONSchemaProps{
 			Type:       "object",
 			Properties: apiext.JSONSchemaDefinitions{},
@@ -91,6 +93,11 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 			}
 
 			if top && slices.Contains([]string{"ObjectMeta", "TypeMeta"}, f.Name) {
+				continue
+			}
+
+			if f.Anonymous && jTag == "" {
+				maps.Copy(schema.Properties, generateSchema(f.Type, false).Properties)
 				continue
 			}
 
