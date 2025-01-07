@@ -293,10 +293,6 @@ func TestAirTrafficController(t *testing.T) {
 		"failed to assert expected replica count for c4ts backend deployment",
 	)
 
-	if setupOnly, _ := strconv.ParseBool(os.Getenv("SETUP_ONLY")); setupOnly {
-		return
-	}
-
 	require.NoError(t, commander.Mayday(ctx, "c4ts", "default"))
 
 	testutils.EventuallyNoErrorf(
@@ -406,6 +402,10 @@ func TestAirTrafficController(t *testing.T) {
 			Poll: time.Second,
 		}),
 	)
+
+	if setupOnly, _ := strconv.ParseBool(os.Getenv("SETUP_ONLY")); setupOnly {
+		return
+	}
 
 	rawBackend, err := client.Dynamic.
 		Resource(schema.GroupVersionResource{Group: "examples.com", Version: "v2", Resource: "backends"}).
