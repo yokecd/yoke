@@ -65,7 +65,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
 
-	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true, Release: params.Release}); err != nil {
+	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
 		return fmt.Errorf("failed to apply resources: %w", err)
 	}
 

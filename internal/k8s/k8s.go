@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"runtime"
 	"strconv"
 	"sync"
@@ -80,7 +81,6 @@ type ApplyResourcesOpts struct {
 	DryRunOnly     bool
 	SkipDryRun     bool
 	ForceConflicts bool
-	Release        string
 }
 
 func (client Client) ApplyResources(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyResourcesOpts) error {
@@ -88,7 +88,6 @@ func (client Client) ApplyResources(ctx context.Context, resources []*unstructur
 
 	applyOpts := ApplyOpts{
 		ForceConflicts: opts.ForceConflicts,
-		Release:        opts.Release,
 	}
 
 	if opts.DryRunOnly || !opts.SkipDryRun {
@@ -136,7 +135,6 @@ func (client Client) applyMany(ctx context.Context, resources []*unstructured.Un
 type ApplyOpts struct {
 	DryRun         bool
 	ForceConflicts bool
-	Release        string
 }
 
 func (client Client) ApplyResource(ctx context.Context, resource *unstructured.Unstructured, opts ApplyOpts) error {
@@ -160,10 +158,8 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 		return fmt.Errorf("failed to resolve resource: %w", err)
 	}
 
-	if release := opts.Release; release != "" {
-		if err := client.checkResourceRelease(ctx, release, resource); err != nil {
-			return fmt.Errorf("failed to validate resource release: %w", err)
-		}
+	if err := client.checkOwnership(ctx, resource); err != nil {
+		return fmt.Errorf("failed to validate resource release: %w", err)
 	}
 
 	dryRun := func() []string {
@@ -192,7 +188,7 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 	return err
 }
 
-func (client Client) checkResourceRelease(ctx context.Context, targetRelease string, resource *unstructured.Unstructured) error {
+func (client Client) checkOwnership(ctx context.Context, resource *unstructured.Unstructured) error {
 	intf, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
 		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
@@ -206,8 +202,11 @@ func (client Client) checkResourceRelease(ctx context.Context, targetRelease str
 		return fmt.Errorf("failed to get resource: %w", err)
 	}
 
-	if serverRelease := svrResource.GetLabels()[internal.LabelYokeRelease]; serverRelease != targetRelease {
-		return fmt.Errorf("expected release %q but resource is already owned by %q", targetRelease, serverRelease)
+	localOwner := path.Join(resource.GetLabels()[internal.LabelYokeReleaseNS], resource.GetLabels()[internal.LabelYokeRelease])
+	svrOwner := path.Join(svrResource.GetLabels()[internal.LabelYokeReleaseNS], svrResource.GetLabels()[internal.LabelYokeRelease])
+
+	if localOwner != svrOwner {
+		return fmt.Errorf("expected release %q but resource is already owned by %q", localOwner, svrOwner)
 	}
 
 	return nil

@@ -87,11 +87,12 @@ type Revision struct {
 }
 
 const (
-	LabelManagedBy   = "app.kubernetes.io/managed-by"
-	LabelYokeRelease = "app.kubernetes.io/yoke-release"
+	LabelManagedBy     = "app.kubernetes.io/managed-by"
+	LabelYokeRelease   = "app.kubernetes.io/yoke-release"
+	LabelYokeReleaseNS = "app.kubernetes.io/yoke-release-namespace"
 )
 
-func AddYokeMetadata(resources []*unstructured.Unstructured, release string) {
+func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns string) {
 	for _, resource := range resources {
 		labels := resource.GetLabels()
 		if labels == nil {
@@ -99,6 +100,7 @@ func AddYokeMetadata(resources []*unstructured.Unstructured, release string) {
 		}
 		labels[LabelManagedBy] = "yoke"
 		labels[LabelYokeRelease] = release
+		labels[LabelYokeReleaseNS] = ns
 		resource.SetLabels(labels)
 	}
 }

@@ -74,13 +74,13 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to unmarshal raw resources: %w", err)
 	}
 
+	targetNS := cmp.Or(params.Flight.Namespace, "default")
+
 	dependencies, resources := SplitResources(resources)
 
-	internal.AddYokeMetadata(dependencies.CRDs, params.Release)
-	internal.AddYokeMetadata(dependencies.Namespaces, params.Release)
-	internal.AddYokeMetadata(resources, params.Release)
-
-	targetNS := cmp.Or(params.Flight.Namespace, "default")
+	internal.AddYokeMetadata(dependencies.CRDs, params.Release, targetNS)
+	internal.AddYokeMetadata(dependencies.Namespaces, params.Release, targetNS)
+	internal.AddYokeMetadata(resources, params.Release, targetNS)
 
 	if err := func() error {
 		defer internal.DebugTimer(ctx, "looking up resource mappings")()
@@ -187,7 +187,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		DryRunOnly:     params.DryRun,
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
-		Release:        params.Release,
 	}
 
 	if err := commander.k8s.ApplyResources(ctx, resources, applyOpts); err != nil {
@@ -240,7 +239,6 @@ func (commander Commander) applyDependencies(ctx context.Context, dependencies F
 		DryRunOnly:     params.DryRun,
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
-		Release:        params.Release,
 	}
 
 	if params.CreateCRDs {
