@@ -4,6 +4,25 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-07) atc/v0.5.0 - v0.6.0 - yokecd/v0.5.0 - yokecd-installer/v0.5.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc/testing: move setup only exit to after conversions are setup ([9c9eb1a](https://github.com/yokecd/yoke/commit/9c9eb1a02d6499e7d8430a4b50d77c123d905ec0))
+- yoke: check resource ownership for releases in different namespaces ([2f0b573](https://github.com/yokecd/yoke/commit/2f0b573ea03d9aa752109e3f71b1b5f21cc0c721))
+- yoke: fix atc dashboard and refactor ([c1547e7](https://github.com/yokecd/yoke/commit/c1547e7dfcdc7320a1fef419f17f3468850e69ed))
+- atc: refactor mayday invocation ([4c6f626](https://github.com/yokecd/yoke/commit/4c6f626bf996dea866d35b442ac25ee2bffaa58d))
+- yoke/blackbox: fix command to support releases from multiple namespaces ([6bde033](https://github.com/yokecd/yoke/commit/6bde0339561b2ed9aa51740d191cd9beb8b7b198))
+- yoke: breaking change: change releases to be namespaced ([cbc42eb](https://github.com/yokecd/yoke/commit/cbc42eb5b215fca2b786b877608804b897708a31))
+- yoke: breaking change: disallow multi namespace flights by default and add --multi-namespaces flag ([066c74e](https://github.com/yokecd/yoke/commit/066c74e87c491cb20c7f53744da391095e088efb))
+
+## (2025-01-05) atc/v0.4.2 - atc-installer/v0.4.1 - v0.5.2
+
+- atc: attempt to clear airway cache dir on recompilation ([67ff745](https://github.com/yokecd/yoke/commit/67ff745283ca1853dbfe354bc9b2451ccbfd2c29))
+- atc: refactor module loading logic ([d540f74](https://github.com/yokecd/yoke/commit/d540f74b9a81cf95dc94d2a8a255d0594ea4ad50))
+- atc-installer: add new options and break out logic into go-gettable package ([31cef8e](https://github.com/yokecd/yoke/commit/31cef8e7c7b2a12772836ddc3905cbe8dc029686))
+
 ## (2025-01-03) atc/v0.4.1 - atc-installer/v0.4.0 - v0.5.1 - yokecd/v0.4.1
 
 - atc: test validation webhook for airway custom resources ([b2beb8c](https://github.com/yokecd/yoke/commit/b2beb8cbcfda9d135c32672d68116aaa929c3407))
