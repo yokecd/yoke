@@ -273,7 +273,7 @@ func TestReleaseOwnership(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, makeParams("bar")),
-		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "bar" but resource is already owned by "foo"`,
+		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "default/bar" but resource is already owned by "default/foo"`,
 	)
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
@@ -285,11 +285,52 @@ func TestReleaseOwnership(t *testing.T) {
 	require.Equal(
 		t,
 		map[string]string{
-			"app":                            "sample-app",
-			"app.kubernetes.io/managed-by":   "yoke",
-			"app.kubernetes.io/yoke-release": "foo",
+			"app":                                      "sample-app",
+			"app.kubernetes.io/managed-by":             "yoke",
+			"app.kubernetes.io/yoke-release":           "foo",
+			"app.kubernetes.io/yoke-release-namespace": "default",
 		},
 		deployment.Labels,
+	)
+}
+
+func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	require.NoError(t, client.EnsureNamespace(background, "shared"))
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(background, "shared", metav1.DeleteOptions{}))
+	}()
+
+	require.NoError(t, TakeOff(background, TakeoffParams{
+		GlobalSettings: settings,
+		TakeoffParams: yoke.TakeoffParams{
+			Release:         "release",
+			MultiNamespaces: true,
+			Flight: yoke.FlightParams{
+				Namespace: "default",
+				Input:     createBasicDeployment(t, "x", "shared"),
+			},
+		},
+	}))
+
+	require.ErrorContains(
+		t,
+		TakeOff(background, TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:         "release",
+				MultiNamespaces: true,
+				Flight: yoke.FlightParams{
+					Namespace: "shared",
+					Input:     createBasicDeployment(t, "x", "shared"),
+				},
+			},
+		}),
+		`failed to apply resources: dry run: shared/apps/v1/deployment/x: failed to validate resource release: expected release "shared/release" but resource is already owned by "default/release"`,
 	)
 }
 
