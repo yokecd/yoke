@@ -21,7 +21,7 @@ type Release struct {
 	History   []Revision `json:"history"`
 }
 
-func (release Release) Active() Revision {
+func (release Release) ActiveRevision() Revision {
 	var active Revision
 	for _, revision := range release.History {
 		if revision.ActiveAt.After(active.ActiveAt) {

@@ -57,7 +57,7 @@ func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
 							if namespace := resource.GetNamespace(); namespace != "" {
 								name = atc.ReleaseName(&resource)
 							}
-							return cmds.GetRevisionResources(name)
+							return cmds.GetRevisionResources(name, resource.GetNamespace())
 						})
 					},
 					Desc: "view resources",

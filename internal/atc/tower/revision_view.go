@@ -85,7 +85,7 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flight unstructured.Unstructured) R
 										if ref.Namespace != "" {
 											name = atc.ReleaseName(&flight)
 										}
-										return cmds.GetRevisionResources(name)
+										return cmds.GetRevisionResources(name, ref.Namespace)
 									})
 								},
 								Desc: "view release",

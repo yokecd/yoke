@@ -119,11 +119,11 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	}
 
 	if params.DiffOnly {
-		revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
+		release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 		if err != nil {
 			return fmt.Errorf("failed to get revision history: %w", err)
 		}
-		currentResources, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+		currentResources, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 		if err != nil {
 			return fmt.Errorf("failed to get current resources for revision: %w", err)
 		}
@@ -149,16 +149,16 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return err
 	}
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
+	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
 
 	previous, err := func() ([]*unstructured.Unstructured, error) {
-		if len(revisions.History) == 0 {
+		if len(release.History) == 0 {
 			return nil, nil
 		}
-		return commander.k8s.GetRevisionResources(ctx, revisions.Active())
+		return commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to get previous resources for revision: %w", err)

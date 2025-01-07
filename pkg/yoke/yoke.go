@@ -44,23 +44,23 @@ type DescentParams struct {
 func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
 	defer internal.DebugTimer(ctx, "descent")()
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, params.Namespace)
+	release, err := commander.k8s.GetRelease(ctx, params.Release, params.Namespace)
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
 	}
 
-	if id := params.RevisionID; id < 1 || id > len(revisions.History) {
-		return fmt.Errorf("requested revision id %d is not within valid range 1 to %d", id, len(revisions.History))
+	if id := params.RevisionID; id < 1 || id > len(release.History) {
+		return fmt.Errorf("requested revision id %d is not within valid range 1 to %d", id, len(release.History))
 	}
 
-	targetRevision := revisions.History[params.RevisionID-1]
+	targetRevision := release.History[params.RevisionID-1]
 
 	next, err := commander.k8s.GetRevisionResources(ctx, targetRevision)
 	if err != nil {
 		return fmt.Errorf("failed to lookup target revision resources: %w", err)
 	}
 
-	previous, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+	previous, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
@@ -86,21 +86,21 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	return nil
 }
 
-func (client Commander) Mayday(ctx context.Context, release, ns string) error {
+func (client Commander) Mayday(ctx context.Context, name, ns string) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
 	targetNS := cmp.Or(ns, "default")
 
-	revisions, err := client.k8s.GetRevisions(ctx, release, targetNS)
+	release, err := client.k8s.GetRelease(ctx, name, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
 
-	if len(revisions.History) == 0 {
-		return internal.Warning("mayday noop: no history found for release: " + release)
+	if len(release.History) == 0 {
+		return internal.Warning("mayday noop: no history found for release: " + name)
 	}
 
-	resources, err := client.k8s.GetRevisionResources(ctx, revisions.Active())
+	resources, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
@@ -109,7 +109,7 @@ func (client Commander) Mayday(ctx context.Context, release, ns string) error {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
 
-	if err := client.k8s.DeleteRevisions(ctx, *revisions); err != nil {
+	if err := client.k8s.DeleteRevisions(ctx, *release); err != nil {
 		return fmt.Errorf("failed to delete revision history: %w", err)
 	}
 
@@ -135,12 +135,12 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 		ctx = internal.WithStderr(ctx, io.Discard)
 	}
 
-	revisions, err := commander.k8s.GetRevisions(ctx, params.Release, targetNS)
+	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %s: %w", params.Release, err)
 	}
 
-	resources, err := commander.k8s.GetRevisionResources(ctx, revisions.Active())
+	resources, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get current resources: %w", err)
 	}
