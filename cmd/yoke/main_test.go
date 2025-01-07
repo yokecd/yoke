@@ -15,12 +15,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsv1config "k8s.io/client-go/applyconfigurations/apps/v1"
-	corev1config "k8s.io/client-go/applyconfigurations/core/v1"
-	metav1config "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -47,25 +45,37 @@ func TestMain(m *testing.M) {
 var background = context.Background()
 
 func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
-	deployment := appsv1config.Deployment(name, namespace).
-		WithLabels(map[string]string{"app": name}).
-		WithSpec(
-			appsv1config.DeploymentSpec().
-				WithSelector(metav1config.LabelSelector().
-					WithMatchLabels(map[string]string{"app": name}),
-				).
-				WithTemplate(
-					corev1config.PodTemplateSpec().
-						WithLabels(map[string]string{"app": name}).
-						WithSpec(
-							corev1config.PodSpec().WithContainers(
-								corev1config.Container().
-									WithName(name).
-									WithImage("alpine:latest").
-									WithCommand("watch", "echo", "hello", "world"),
-							)),
-				),
-		)
+	labels := map[string]string{"app": name}
+	deployment := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    name,
+							Image:   "alpine:latest",
+							Command: []string{"watch", "echo", "hello", "world"},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	data, err := json.Marshal(deployment)
 	require.NoError(t, err)
@@ -281,6 +291,37 @@ func TestReleaseOwnership(t *testing.T) {
 		},
 		deployment.Labels,
 	)
+}
+
+func TestReleasesInDifferentNamespaces(t *testing.T) {
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+	namespaces := []string{"foo", "bar"}
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	for _, ns := range namespaces {
+		require.NoError(
+			t,
+			TakeOff(background, TakeoffParams{
+				GlobalSettings: settings,
+				TakeoffParams: yoke.TakeoffParams{
+					Release: "rel",
+					Flight: yoke.FlightParams{
+						Input:     createBasicDeployment(t, "release", ""),
+						Namespace: ns,
+					},
+				},
+			}),
+		)
+		defer func() {
+			require.NoError(t, Mayday(background, MaydayParams{GlobalSettings: settings, Release: "rel", Namespace: ns}))
+		}()
+
+		secrets, err := client.Clientset.CoreV1().Secrets(ns).List(background, metav1.ListOptions{LabelSelector: internal.LabelKind + "=revision"})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(secrets.Items))
+	}
 }
 
 func TestTakeoffWithNamespace(t *testing.T) {

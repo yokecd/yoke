@@ -30,7 +30,7 @@ type Commands struct {
 	GetAirwayList        tea.Cmd
 	GetResourceYaml      func(ref ResourceRef) tea.Cmd
 	GetFlightList        func(gk schema.GroupKind) tea.Cmd
-	GetRevisionResources func(name string) tea.Cmd
+	GetRevisionResources func(name, ns string) tea.Cmd
 }
 
 type ATCDashboard struct {

@@ -251,7 +251,7 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current []*uns
 	return removedResources, xerr.MultiErrOrderedFrom("", errs...)
 }
 
-func (client Client) GetRevisions(ctx context.Context, release, ns string) (*internal.Release, error) {
+func (client Client) GetRelease(ctx context.Context, release, ns string) (*internal.Release, error) {
 	defer internal.DebugTimer(ctx, "get revisions for "+release)
 
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
@@ -371,7 +371,7 @@ func (client Client) GetReleasesByNS(ctx context.Context, ns string) ([]internal
 
 	var result []internal.Release
 	for release := range releases {
-		revisions, err := client.GetRevisions(ctx, release, ns)
+		revisions, err := client.GetRelease(ctx, release, ns)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get revisions for release %s: %w", release, err)
 		}
