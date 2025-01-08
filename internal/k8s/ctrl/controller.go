@@ -62,13 +62,11 @@ type Params struct {
 }
 
 func NewController(ctx context.Context, params Params) (Instance, error) {
+	params.Client.Mapper.Reset()
+
 	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
 	if err != nil {
-		params.Client.Mapper.Reset()
-		mapping, err = params.Client.Mapper.RESTMapping(params.GK)
-		if err != nil {
-			return Instance{}, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
-		}
+		return Instance{}, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
 	}
 
 	logger := params.Logger.With(slog.String("groupKind", params.GK.String()))

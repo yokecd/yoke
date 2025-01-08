@@ -62,9 +62,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
+		var desiredAPIVersion string
+
 		var review apiextensionsv1.ConversionReview
 		if err := json.Unmarshal(data, &review); err == nil {
-			addRequestAttrs(r.Context(), slog.String("desiredAPIVersion", review.Request.DesiredAPIVersion))
+			desiredAPIVersion = review.Request.DesiredAPIVersion
 		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
@@ -76,6 +78,20 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if err := json.Unmarshal(resp, &review); err == nil {
+			addRequestAttrs(
+				r.Context(),
+				slog.Group(
+					"converter",
+					"status", review.Response.Result.Status,
+					"reason", review.Response.Result.Reason,
+					"count", len(review.Response.ConvertedObjects),
+					"uid", review.Response.UID,
+					"DesiredAPIVersion", desiredAPIVersion,
+				),
+			)
 		}
 
 		if _, err := w.Write(resp); err != nil {

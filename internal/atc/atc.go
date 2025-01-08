@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -274,6 +273,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
 	}
 
+	ctrl.Client(ctx).Mapper.Reset()
+
 	validationWebhook := admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
@@ -408,14 +409,7 @@ type FlightReconcilerParams struct {
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
-	var once sync.Once
-
 	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
-		once.Do(func() {
-			// We need to reset to make sure that we are requesting the latest storage version for the resource.
-			ctrl.Client(ctx).Mapper.Reset()
-		})
-
 		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
 
 		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK, params.Version)
@@ -445,6 +439,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to set default namespace on flight: %w", err)
 			}
+
 			return ctrl.Result{}, nil
 		}
 
