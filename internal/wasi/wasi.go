@@ -131,8 +131,5 @@ func Compile(ctx context.Context, params CompileParams) (mod wazero.CompiledModu
 		err = xerr.MultiErrFrom("", err, runtime.Close(ctx))
 	}()
 
-	// TODO: check if this is needed for compilation? If not remove.
-	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
-
 	return runtime.CompileModule(ctx, params.Wasm)
 }
