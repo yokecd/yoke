@@ -4,6 +4,25 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-08) atc/v0.5.3 - atc-installer/v0.5.1 - v0.6.4 - yokecd/v0.5.1 - yokecd-installer/v0.5.1
+
+- k8s/ctrl: separate controller from run to avoid race conditions that could drop events before controller was ready to run ([1cec9cf](https://github.com/yokecd/yoke/commit/1cec9cfe35ffbf7775b9a46b99b133f15aaef6bd))
+- deps: update dependencies ([b3173e5](https://github.com/yokecd/yoke/commit/b3173e553128283e27a49c5ac2afe70fbb3de17f))
+
+## (2025-01-08) v0.6.3
+
+- internal/wasi: do not instantiate wasip1 for compiling ([ac9fa81](https://github.com/yokecd/yoke/commit/ac9fa811aa5d7d5fabc83329409cbf3359ad1a42))
+- atc: remove dry-run takeoff log during flight validation ([1424987](https://github.com/yokecd/yoke/commit/1424987cd029b412ac9a931d8feaaefbd0437cc5))
+- atc: log desired version in crdconvert endpoint ([218fa1a](https://github.com/yokecd/yoke/commit/218fa1a2499a94a6143a2c47de7e5a5e1c309491))
+
+## (2025-01-07) atc/v0.5.2 - v0.6.2
+
+- k8s/ctrl: use retry watcher to handle watcher restarts gracefully ([3151ff7](https://github.com/yokecd/yoke/commit/3151ff7b05afdc343775ee4be312f042979b2fe8))
+
+## (2025-01-07) atc/v0.5.1 - atc-installer/v0.5.0 - v0.6.1
+
+- pkg/openapi: support inline structs ([4920ebe](https://github.com/yokecd/yoke/commit/4920ebea7191f46b677f9999a2963daa3e1a49c1))
+
 ## (2025-01-07) atc/v0.5.0 - v0.6.0 - yokecd/v0.5.0 - yokecd-installer/v0.5.0
 
 > [!CAUTION]
