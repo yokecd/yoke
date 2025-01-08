@@ -88,6 +88,29 @@ func run() (err error) {
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
+	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
+
+	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
+	defer teardown()
+
+	controller, err := ctrl.NewController(ctx, ctrl.Params{
+		GK:          airwayGK,
+		Handler:     reconciler,
+		Client:      client,
+		Logger:      logger.With("component", "controller"),
+		Concurrency: cfg.Concurrency,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create controller: %w", err)
+	}
+
+	go func() {
+		defer wg.Done()
+		if err := controller.Run(); err != nil {
+			e <- fmt.Errorf("error running the controller: %s: %w", airwayGK, err)
+		}
+	}()
+
 	go func() {
 		defer wg.Done()
 
@@ -121,25 +144,6 @@ func run() (err error) {
 		}
 
 		logger.Info("ATC/Server shutdown completed successfully")
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		controller := ctrl.Instance{
-			Client:      client,
-			Logger:      logger.With("component", "controller"),
-			Concurrency: cfg.Concurrency,
-		}
-
-		airwayGK := schema.GroupKind{Kind: "Airway", Group: "yoke.cd"}
-
-		reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
-		defer teardown()
-
-		if err := controller.ProcessGroupKind(ctx, airwayGK, reconciler); err != nil {
-			e <- fmt.Errorf("failed to process group kind: %s: %w", airwayGK, err)
-		}
 	}()
 
 	return <-e

@@ -169,6 +169,8 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			}
 		}
 
+		addRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
+
 		if err := json.NewEncoder(w).Encode(&review); err != nil {
 			logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
