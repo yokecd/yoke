@@ -3,13 +3,16 @@ package main
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,9 +56,20 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read request body: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var review apiextensionsv1.ConversionReview
+		if err := json.Unmarshal(data, &review); err == nil {
+			addRequestAttrs(r.Context(), slog.String("desiredAPIVersion", review.Request.DesiredAPIVersion))
+		}
+
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
 			CompiledModule: converter.CompiledModule,
-			Stdin:          r.Body,
+			Stdin:          bytes.NewReader(data),
 			Release:        "converter",
 			CacheDir:       wasm.AirwayModuleDir(airway),
 		})
@@ -208,6 +222,9 @@ func withLogger(logger *slog.Logger, handler http.Handler) http.Handler {
 		start := time.Now()
 		sw := statusWriter{ResponseWriter: w}
 
+		var attrs []slog.Attr
+		r = r.WithContext(withRequestAttrs(r.Context(), &attrs))
+
 		handler.ServeHTTP(&sw, r)
 
 		if sw.Code() == 200 && (r.URL.Path == "/live" || r.URL.Path == "/ready") {
@@ -216,13 +233,14 @@ func withLogger(logger *slog.Logger, handler http.Handler) http.Handler {
 			return
 		}
 
-		logger.Info(
-			"request served",
-			"code", sw.Code(),
-			"method", r.Method,
-			"path", r.URL.Path,
-			"elapsed", time.Since(start).Round(time.Millisecond).String(),
-		)
+		base := []slog.Attr{
+			slog.Int("code", sw.Code()),
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("elapsed", time.Since(start).Round(time.Millisecond).String()),
+		}
+
+		logger.LogAttrs(r.Context(), slog.LevelInfo, "request served", append(base, attrs...)...)
 	})
 }
 
@@ -254,4 +272,18 @@ func (w *statusWriter) WriteHeader(code int) {
 
 func (w statusWriter) Code() int {
 	return cmp.Or(w.status, 200)
+}
+
+type keyReqAttrs struct{}
+
+func withRequestAttrs(ctx context.Context, attrs *[]slog.Attr) context.Context {
+	return context.WithValue(ctx, keyReqAttrs{}, attrs)
+}
+
+func addRequestAttrs(ctx context.Context, attrs ...slog.Attr) {
+	reqAttrs, _ := ctx.Value(keyReqAttrs{}).(*[]slog.Attr)
+	if reqAttrs == nil {
+		return
+	}
+	*reqAttrs = append(*reqAttrs, attrs...)
 }
