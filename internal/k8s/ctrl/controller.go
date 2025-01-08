@@ -45,48 +45,68 @@ func (event Event) String() string {
 type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
+	ctx         context.Context
+	events      chan Event
+	handler     HandleFunc
+	client      *k8s.Client
+	logger      *slog.Logger
+	concurrency int
+}
+
+type Params struct {
+	GK          schema.GroupKind
+	Handler     HandleFunc
 	Client      *k8s.Client
 	Logger      *slog.Logger
 	Concurrency int
 }
 
-func (ctrl Instance) ProcessGroupKind(ctx context.Context, gk schema.GroupKind, handler HandleFunc) error {
-	mapping, err := ctrl.Client.Mapper.RESTMapping(gk)
+func NewController(ctx context.Context, params Params) (Instance, error) {
+	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
 	if err != nil {
-		ctrl.Client.Mapper.Reset()
-		mapping, err = ctrl.Client.Mapper.RESTMapping(gk)
+		params.Client.Mapper.Reset()
+		mapping, err = params.Client.Mapper.RESTMapping(params.GK)
 		if err != nil {
-			return fmt.Errorf("failed to get mapping for %s: %w", gk, err)
+			return Instance{}, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
 		}
 	}
 
-	logger := ctrl.Logger.With(slog.String("groupKind", gk.String()))
+	logger := params.Logger.With(slog.String("groupKind", params.GK.String()))
 	logger.Info("watching resources")
 
 	ctx = context.WithValue(ctx, loggerKey{}, logger)
-	ctx = context.WithValue(ctx, rootLoggerKey{}, ctrl.Logger)
+	ctx = context.WithValue(ctx, rootLoggerKey{}, params.Logger)
 
-	intf := ctrl.Client.Meta.Resource(mapping.Resource)
+	intf := params.Client.Meta.Resource(mapping.Resource)
 
-	events, err := ctrl.eventsFromMetaGetter(ctx, intf, mapping)
-	if err != nil {
-		return fmt.Errorf("failed to setup event stream: %w", err)
+	instance := Instance{
+		ctx:         ctx,
+		events:      make(chan Event),
+		handler:     params.Handler,
+		client:      params.Client,
+		logger:      params.Logger,
+		concurrency: params.Concurrency,
 	}
 
-	return ctrl.process(ctx, events, handler)
+	instance.events, err = instance.eventsFromMetaGetter(ctx, intf, mapping)
+	if err != nil {
+		return instance, fmt.Errorf("failed to setup event stream: %w", err)
+	}
+
+	return instance, nil
 }
 
-func (ctrl Instance) process(ctx context.Context, events chan Event, handle HandleFunc) error {
+func (ctrl Instance) Run() error {
 	var (
 		activeMap   sync.Map
 		timers      sync.Map
-		concurrency = max(ctrl.Concurrency, 1)
+		concurrency = max(ctrl.concurrency, 1)
 	)
 
 	var wg sync.WaitGroup
 	wg.Add(concurrency)
 
-	queue, stop := QueueFromChannel(events)
+	queue, stop := QueueFromChannel(ctrl.events)
 	defer stop()
 
 	for range concurrency {
@@ -95,7 +115,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 			for {
 				select {
-				case <-ctx.Done():
+				case <-ctrl.ctx.Done():
 					return
 				case event := <-queue.C:
 					func() {
@@ -105,7 +125,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 							go func() {
 								defer wg.Done()
 								select {
-								case <-ctx.Done():
+								case <-ctrl.ctx.Done():
 									return
 								case <-done.(chan struct{}):
 									queue.Enqueue(event)
@@ -120,7 +140,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 							timer.(*time.Timer).Stop()
 						}
 
-						logger := Logger(ctx).With(
+						logger := Logger(ctrl.ctx).With(
 							slog.String("loopId", randHex()),
 							slog.String("event", event.String()),
 							slog.Int("attempt", event.attempts),
@@ -128,15 +148,15 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 						// It is important that we do not cancel the handler mid-execution.
 						// Rather we only exit once the loop is idle.
-						ctx := context.WithoutCancel(ctx)
+						ctx := context.WithoutCancel(ctrl.ctx)
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
-						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
+						ctx = context.WithValue(ctx, clientKey{}, ctrl.client)
 
 						logger.Info("processing event")
 
 						start := time.Now()
 
-						result, err := handle(ctx, event)
+						result, err := ctrl.handler(ctx, event)
 
 						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
 
@@ -170,7 +190,7 @@ func (ctrl Instance) process(ctx context.Context, events chan Event, handle Hand
 
 	wg.Wait()
 
-	return context.Cause(ctx)
+	return context.Cause(ctrl.ctx)
 }
 
 func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) (chan Event, error) {
@@ -226,9 +246,9 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 
 				intf := func() dynamic.ResourceInterface {
 					if mapping.Scope == meta.RESTScopeRoot {
-						return ctrl.Client.Dynamic.Resource(mapping.Resource)
+						return ctrl.client.Dynamic.Resource(mapping.Resource)
 					}
-					return ctrl.Client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
+					return ctrl.client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
 				}()
 
 				evt := Event{

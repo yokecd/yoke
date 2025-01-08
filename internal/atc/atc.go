@@ -346,26 +346,29 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		<-done
 	}
 
-	flightController := ctrl.Instance{
-		Client:      ctrl.Client(ctx),
-		Logger:      ctrl.RootLogger(ctx),
-		Concurrency: atc.concurrency,
-	}
-
 	flightGK := schema.GroupKind{
 		Group: typedAirway.Spec.Template.Group,
 		Kind:  typedAirway.Spec.Template.Names.Kind,
 	}
 
-	flightReconciler := atc.FlightReconciler(FlightReconcilerParams{
-		GK:               flightGK,
-		Airway:           typedAirway.Name,
-		Version:          storageVersion,
-		FlightMod:        modules.Flight,
-		FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
-		CreateCrds:       typedAirway.Spec.CreateCRDs,
-		ObjectPath:       typedAirway.Spec.ObjectPath,
+	flightController, err := ctrl.NewController(flightCtx, ctrl.Params{
+		GK: flightGK,
+		Handler: atc.FlightReconciler(FlightReconcilerParams{
+			GK:               flightGK,
+			Airway:           typedAirway.Name,
+			Version:          storageVersion,
+			FlightMod:        modules.Flight,
+			FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
+			CreateCrds:       typedAirway.Spec.CreateCRDs,
+			ObjectPath:       typedAirway.Spec.ObjectPath,
+		}),
+		Client:      ctrl.Client(ctx),
+		Logger:      ctrl.RootLogger(ctx),
+		Concurrency: atc.concurrency,
 	})
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create flight controller: %w", err)
+	}
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
@@ -375,7 +378,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		airwayStatus("Ready", "Flight-Controller launched")
 
-		if err := flightController.ProcessGroupKind(flightCtx, flightGK, flightReconciler); err != nil {
+		if err := flightController.Run(); err != nil {
 			airwayStatus("Error", fmt.Sprintf("Flight-Controller: %v", err))
 			if errors.Is(err, context.Canceled) {
 				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
