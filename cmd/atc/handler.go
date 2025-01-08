@@ -158,7 +158,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			},
 		}
 
-		if err := commander.Takeoff(r.Context(), params); err != nil && !internal.IsWarning(err) {
+		ctx := internal.WithStderr(r.Context(), io.Discard)
+
+		if err := commander.Takeoff(ctx, params); err != nil && !internal.IsWarning(err) {
 			review.Response.Allowed = false
 			review.Response.Result = &metav1.Status{
 				Status:  metav1.StatusFailure,
