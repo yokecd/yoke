@@ -3,6 +3,7 @@ package tower
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,12 +19,20 @@ var banner = cyanSyle.Render(`     _   _      _____
 
 var debugFile *os.File
 
-func init() {
-	_ = os.Remove("./debug.txt")
-	debugFile, _ = os.OpenFile("./debug.txt", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o644)
-	if _, err := debugFile.WriteString("DEBUG.txt\n\n"); err != nil {
-		panic(err)
+func debugf(format string, args ...any) {
+	if debugFile == nil {
+		return
 	}
+	_, _ = fmt.Fprintf(debugFile, format+"\n", args...)
+}
+
+func SetupDebugFile(dst string) (err error) {
+	debugFile, err = os.OpenFile(dst, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(debugFile, "debug session start: %s\n\n", time.Now().Format(time.RFC3339Nano))
+	return err
 }
 
 type Commands struct {
@@ -43,11 +52,14 @@ func (dashboard ATCDashboard) Init() tea.Cmd {
 }
 
 func (dashboard ATCDashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	fmt.Fprintf(debugFile, "%#v\n\n", msg)
-	debugFile.Sync()
+	debugf("%v", func() any {
+		if value, ok := msg.(fmt.Stringer); ok {
+			return value.String()
+		}
+		return msg
+	}())
 
 	switch msg := msg.(type) {
-
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
@@ -55,6 +67,7 @@ func (dashboard ATCDashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlZ:
 			return dashboard, tea.Suspend
 		}
+
 	case ExecMsg:
 		return dashboard, msg(dashboard.Commands)
 	}
