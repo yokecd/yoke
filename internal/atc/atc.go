@@ -33,6 +33,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -99,7 +100,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		_ = unstructured.SetNestedMap(
 			airway.Object,
-			internal.MustUnstructuredObject(v1alpha1.AirwayStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}),
+			internal.MustUnstructuredObject(flight.Status{Status: status, Msg: fmt.Sprintf("%v", msg)}),
 			"status",
 		)
 
@@ -143,6 +144,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	modules := atc.moduleCache.Get(typedAirway.Name)
 
 	if typedAirway.DeletionTimestamp != nil {
+		airwayStatus("Terminating", "cleaning up resources")
+
 		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
 			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
@@ -239,7 +242,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				Properties: apiextv1.JSONSchemaDefinitions{},
 			}
 		}
-		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[FlightStatus]())
+		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[flight.Status]())
 	}
 
 	if typedAirway.Spec.WasmURLs.Converter != "" {
@@ -425,7 +428,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
 		}()
 
-		flight, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
+		resource, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				ctrl.Logger(ctx).Info("resource not found")
@@ -434,9 +437,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
-		if flight.GetNamespace() == "" && mapping.Scope == meta.RESTScopeNamespace {
-			flight.SetNamespace("default")
-			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+		if resource.GetNamespace() == "" && mapping.Scope == meta.RESTScopeNamespace {
+			resource.SetNamespace("default")
+			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to set default namespace on flight: %w", err)
 			}
 
@@ -445,25 +448,25 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		flightStatus := func(status string, msg any) {
 			var err error
-			flight, err = resourceIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
+			resource, err = resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
 				return
 			}
 
 			_ = unstructured.SetNestedMap(
-				flight.Object,
-				internal.MustUnstructuredObject(FlightStatus{Status: status, Msg: fmt.Sprintf("%v", msg)}),
+				resource.Object,
+				internal.MustUnstructuredObject(flight.Status{Status: status, Msg: fmt.Sprintf("%v", msg)}),
 				"status",
 			)
 
-			updated, err := resourceIntf.UpdateStatus(ctx, flight.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
+			updated, err := resourceIntf.UpdateStatus(ctx, resource.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
 				return
 			}
 
-			flight = updated
+			resource = updated
 		}
 
 		defer func() {
@@ -472,28 +475,28 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			}
 		}()
 
-		if finalizers := flight.GetFinalizers(); flight.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, cleanupFinalizer) {
-			flight.SetFinalizers(append(finalizers, cleanupFinalizer))
-			if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+		if finalizers := resource.GetFinalizers(); resource.GetDeletionTimestamp() == nil && !slices.Contains(finalizers, cleanupFinalizer) {
+			resource.SetFinalizers(append(finalizers, cleanupFinalizer))
+			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to set cleanup finalizer: %w", err)
 			}
 			return ctrl.Result{}, nil
 		}
 
-		if !flight.GetDeletionTimestamp().IsZero() {
+		if !resource.GetDeletionTimestamp().IsZero() {
 			flightStatus("Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, ReleaseName(flight), event.Namespace); err != nil {
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, ReleaseName(resource), event.Namespace); err != nil {
 				if !internal.IsWarning(err) {
 					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 				}
 				ctrl.Logger(ctx).Warn("mayday succeeded despite a warning", "warning", err)
 			}
 
-			finalizers := flight.GetFinalizers()
+			finalizers := resource.GetFinalizers()
 			if idx := slices.Index(finalizers, cleanupFinalizer); idx != -1 {
-				flight.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
-				if _, err := resourceIntf.Update(ctx, flight, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
+				if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 					return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 				}
 			}
@@ -501,7 +504,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, nil
 		}
 
-		object, _, err := unstructured.NestedFieldNoCopy(flight.Object, params.ObjectPath...)
+		object, _, err := unstructured.NestedFieldNoCopy(resource.Object, params.ObjectPath...)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.ObjectPath, ","), err)
 		}
@@ -517,7 +520,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
 		takeoffParams := yoke.TakeoffParams{
-			Release: ReleaseName(flight),
+			Release: ReleaseName(resource),
 			Flight: yoke.FlightParams{
 				WasmModule:          params.FlightMod.CompiledModule,
 				Input:               bytes.NewReader(data),
@@ -527,10 +530,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			CreateCRDs: params.CreateCrds,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: flight.GetAPIVersion(),
-					Kind:       flight.GetKind(),
-					Name:       flight.GetName(),
-					UID:        flight.GetUID(),
+					APIVersion: resource.GetAPIVersion(),
+					Kind:       resource.GetKind(),
+					Name:       resource.GetName(),
+					UID:        resource.GetUID(),
 				},
 			},
 		}
@@ -559,11 +562,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		return ctrl.Result{RequeueAfter: params.FixDriftInterval}, nil
 	}
-}
-
-type FlightStatus struct {
-	Status string `json:"status"`
-	Msg    string `json:"msg"`
 }
 
 func ReleaseName(resource *unstructured.Unstructured) string {
