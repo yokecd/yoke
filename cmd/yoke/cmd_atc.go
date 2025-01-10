@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"runtime"
 	"sync"
@@ -17,15 +18,39 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal/atc/tower"
-	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
-func ATC(ctx context.Context) error {
-	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+type ATCParams struct {
+	GlobalSettings
+	Debug string
+}
+
+func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
+	flagset := flag.NewFlagSet("atc", flag.ExitOnError)
+
+	params := ATCParams{GlobalSettings: settings}
+
+	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+
+	flagset.StringVar(&params.Debug, "debug-file", "", "debug file")
+
+	flagset.Parse(args)
+
+	return params
+}
+
+func ATC(ctx context.Context, params ATCParams) error {
+	client, err := k8s.NewClientFromKubeConfig(params.KubeConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize kube client: %w", err)
+	}
+
+	if params.Debug != "" {
+		if err := tower.SetupDebugFile(params.Debug); err != nil {
+			return fmt.Errorf("failed to setup debug file: %w", err)
+		}
 	}
 
 	app := tea.NewProgram(

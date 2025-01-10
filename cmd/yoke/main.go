@@ -61,7 +61,7 @@ func run() error {
 
 	switch cmd := flag.Arg(0); cmd {
 	case "atc":
-		return ATC(ctx)
+		return ATC(ctx, GetAtcParams(settings, subcmdArgs))
 	case "takeoff", "up", "apply":
 		{
 			var source io.Reader
