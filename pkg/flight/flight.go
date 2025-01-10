@@ -21,3 +21,8 @@ func Release() string {
 func Namespace() string {
 	return cmp.Or(os.Getenv("YOKE_NAMESPACE"), os.Getenv("NAMESPACE"))
 }
+
+type Status struct {
+	Status string `json:"status,omitempty"`
+	Msg    string `json:"msg,omitempty"`
+}

@@ -69,6 +69,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			desiredAPIVersion = review.Request.DesiredAPIVersion
 		}
 
+		originals := make([]map[string]any, len(review.Request.Objects))
+		for i, obj := range review.Request.Objects {
+			if err := json.Unmarshal(obj.Raw, &originals[i]); err != nil {
+				http.Error(w, fmt.Sprintf("could not Unmarshal request object: %v", err), http.StatusBadRequest)
+				return
+			}
+		}
+
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
 			CompiledModule: converter.CompiledModule,
 			Stdin:          bytes.NewReader(data),
@@ -80,21 +88,41 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
-		if err := json.Unmarshal(resp, &review); err == nil {
-			addRequestAttrs(
-				r.Context(),
-				slog.Group(
-					"converter",
-					"status", review.Response.Result.Status,
-					"reason", review.Response.Result.Reason,
-					"count", len(review.Response.ConvertedObjects),
-					"uid", review.Response.UID,
-					"DesiredAPIVersion", desiredAPIVersion,
-				),
-			)
+		if err := json.Unmarshal(resp, &review); err != nil {
+			http.Error(w, fmt.Sprintf("failed to parse review response: %v", err), http.StatusInternalServerError)
+			return
 		}
 
-		if _, err := w.Write(resp); err != nil {
+		for i, converted := range review.Response.ConvertedObjects {
+			originalStatus, _, err := unstructured.NestedMap(originals[i], "status")
+			if err != nil {
+				continue
+			}
+
+			var raw map[string]any
+			if err := json.Unmarshal(converted.Raw, &raw); err != nil {
+				continue
+			}
+
+			unstructured.SetNestedField(raw, originalStatus, "status")
+
+			data, err := json.Marshal(raw)
+			if err != nil {
+				continue
+			}
+			converted.Raw = data
+		}
+
+		addRequestAttrs(r.Context(), slog.Group(
+			"converter",
+			"status", review.Response.Result.Status,
+			"reason", review.Response.Result.Reason,
+			"count", len(review.Response.ConvertedObjects),
+			"uid", review.Response.UID,
+			"DesiredAPIVersion", desiredAPIVersion,
+		))
+
+		if err := json.NewEncoder(w).Encode(review); err != nil {
 			logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})

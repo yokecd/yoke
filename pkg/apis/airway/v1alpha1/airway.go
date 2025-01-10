@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
@@ -18,8 +19,8 @@ const (
 type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              AirwaySpec   `json:"spec"`
-	Status            AirwayStatus `json:"status,omitempty"`
+	Spec              AirwaySpec    `json:"spec"`
+	Status            flight.Status `json:"status,omitempty"`
 }
 
 type AirwaySpec struct {
@@ -33,11 +34,6 @@ type AirwaySpec struct {
 type WasmURLs struct {
 	Flight    string `json:"flight"`
 	Converter string `json:"converter,omitempty"`
-}
-
-type AirwayStatus struct {
-	Status string `json:"status"`
-	Msg    string `json:"msg"`
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {
