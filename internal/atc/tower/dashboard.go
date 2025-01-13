@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	gloss "github.com/yokecd/lipgloss"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -102,11 +102,11 @@ func (h Header) Update(tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (h Header) View() string {
-	return border.Width(h.Width).Foreground(color.Cyan).Render()
+	return border.Width(h.Width).Foreground(gloss.Color("#0ff")).Render()
 }
 
 var _ tea.Model = Header{}
 
-var border = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder()).
+var border = gloss.NewStyle().
+	Border(gloss.NormalBorder()).
 	Padding(0, 1)

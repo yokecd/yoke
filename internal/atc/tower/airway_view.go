@@ -25,6 +25,7 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 			Dim:     dim,
 			Search:  textinput.New(),
 			Table:   table.New(),
+			Title:   "airways",
 			Data:    []v1alpha1.Airway{},
 			Columns: []string{"Name", "Status", "Msg"},
 			ToRows: func(airways []v1alpha1.Airway) []table.Row {
@@ -49,7 +50,7 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 				}
 				return Nav{
 					Model: func(msg tea.WindowSizeMsg) tea.Model {
-						return MakeFlightListView(msg)
+						return MakeFlightListView(airway.Spec.Template.Names.Plural, msg)
 					},
 					Cmd: func() tea.Msg {
 						return ExecMsg(func(cmds Commands) tea.Cmd {

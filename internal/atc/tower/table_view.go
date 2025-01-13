@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	gloss "github.com/yokecd/lipgloss"
 )
 
 type TableView[T any] struct {
@@ -16,6 +17,7 @@ type TableView[T any] struct {
 	Table   table.Model
 	Data    []T
 	Columns []string
+	Title   string
 	ToRows  func([]T) []table.Row
 	Back    *Nav
 	Forward func(T) Nav
@@ -179,7 +181,10 @@ func (view TableView[T]) View() string {
 		view.Search.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff268f"))
 		view.Search.PromptStyle = view.Search.TextStyle
 
-		return border.Width(view.Dim.Width - 2).Render(view.Search.View())
+		return border.
+			BorderTitle(yellow.Render("search")).
+			Width(view.Dim.Width - 2).
+			Render(view.Search.View())
 	}()
 
 	mainHeight := view.Dim.Height - lipgloss.Height(header) - lipgloss.Height(search) - 2
@@ -196,6 +201,7 @@ func (view TableView[T]) View() string {
 	}()
 
 	main = border.
+		BorderTitle(yellow.Render(view.Title)).
 		Width(view.Dim.Width - 2).
 		Height(mainHeight).
 		Render(main)
@@ -206,3 +212,5 @@ func (view TableView[T]) View() string {
 var _ tea.Model = TableView[any]{}
 
 type TableDataMsg[T any] []T
+
+var yellow = gloss.NewStyle().Foreground(gloss.Color("#ff0"))

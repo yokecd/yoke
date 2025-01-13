@@ -24,22 +24,26 @@ type RevisionView struct {
 	tea.Model
 }
 
-func MakeRevisionView(dim tea.WindowSizeMsg, flight unstructured.Unstructured) RevisionView {
+func MakeRevisionView(dim tea.WindowSizeMsg, prevTitle string, flight unstructured.Unstructured) RevisionView {
 	return RevisionView{
 		Model: TableView[ReadyResource]{
 			Err:     nil,
 			Dim:     dim,
 			Search:  textinput.New(),
 			Table:   table.New(),
+			Title:   "resources",
 			Data:    nil,
-			Columns: []string{"Name", "Namespace", "GVK", "Ready"},
+			Columns: []string{"Name", "Namespace", "Kind", "Version", "Group", "Ready"},
 			ToRows: func(resources []ReadyResource) []table.Row {
 				rows := make([]table.Row, len(resources))
 				for i, resource := range resources {
+					gvk := resource.GroupVersionKind()
 					rows[i] = table.Row{
 						resource.GetName(),
 						resource.GetNamespace(),
-						resource.GroupVersionKind().String(),
+						gvk.Kind,
+						gvk.Version,
+						gvk.Group,
 						func() string {
 							if resource.Ready == nil {
 								return "n/a"
@@ -53,7 +57,7 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flight unstructured.Unstructured) R
 			},
 			Back: &Nav{
 				Model: func(dim tea.WindowSizeMsg) tea.Model {
-					return MakeFlightListView(dim)
+					return MakeFlightListView(prevTitle, dim)
 				},
 				Cmd: func() tea.Msg {
 					return ExecMsg(func(cmds Commands) tea.Cmd {
@@ -77,7 +81,7 @@ func MakeRevisionView(dim tea.WindowSizeMsg, flight unstructured.Unstructured) R
 							Dim:      dim,
 							Back: Nav{
 								Model: func(dim tea.WindowSizeMsg) tea.Model {
-									return MakeRevisionView(dim, flight)
+									return MakeRevisionView(dim, prevTitle, flight)
 								},
 								Cmd: func() tea.Msg {
 									return ExecMsg(func(cmds Commands) tea.Cmd {

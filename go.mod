@@ -17,6 +17,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.6.0
+	github.com/yokecd/lipgloss v1.0.2
 	golang.org/x/mod v0.22.0
 	golang.org/x/term v0.28.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -38,7 +39,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.4 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/x/ansi v0.6.0 // indirect
+	github.com/charmbracelet/x/ansi v0.6.1-0.20250107110353-48b574af22a5 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
