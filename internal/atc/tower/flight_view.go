@@ -16,11 +16,12 @@ type FlightListView struct {
 	tea.Model
 }
 
-func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
+func MakeFlightListView(title string, dim tea.WindowSizeMsg) FlightListView {
 	return FlightListView{
 		Model: TableView[unstructured.Unstructured]{
 			Dim:     dim,
 			Table:   table.New(),
+			Title:   title,
 			Search:  textinput.New(),
 			Columns: []string{"Name", "Namespace", "Status", "Msg"},
 			ToRows: func(resources []unstructured.Unstructured) []table.Row {
@@ -49,7 +50,7 @@ func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
 			Forward: func(resource unstructured.Unstructured) Nav {
 				return Nav{
 					Model: func(msg tea.WindowSizeMsg) tea.Model {
-						return MakeRevisionView(msg, resource)
+						return MakeRevisionView(msg, title, resource)
 					},
 					Cmd: func() tea.Msg {
 						return ExecMsg(func(cmds Commands) tea.Cmd {
@@ -76,7 +77,7 @@ func MakeFlightListView(dim tea.WindowSizeMsg) FlightListView {
 							Dim:      dim,
 							Back: Nav{
 								Model: func(msg tea.WindowSizeMsg) tea.Model {
-									return MakeFlightListView(msg)
+									return MakeFlightListView(title, msg)
 								},
 								Cmd: func() tea.Msg {
 									return ExecMsg(func(cmds Commands) tea.Cmd {
