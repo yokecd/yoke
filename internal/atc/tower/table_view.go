@@ -29,14 +29,24 @@ func (view TableView[T]) Init() tea.Cmd {
 }
 
 func (view TableView[T]) rows() ([]table.Row, []T) {
-	var rows []table.Row
-	var subset []T
+	if view.Search.Value() == "" {
+		return view.ToRows(view.Data), view.Data
+	}
+
+	var (
+		rows   []table.Row
+		subset []T
+	)
+
+outer:
 	for i, row := range view.ToRows(view.Data) {
-		if len(row) < 1 || !strings.Contains(row[0], view.Search.Value()) {
-			continue
+		for _, value := range row {
+			if strings.Contains(value, view.Search.Value()) {
+				rows = append(rows, row)
+				subset = append(subset, view.Data[i])
+				continue outer
+			}
 		}
-		rows = append(rows, row)
-		subset = append(subset, view.Data[i])
 	}
 
 	return rows, subset
