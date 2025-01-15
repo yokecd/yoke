@@ -159,7 +159,7 @@ func ATC(ctx context.Context, params ATCParams) error {
 
 						semaphore := make(chan struct{}, runtime.NumCPU())
 
-						result := make(tower.GetRevisionResult, len(resources))
+						result := make(tower.GetResourcesResult, len(resources))
 						for i, resource := range resources {
 							go func() {
 								defer wg.Done()
@@ -181,6 +181,10 @@ func ATC(ctx context.Context, params ATCParams) error {
 
 						return result
 					}
+				},
+				ResetClientMapper: func() tea.Msg {
+					client.Mapper.Reset()
+					return nil
 				},
 			},
 		},

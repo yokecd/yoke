@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gloss "github.com/yokecd/lipgloss"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -40,6 +41,7 @@ type Commands struct {
 	GetResourceYaml      func(ref ResourceRef) tea.Cmd
 	GetFlightList        func(gk schema.GroupKind) tea.Cmd
 	GetRevisionResources func(name, ns string) tea.Cmd
+	ResetClientMapper    tea.Cmd
 }
 
 type ATCDashboard struct {
@@ -52,7 +54,7 @@ func (dashboard ATCDashboard) Init() tea.Cmd {
 }
 
 func (dashboard ATCDashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	debugf("%v", func() any {
+	debugf("%#v", func() any {
 		if value, ok := msg.(fmt.Stringer); ok {
 			return value.String()
 		}
@@ -74,6 +76,10 @@ func (dashboard ATCDashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
+
+	if err, _ := msg.(error); meta.IsNoMatchError(err) {
+		cmds = append(cmds, dashboard.ResetClientMapper)
+	}
 
 	dashboard.Content, cmd = dashboard.Content.Update(msg)
 	cmds = append(cmds, cmd)

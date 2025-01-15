@@ -1,7 +1,9 @@
 package tower
 
 import (
+	"cmp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -9,6 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	gloss "github.com/yokecd/lipgloss"
 )
+
+type RefreshConfig struct {
+	Func     func() tea.Msg
+	Interval time.Duration
+}
 
 type TableView[T any] struct {
 	Err     error
@@ -19,6 +26,7 @@ type TableView[T any] struct {
 	Columns []string
 	Title   string
 	ToRows  func([]T) []table.Row
+	Refresh *RefreshConfig
 	Back    *Nav
 	Forward func(T) Nav
 	Yaml    func(T) Nav
@@ -56,11 +64,27 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case error:
 		view.Err = msg
+		if view.Refresh != nil {
+			return view, tea.Tick(
+				cmp.Or(view.Refresh.Interval, time.Second),
+				func(t time.Time) tea.Msg {
+					return view.Refresh.Func()
+				},
+			)
+		}
 		return view, nil
 	case tea.WindowSizeMsg:
 		view.Dim = msg
 		return view, nil
 	case TableDataMsg[T]:
+		view.Err = nil
+
+		if msg == nil {
+			// the data comes in as nil but we use nil to signal that we are in a loading state.
+			// This allows us to signal empty instead of loading.
+			msg = TableDataMsg[T]{}
+		}
+
 		view.Data = msg
 
 		rows, _ := view.rows()
@@ -86,6 +110,17 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Bold(false)
 
 		view.Table.SetStyles(style)
+
+		if view.Refresh != nil {
+			return view, tea.Tick(
+				cmp.Or(view.Refresh.Interval, time.Second),
+				func(t time.Time) tea.Msg {
+					return view.Refresh.Func()
+				},
+			)
+		}
+
+		return view, nil
 
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -187,8 +222,8 @@ func (view TableView[T]) View() string {
 			return ""
 		}
 
-		view.Search.Prompt = "/"
-		view.Search.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff268f"))
+		view.Search.Prompt = ""
+		view.Search.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef868e"))
 		view.Search.PromptStyle = view.Search.TextStyle
 
 		return border.
@@ -204,7 +239,13 @@ func (view TableView[T]) View() string {
 			return errorStyle(view.Err.Error())
 		}
 		if view.Data == nil {
-			return "loading resources..."
+			return "loading..."
+		}
+		if len(view.Data) == 0 {
+			if view.Refresh != nil {
+				return "nothing found (refreshing in background periodically)"
+			}
+			return "nothing found"
 		}
 		view.Table.SetHeight(mainHeight - 1)
 		return view.Table.View() + "\n" + view.Table.HelpView()
