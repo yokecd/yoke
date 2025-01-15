@@ -18,17 +18,28 @@ type ReadyResource struct {
 	*unstructured.Unstructured
 }
 
-type GetRevisionResult []ReadyResource
+type GetResourcesResult []ReadyResource
 
-type RevisionView struct {
+type ResourcesView struct {
 	tea.Model
 }
 
-func MakeRevisionView(dim tea.WindowSizeMsg, prevTitle string, flight unstructured.Unstructured) RevisionView {
-	return RevisionView{
+type PrevRef struct {
+	Title   string
+	Refresh *RefreshConfig
+}
+
+type MakeResourcesViewParams struct {
+	Dim    tea.WindowSizeMsg
+	Flight unstructured.Unstructured
+	Prev   PrevRef
+}
+
+func MakeResourcesView(params MakeResourcesViewParams) ResourcesView {
+	return ResourcesView{
 		Model: TableView[ReadyResource]{
 			Err:     nil,
-			Dim:     dim,
+			Dim:     params.Dim,
 			Search:  textinput.New(),
 			Table:   table.New(),
 			Title:   "resources",
@@ -55,16 +66,23 @@ func MakeRevisionView(dim tea.WindowSizeMsg, prevTitle string, flight unstructur
 
 				return rows
 			},
+			Refresh: &RefreshConfig{
+				Func: func() tea.Msg {
+					return ExecMsg(func(c Commands) tea.Cmd {
+						return c.GetRevisionResources(atc.ReleaseName(&params.Flight), params.Flight.GetNamespace())
+					})
+				},
+			},
 			Back: &Nav{
 				Model: func(dim tea.WindowSizeMsg) tea.Model {
-					return MakeFlightListView(prevTitle, dim)
+					return MakeFlightListView(params.Prev.Title, params.Prev.Refresh, dim)
 				},
 				Cmd: func() tea.Msg {
 					return ExecMsg(func(cmds Commands) tea.Cmd {
-						return cmds.GetFlightList(flight.GroupVersionKind().GroupKind())
+						return cmds.GetFlightList(params.Flight.GroupVersionKind().GroupKind())
 					})
 				},
-				Desc: "view " + flight.GroupVersionKind().GroupKind().String(),
+				Desc: "view " + params.Flight.GroupVersionKind().GroupKind().String(),
 			},
 			Forward: nil,
 			Yaml: func(resource ReadyResource) Nav {
@@ -81,15 +99,18 @@ func MakeRevisionView(dim tea.WindowSizeMsg, prevTitle string, flight unstructur
 							Dim:      dim,
 							Back: Nav{
 								Model: func(dim tea.WindowSizeMsg) tea.Model {
-									return MakeRevisionView(dim, prevTitle, flight)
+									return MakeResourcesView(MakeResourcesViewParams{
+										Dim:    dim,
+										Flight: params.Flight,
+										Prev: PrevRef{
+											Title:   params.Prev.Title,
+											Refresh: params.Prev.Refresh,
+										},
+									})
 								},
 								Cmd: func() tea.Msg {
 									return ExecMsg(func(cmds Commands) tea.Cmd {
-										name := ref.Name
-										if ref.Namespace != "" {
-											name = atc.ReleaseName(&flight)
-										}
-										return cmds.GetRevisionResources(name, ref.Namespace)
+										return cmds.GetRevisionResources(atc.ReleaseName(&params.Flight), params.Flight.GetNamespace())
 									})
 								},
 								Desc: "view release",
@@ -109,8 +130,8 @@ func MakeRevisionView(dim tea.WindowSizeMsg, prevTitle string, flight unstructur
 	}
 }
 
-func (view RevisionView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if result, ok := msg.(GetRevisionResult); ok {
+func (view ResourcesView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if result, ok := msg.(GetResourcesResult); ok {
 		msg = TableDataMsg[ReadyResource](result)
 	}
 

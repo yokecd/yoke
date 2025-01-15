@@ -26,7 +26,7 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 			Search:  textinput.New(),
 			Table:   table.New(),
 			Title:   "airways",
-			Data:    []v1alpha1.Airway{},
+			Data:    nil,
 			Columns: []string{"Name", "Status", "Msg"},
 			ToRows: func(airways []v1alpha1.Airway) []table.Row {
 				rows := make([]table.Row, len(airways))
@@ -42,6 +42,11 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 				}
 				return rows
 			},
+			Refresh: &RefreshConfig{
+				Func: func() tea.Msg {
+					return ExecMsg(func(c Commands) tea.Cmd { return c.GetAirwayList })
+				},
+			},
 			Back: nil,
 			Forward: func(airway v1alpha1.Airway) Nav {
 				gk := schema.GroupKind{
@@ -50,7 +55,13 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 				}
 				return Nav{
 					Model: func(msg tea.WindowSizeMsg) tea.Model {
-						return MakeFlightListView(airway.Spec.Template.Names.Plural, msg)
+						return MakeFlightListView(airway.Spec.Template.Names.Plural, &RefreshConfig{
+							Func: func() tea.Msg {
+								return ExecMsg(func(c Commands) tea.Cmd {
+									return c.GetFlightList(gk)
+								})
+							},
+						}, msg)
 					},
 					Cmd: func() tea.Msg {
 						return ExecMsg(func(cmds Commands) tea.Cmd {
