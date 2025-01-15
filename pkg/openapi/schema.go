@@ -11,10 +11,19 @@ import (
 	"time"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/utils/ptr"
 )
 
 var cache = map[reflect.Type]*apiext.JSONSchemaProps{}
 
+// SchemaFrom builds an openapi schema for a given type as described by the kubernetes apiextensions server.
+// These schema's are used to translate Go types to openapi to be consumed by CustomResourceDefinitions.
+//
+// The following JSON Tags are supported and will add their properties to the resulting schema for a given field:
+// "Enum", "XValidations", "Maximum", "Minimum", "MaxLength", "MinLength", "MaxItems", "MinItems", "UniqueItems",
+// "Pattern", "ExclusiveMaximum", "ExclusiveMinimum", "MultipleOf", "Format"
+//
+// JSON Tags with an improper value (Say a string where an int is expected for example: `MaxLenghth:"hello"`) will cause a panic.
 func SchemaFrom(typ reflect.Type) *apiext.JSONSchemaProps {
 	return generateSchema(typ, true)
 }
@@ -48,7 +57,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 					if _, ok := cache[typ.Elem()]; ok {
 						return &apiext.JSONSchemaProps{
 							Type:                   "object",
-							XPreserveUnknownFields: ptr(true),
+							XPreserveUnknownFields: ptr.To(true),
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
@@ -64,7 +73,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 					if _, ok := cache[typ.Elem()]; ok {
 						return &apiext.JSONSchemaProps{
 							Type:                   "object",
-							XPreserveUnknownFields: ptr(true),
+							XPreserveUnknownFields: ptr.To(true),
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
@@ -200,7 +209,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 		if _, ok := cache[typ.Elem()]; ok {
 			return &apiext.JSONSchemaProps{
 				Type:                   "object",
-				XPreserveUnknownFields: ptr(true),
+				XPreserveUnknownFields: ptr.To(true),
 				Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 			}
 		}
@@ -209,8 +218,6 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 
 	panic("unreachable: " + typ.Kind().String())
 }
-
-func ptr[T any](value T) *T { return &value }
 
 type Duration time.Duration
 
