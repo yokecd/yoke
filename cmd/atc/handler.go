@@ -78,10 +78,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			CompiledModule: converter.CompiledModule,
-			Stdin:          bytes.NewReader(data),
-			Release:        "converter",
-			CacheDir:       wasm.AirwayModuleDir(airway),
+			Module:  converter.Module,
+			Stdin:   bytes.NewReader(data),
+			Release: "converter",
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -185,10 +184,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		params := yoke.TakeoffParams{
 			Release: atc.ReleaseName(&cr),
 			Flight: yoke.FlightParams{
-				WasmModule:          flight.CompiledModule,
-				Input:               bytes.NewReader(data),
-				Namespace:           cr.GetNamespace(),
-				CompilationCacheDir: wasm.AirwayModuleDir(airway.Name),
+				Module:    flight.Module,
+				Input:     bytes.NewReader(data),
+				Namespace: cr.GetNamespace(),
 			},
 			CreateCRDs: airway.Spec.CreateCRDs,
 			DryRun:     true,

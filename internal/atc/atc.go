@@ -25,8 +25,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/ptr"
 
-	"github.com/tetratelabs/wazero"
-
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -182,25 +180,19 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		modules.LockAll()
 		defer modules.UnlockAll()
 
-		if err := os.RemoveAll(wasm.AirwayModuleDir(typedAirway.Name)); err != nil {
-			// This is simply removing the airway compilation cache so that we don't accumulate large wasm files on the filesystem.
-			// This is unlikely to be an issue and doesn't warrant erroring out. Just warn.
-			ctrl.Logger(ctx).Warn("failed to clear airway's cache module directory", "error", err)
-		}
-
 		modules.Reset()
 
 		for _, value := range []struct {
 			URL string
-			Mod *wazero.CompiledModule
+			Mod *wasi.Module
 		}{
 			{
 				URL: typedAirway.Spec.WasmURLs.Flight,
-				Mod: &modules.Flight.CompiledModule,
+				Mod: modules.Flight.Module,
 			},
 			{
 				URL: typedAirway.Spec.WasmURLs.Converter,
-				Mod: &modules.Converter.CompiledModule,
+				Mod: modules.Converter.Module,
 			},
 		} {
 			if value.URL == "" {
@@ -211,8 +203,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm:     data,
-				CacheDir: wasm.AirwayModuleDir(typedAirway.Name),
+				Wasm: data,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
@@ -361,7 +352,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			GK:               flightGK,
 			Airway:           typedAirway.Name,
 			Version:          storageVersion,
-			FlightMod:        modules.Flight,
+			Flight:           modules.Flight,
 			FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
 			CreateCrds:       typedAirway.Spec.CreateCRDs,
 			ObjectPath:       typedAirway.Spec.ObjectPath,
@@ -405,7 +396,7 @@ type FlightReconcilerParams struct {
 	GK               schema.GroupKind
 	Airway           string
 	Version          string
-	FlightMod        *wasm.Module
+	Flight           *wasm.Module
 	FixDriftInterval time.Duration
 	CreateCrds       bool
 	ObjectPath       []string
@@ -514,18 +505,17 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
 
-		params.FlightMod.RLock()
-		defer params.FlightMod.RUnlock()
+		params.Flight.RLock()
+		defer params.Flight.RUnlock()
 
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
 		takeoffParams := yoke.TakeoffParams{
 			Release: ReleaseName(resource),
 			Flight: yoke.FlightParams{
-				WasmModule:          params.FlightMod.CompiledModule,
-				Input:               bytes.NewReader(data),
-				Namespace:           event.Namespace,
-				CompilationCacheDir: wasm.AirwayModuleDir(params.Airway),
+				Module:    params.Flight.Module,
+				Input:     bytes.NewReader(data),
+				Namespace: event.Namespace,
 			},
 			CreateCRDs: params.CreateCrds,
 			OwnerReferences: []metav1.OwnerReference{

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"reflect"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -16,34 +17,38 @@ import (
 )
 
 type ExecParams struct {
-	Wasm           []byte
-	CompiledModule wazero.CompiledModule
-	Release        string
-	Stdin          io.Reader
-	Args           []string
-	Env            map[string]string
-	CacheDir       string
+	Wasm     []byte
+	Module   *Module
+	Release  string
+	Stdin    io.Reader
+	Args     []string
+	Env      map[string]string
+	CacheDir string
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
-	cfg := wazero.
-		NewRuntimeConfig().
-		WithCloseOnContextDone(true)
-
-	if params.CacheDir != "" {
-		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to instantiate compilation cache: %w", err)
+	mod, closeModule, err := func() (*Module, func(context.Context) error, error) {
+		if params.Module != nil {
+			// If the module was passed via params, we do not own its lifetime and so do not close.
+			return params.Module, func(context.Context) error { return nil }, nil
 		}
-		cfg = cfg.WithCompilationCache(cache)
-	}
 
-	runtime := wazero.NewRuntimeWithConfig(ctx, cfg)
-	defer func() {
-		err = xerr.MultiErrFrom("", err, runtime.Close(ctx))
+		mod, err := Compile(ctx, CompileParams{
+			Wasm:     params.Wasm,
+			CacheDir: params.CacheDir,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
+		}
+
+		return &mod, mod.Close, nil
 	}()
-
-	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = xerr.MultiErrFrom("", err, closeModule(ctx))
+	}()
 
 	var (
 		stdout bytes.Buffer
@@ -68,34 +73,9 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		moduleCfg = moduleCfg.WithEnv(key, value)
 	}
 
-	guest, teardown, err := func() (wazero.CompiledModule, func(ctx context.Context) error, error) {
-		defer internal.DebugTimer(ctx, "compile wasm module")()
-
-		if params.CompiledModule != nil {
-			// Return a noop teardown since we do not own the compiledModule. Let the caller close it when they are ready.
-			return params.CompiledModule, func(context.Context) error { return nil }, nil
-		}
-
-		guest, err := runtime.CompileModule(ctx, params.Wasm)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
-		}
-		return guest, guest.Close, nil
-	}()
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile module: %w", err)
-	}
-	defer teardown(ctx)
-
 	defer internal.DebugTimer(ctx, "execute wasm module")()
 
-	module, err := runtime.InstantiateModule(ctx, guest, moduleCfg)
-	defer func() {
-		if module != nil {
-			err = xerr.MultiErrFrom("", err, module.Close(ctx))
-		}
-	}()
-	if err != nil {
+	if err := mod.Instantiate(ctx, moduleCfg); err != nil {
 		details := stderr.String()
 		if details == "" {
 			details = "(no output captured on stderr)"
@@ -111,7 +91,42 @@ type CompileParams struct {
 	CacheDir string
 }
 
-func Compile(ctx context.Context, params CompileParams) (mod wazero.CompiledModule, err error) {
+type Module struct {
+	wazero.CompiledModule
+	wazero.Runtime
+}
+
+func (mod Module) Instantiate(ctx context.Context, cfg wazero.ModuleConfig) error {
+	module, err := mod.InstantiateModule(ctx, mod.CompiledModule, cfg)
+	if err != nil {
+		return err
+	}
+	if !reflect.ValueOf(module).IsNil() {
+		if err := module.Close(ctx); err != nil {
+			return fmt.Errorf("failed to close module: %w", err)
+		}
+	}
+	return nil
+}
+
+func (mod Module) Close(ctx context.Context) error {
+	return xerr.MultiErrFrom("",
+		func() error {
+			if mod.CompiledModule == nil {
+				return nil
+			}
+			return mod.CompiledModule.Close(ctx)
+		}(),
+		func() error {
+			if mod.Runtime == nil {
+				return nil
+			}
+			return mod.Runtime.Close(ctx)
+		}(),
+	)
+}
+
+func Compile(ctx context.Context, params CompileParams) (Module, error) {
 	defer internal.DebugTimer(ctx, "wasm compile")()
 
 	cfg := wazero.
@@ -121,15 +136,19 @@ func Compile(ctx context.Context, params CompileParams) (mod wazero.CompiledModu
 	if params.CacheDir != "" {
 		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to instantiate compilation cache: %w", err)
+			return Module{}, fmt.Errorf("failed to instantiate compilation cache: %w", err)
 		}
 		cfg = cfg.WithCompilationCache(cache)
 	}
 
 	runtime := wazero.NewRuntimeWithConfig(ctx, cfg)
-	defer func() {
-		err = xerr.MultiErrFrom("", err, runtime.Close(ctx))
-	}()
 
-	return runtime.CompileModule(ctx, params.Wasm)
+	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
+
+	mod, err := runtime.CompileModule(ctx, params.Wasm)
+	if err != nil {
+		return Module{}, err
+	}
+
+	return Module{Runtime: runtime, CompiledModule: mod}, nil
 }
