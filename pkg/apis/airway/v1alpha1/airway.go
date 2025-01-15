@@ -24,15 +24,36 @@ type Airway struct {
 }
 
 type AirwaySpec struct {
-	WasmURLs         WasmURLs                                     `json:"wasmUrls"`
-	ObjectPath       []string                                     `json:"objectPath,omitempty"`
-	FixDriftInterval openapi.Duration                             `json:"fixDriftInterval,omitempty"`
-	CreateCRDs       bool                                         `json:"createCrds,omitempty"`
-	Template         apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
+	WasmURLs WasmURLs `json:"wasmUrls"`
+
+	// ObjectPath allows you to set a path within your CR to the value you wish to pass to your flight.
+	// By default the entire Custom Resource is injected via STDIN to your flight implementation.
+	// If, for example, you wish to encode the "spec" property over STDIN you would set ObjectPath to []string{"spec"}.
+	ObjectPath []string `json:"objectPath,omitempty"`
+
+	// FixDriftInterval sets an interval at which the resource is requeued for evaluation by the AirTrafficController.
+	// The ATC will attempt to reapply the resource. In most cases this will result in a noop. If however a user
+	// changed any of the underlying resource's configuration, this will be set back via this mechanism. It allows
+	// you to enforce the desired state of your resource against external manipulation.
+	FixDriftInterval openapi.Duration `json:"fixDriftInterval,omitempty"`
+
+	// CreateCRDs indicates that CRDs generated from instantiating the resource should be applied. By default,
+	// CRDs are not applied. It is generally recommended to install CustomResourceDefinitions beforehand.
+	CreateCRDs bool `json:"createCrds,omitempty"`
+
+	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
+	// and bound to the implementation defined by the WasmURLs.Flight property.
+	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
 }
 
 type WasmURLs struct {
-	Flight    string `json:"flight"`
+	// Flight is the implementation used to implement the CustomResource as a Package. The flight is always applied against
+	// the storage version of the Custom Resource. This property is required.
+	Flight string `json:"flight"`
+
+	// Converter is the implementation of the conversion webhook. If present, the ATC will automatically use it to serve conversion
+	// requests between the various served versions of the Custom Resource.
 	Converter string `json:"converter,omitempty"`
 }
 
@@ -44,6 +65,7 @@ func (airway Airway) MarshalJSON() ([]byte, error) {
 	return json.Marshal(AirwayAlt(airway))
 }
 
+// CRD returns the CustomResourceDefinition as described by the template. The CRD will share the same name as the Airway and is owned by it.
 func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
 	return apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
@@ -65,6 +87,7 @@ func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
 	}
 }
 
+// CRGroupResource returns the schema.GroupResource of the Custom Resource as defined by its CRD template.
 func (airway Airway) CRGroupResource() schema.GroupResource {
 	return schema.GroupResource{
 		Group:    airway.Spec.Template.Group,
