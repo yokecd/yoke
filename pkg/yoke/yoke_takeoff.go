@@ -14,8 +14,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/tetratelabs/wazero"
-
 	"github.com/davidmdm/x/xerr"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,11 +24,12 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/text"
+	"github.com/yokecd/yoke/internal/wasi"
 )
 
 type FlightParams struct {
 	Path                string
-	WasmModule          wazero.CompiledModule
+	Module              *wasi.Module
 	Input               io.Reader
 	Args                []string
 	Namespace           string

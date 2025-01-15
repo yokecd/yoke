@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/tetratelabs/wazero"
+	"github.com/yokecd/yoke/internal/wasi"
 )
 
 type Type interface {
@@ -33,8 +33,12 @@ type ModuleCache struct {
 
 func (cache *ModuleCache) Get(name string) *Modules {
 	lock, _ := cache.modules.LoadOrStore(name, &Modules{
-		Flight:    &Module{},
-		Converter: &Module{},
+		Flight: &Module{
+			Module: new(wasi.Module),
+		},
+		Converter: &Module{
+			Module: new(wasi.Module),
+		},
 	})
 	return lock.(*Modules)
 }
@@ -58,22 +62,19 @@ func (modules *Modules) LockAll() {
 	modules.Converter.Lock()
 }
 
-// func (modules *Modules)
-
 func (modules *Modules) UnlockAll() {
 	modules.Flight.Unlock()
 	modules.Converter.Unlock()
 }
 
 type Module struct {
-	wazero.CompiledModule
+	*wasi.Module
 	sync.RWMutex
 }
 
 func (mod *Module) Close() {
-	if mod.CompiledModule == nil {
-		return
+	if mod.Module != nil {
+		_ = mod.Module.Close(context.TODO())
 	}
-	_ = mod.CompiledModule.Close(context.Background())
-	mod.CompiledModule = nil
+	mod.Module = new(wasi.Module)
 }
