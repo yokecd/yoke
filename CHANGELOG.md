@@ -4,6 +4,24 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-15) atc/v0.5.6 - atc-installer/v0.5.3 - v0.6.7 - yokecd/v0.5.2 - yokecd-installer/v0.5.3
+
+- atc: use in memory wasi modules instead of cache ([e386bd8](https://github.com/yokecd/yoke/commit/e386bd838086b1b664eb2aa1e8dbfece803b311e))
+- yoke: refresh atc-tower views in background ([9ffca17](https://github.com/yokecd/yoke/commit/9ffca170fa81e5fab48720c2b2f45a3f07482f09))
+- schema: add code comments ([35eb1dc](https://github.com/yokecd/yoke/commit/35eb1dc53b1a117278974e521f24f3b9ee781e76))
+- api: document Airway yoke.cd/v1alpha1 ([6d89111](https://github.com/yokecd/yoke/commit/6d8911123e472a0ca9635fee86aec1234b031bb9))
+- yoke: atc table view: search on all fields in row ([a1f4193](https://github.com/yokecd/yoke/commit/a1f41935b5759eccc36caf9cb937dfb184a6fdd6))
+- yoke: atc view has border titles using yokecd/lipgloss fork ([0e2fb9c](https://github.com/yokecd/yoke/commit/0e2fb9c9eefcbab3af31b5970eed09d56f794c35))
+
+## (2025-01-11) atc/v0.5.5 - atc-installer/v0.5.2 - v0.6.6 - yokecd-installer/v0.5.2
+
+- yoke: atc command creates a debug file if -debug-file is passed ([d0e58d8](https://github.com/yokecd/yoke/commit/d0e58d8caf6e96a50343c439a166113838e31129))
+- atc: refactor flight status and ensure that flight status carry over during crd conversion webhooks ([d28f75d](https://github.com/yokecd/yoke/commit/d28f75de47327cd4cd1706cdbe32cf03d832a082))
+
+## (2025-01-08) atc/v0.5.4 - v0.6.5
+
+- atc: add more context to conversion handler and refactor resource mapping resets ([b6be425](https://github.com/yokecd/yoke/commit/b6be425ea25cb834ced0cc9a98b440af5fbf7b37))
+
 ## (2025-01-08) atc/v0.5.3 - atc-installer/v0.5.1 - v0.6.4 - yokecd/v0.5.1 - yokecd-installer/v0.5.1
 
 - k8s/ctrl: separate controller from run to avoid race conditions that could drop events before controller was ready to run ([1cec9cf](https://github.com/yokecd/yoke/commit/1cec9cfe35ffbf7775b9a46b99b133f15aaef6bd))
