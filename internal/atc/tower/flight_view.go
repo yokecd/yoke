@@ -5,9 +5,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/yokecd/yoke/internal/atc"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/yokecd/yoke/internal/atc"
 )
 
 type GetFlightListResult *unstructured.UnstructuredList
