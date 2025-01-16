@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/yokecd/yoke/internal/atc"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/yokecd/yoke/internal/atc"
 )
 
 type ReadyResource struct {
