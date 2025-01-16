@@ -99,8 +99,11 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		view.Table.SetColumns(columns)
 		view.Table.SetRows(rows)
-		view.Table.Focus()
-		view.Search.Blur()
+
+		if !view.Search.Focused() {
+			// Only keep the table focused if we aren't currently updating the search.
+			view.Table.Focus()
+		}
 
 		style := table.DefaultStyles()
 
