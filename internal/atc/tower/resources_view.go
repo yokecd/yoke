@@ -97,6 +97,7 @@ func MakeResourcesView(params MakeResourcesViewParams) ResourcesView {
 							Resource: ref,
 							Viewport: viewport.Model{},
 							Dim:      dim,
+							Search:   textinput.New(),
 							Back: Nav{
 								Model: func(dim tea.WindowSizeMsg) tea.Model {
 									return MakeResourcesView(MakeResourcesViewParams{
