@@ -82,6 +82,7 @@ func MakeFlightListView(title string, refresh *RefreshConfig, dim tea.WindowSize
 					Model: func(msg tea.WindowSizeMsg) tea.Model {
 						return YamlView{
 							Resource: ref,
+							Search:   textinput.New(),
 							Dim:      dim,
 							Back: Nav{
 								Model: func(msg tea.WindowSizeMsg) tea.Model {

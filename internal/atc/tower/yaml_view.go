@@ -2,7 +2,9 @@ package tower
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -32,6 +34,7 @@ type YamlView struct {
 	Resource          ResourceRef
 	Loaded            bool
 	Viewport          viewport.Model
+	Search            textinput.Model
 	Err               error
 	Dim               tea.WindowSizeMsg
 	Back              Nav
@@ -52,37 +55,67 @@ func (view YamlView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		view.Err = msg
 		return view, nil
 	case YamlResult:
-		text, _ := removeManagedFields(string(msg))
 		view.Text = string(msg)
-		view.Viewport.SetContent(highlightYaml(text))
 		view.Loaded = true
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEsc:
-			return view.Back.Model(view.Dim), view.Back.Cmd
-		}
-
-		if msg.String() == "m" {
-			view.WithManagedFields = !view.WithManagedFields
-
-			if view.WithManagedFields {
-				view.Viewport.SetContent(highlightYaml(view.Text))
-			} else {
-				next, err := removeManagedFields(view.Text)
-				if err != nil {
-					view.Err = err
-				} else {
-					view.Viewport.SetContent(highlightYaml(next))
+		if !view.Search.Focused() {
+			switch msg.Type {
+			case tea.KeyEsc:
+				return view.Back.Model(view.Dim), view.Back.Cmd
+			}
+			switch msg.String() {
+			case "/":
+				return view, view.Search.Focus()
+			case "m":
+				view.WithManagedFields = !view.WithManagedFields
+				if view.WithManagedFields {
+					view.Viewport.SetContent(highlightYaml(view.Text))
+					return view, nil
 				}
+
+				next, err := removeManagedFields(view.Text)
+				view.Err = err
+				view.Viewport.SetContent(highlightYaml(next))
+
+				return view, nil
+			}
+		} else {
+			switch msg.Type {
+			case tea.KeyEsc:
+				view.Search.SetValue("")
+				view.Search.Blur()
+				return view, nil
+			case tea.KeyEnter:
+				view.Search.Blur()
+				return view, nil
 			}
 		}
 
 	}
 
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
-	view.Viewport, cmd = view.Viewport.Update(msg)
 
-	return view, cmd
+	view.Viewport, cmd = view.Viewport.Update(msg)
+	cmds = append(cmds, cmd)
+
+	view.Search, cmd = view.Search.Update(msg)
+	cmds = append(cmds, cmd)
+
+	text := func() string {
+		if view.WithManagedFields {
+			return view.Text
+		}
+		value, _ := removeManagedFields(view.Text)
+		return value
+	}()
+
+	text = highlightYaml(text)
+	text = hightlightSearch(text, view.Search.Value())
+
+	view.Viewport.SetContent(text)
+
+	return view, tea.Batch(cmds...)
 }
 
 func (view YamlView) View() string {
@@ -99,6 +132,22 @@ func (view YamlView) View() string {
 
 	header := lipgloss.JoinHorizontal(lipgloss.Top, banner, actions.String())
 
+	search := func() string {
+		if !view.Search.Focused() {
+			return ""
+		}
+		view.Search.Prompt = ""
+		view.Search.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef868e"))
+		view.Search.PromptStyle = view.Search.TextStyle
+
+		return border.
+			BorderTitle(yellow.Render("search")).
+			Width(view.Dim.Width - 2).
+			Render(view.Search.View())
+	}()
+
+	mainHeight := view.Dim.Height - lipgloss.Height(header) - lipgloss.Height(search) - 2
+
 	content := func() string {
 		if view.Err != nil {
 			return errorStyle(view.Err.Error())
@@ -108,16 +157,16 @@ func (view YamlView) View() string {
 		}
 
 		view.Viewport.Width = view.Dim.Width - 4
-		view.Viewport.Height = view.Dim.Height - lipgloss.Height(header) - 2
+		view.Viewport.Height = mainHeight
 		return view.Viewport.View()
 	}()
 
 	content = border.
 		Width(view.Dim.Width - 2).
-		Height(view.Dim.Height - lipgloss.Height(header) - 2).
+		Height(mainHeight).
 		Render(content)
 
-	return lipgloss.JoinVertical(lipgloss.Top, header, content)
+	return lipgloss.JoinVertical(lipgloss.Top, header, search, content)
 }
 
 var _ tea.Model = YamlView{}
@@ -136,4 +185,29 @@ func removeManagedFields(text string) (string, error) {
 	}
 
 	return string(data), nil
+}
+
+func hightlightSearch(text, search string) string {
+	if search == "" {
+		return text
+	}
+
+	repl := lipgloss.NewStyle().
+		Background(lipgloss.Color("#00ffff")).
+		Foreground(lipgloss.Color("#000000")).
+		Bold(true).
+		Render(search)
+
+	var out strings.Builder
+	for {
+		before, after, ok := strings.Cut(text, search)
+		out.WriteString(before)
+		if !ok {
+			break
+		}
+		out.WriteString(repl)
+		text = after
+	}
+
+	return out.String()
 }

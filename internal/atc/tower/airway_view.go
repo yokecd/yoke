@@ -81,6 +81,7 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 						return YamlView{
 							Resource: ref,
 							Dim:      msg,
+							Search:   textinput.New(),
 							Back: Nav{
 								Model: func(msg tea.WindowSizeMsg) tea.Model {
 									return MakeAirwayListView(msg)
