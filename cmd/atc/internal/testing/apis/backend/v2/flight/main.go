@@ -9,8 +9,6 @@ import (
 	"os"
 	"strconv"
 
-	"golang.org/x/term"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,10 +27,8 @@ func main() {
 
 func run() error {
 	var backend v2.Backend
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&backend); err != nil && err != io.EOF {
-			return err
-		}
+	if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&backend); err != nil && err != io.EOF {
+		return err
 	}
 
 	backend.Spec.ServicePort = cmp.Or(backend.Spec.ServicePort, 3000)
