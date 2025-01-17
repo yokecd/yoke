@@ -14,9 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type (
-	YamlResult string
-)
+type YamlResult string
 
 type Nav struct {
 	Model func(tea.WindowSizeMsg) tea.Model
@@ -68,16 +66,6 @@ func (view YamlView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return view, view.Search.Focus()
 			case "m":
 				view.WithManagedFields = !view.WithManagedFields
-				if view.WithManagedFields {
-					view.Viewport.SetContent(highlightYaml(view.Text))
-					return view, nil
-				}
-
-				next, err := removeManagedFields(view.Text)
-				view.Err = err
-				view.Viewport.SetContent(highlightYaml(next))
-
-				return view, nil
 			}
 		} else {
 			switch msg.Type {
