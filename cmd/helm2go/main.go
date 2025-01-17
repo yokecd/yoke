@@ -192,19 +192,19 @@ func ensureReadmeGenerator(ctx context.Context) error {
 		if err := x(downloadDeps, WithDir(schemaGenDir)); err != nil {
 			return fmt.Errorf("failed to download schema generator dependencies: %w", err)
 		}
+	} else {
+		if err := x(exec.CommandContext(ctx, "git", "pull"), WithDir(filepath.Join(cache, "readme-generator-for-helm"))); err != nil {
+			return fmt.Errorf("failed to pull schema generator: %w", err)
+		}
 	}
 
 	return nil
 }
 
 func ensureGoJsonSchema(ctx context.Context) error {
-	if x(exec.CommandContext(ctx, "command", "-v", "go-jsonschema")) == nil {
-		return nil
-	}
 	if err := x(exec.CommandContext(ctx, "go", "install", "github.com/atombender/go-jsonschema@latest")); err != nil {
 		return fmt.Errorf("failed to install go-jsonschema: %w", err)
 	}
-
 	return nil
 }
 
