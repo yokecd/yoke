@@ -24,7 +24,7 @@ go install github.com/yokecd/yoke/cmd/yoke@latest
 
 ## Documentation
 
-Official documentation can be found [here](https://davidmdm.github.io/yoke-website)
+Official documentation can be found [here](https://yokecd.github.io/docs)
 
 ## Versioning
 
