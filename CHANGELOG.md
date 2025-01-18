@@ -4,6 +4,23 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-18) atc/v0.6.0 - v0.7.0 - yokecd/v0.6.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: breaking change: gzip resource data in yoke revision secrets ([4035555](https://github.com/yokecd/yoke/commit/40355552ec0c56603aebff3ec3e33a72d9550a26))
+
+## (2025-01-17) atc/v0.5.7 - atc-installer/v0.5.4 - v0.6.8 - yokecd/v0.5.3 - yokecd-installer/v0.5.4
+
+- helm2go: ensure dependent programs are at their latest ([e6e657d](https://github.com/yokecd/yoke/commit/e6e657dae6c284023704cae1040400f1a47d3968))
+- yoke: atc-viewer: fix interaction between managed field toggling and search highlighting ([12c68b2](https://github.com/yokecd/yoke/commit/12c68b20d4ecaefc840f634df4cb65f6713c9c3f))
+- yokecd-installer: update argocd chart to 7.7.16 ([6411ea1](https://github.com/yokecd/yoke/commit/6411ea1959210232998995c0d8611cecce752c54))
+- yoke: atc-viewer: add basic highlight search to yaml view ([520c7b2](https://github.com/yokecd/yoke/commit/520c7b27d3996cf83ba3af01b137f29b57288c75))
+- yoke: atc viewer: do not remove focus from search on data refresh ([fda58e9](https://github.com/yokecd/yoke/commit/fda58e9e3e4772072e356b7445ac5bad1f0425c1))
+- refactor: reorganize project imports ([d04c0c3](https://github.com/yokecd/yoke/commit/d04c0c39fec912405ba5f8c12da5abe004096c72))
+- deps: update dependencies ([f917866](https://github.com/yokecd/yoke/commit/f91786600f654ebe058153500a280c467dc08f0f))
+
 ## (2025-01-15) atc/v0.5.6 - atc-installer/v0.5.3 - v0.6.7 - yokecd/v0.5.2 - yokecd-installer/v0.5.3
 
 - atc: use in memory wasi modules instead of cache ([e386bd8](https://github.com/yokecd/yoke/commit/e386bd838086b1b664eb2aa1e8dbfece803b311e))
