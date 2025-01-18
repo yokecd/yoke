@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davidmdm/x/xerr"
+	"github.com/davidmdm/x/xruntime"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -45,12 +48,9 @@ func (event Event) String() string {
 type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
-	ctx         context.Context
-	events      chan Event
-	handler     HandleFunc
-	client      *k8s.Client
-	logger      *slog.Logger
-	concurrency int
+	ctx    context.Context
+	events chan Event
+	Params
 }
 
 type Params struct {
@@ -75,16 +75,15 @@ func NewController(ctx context.Context, params Params) (Instance, error) {
 	ctx = context.WithValue(ctx, loggerKey{}, logger)
 	ctx = context.WithValue(ctx, rootLoggerKey{}, params.Logger)
 
-	intf := params.Client.Meta.Resource(mapping.Resource)
+	params.Handler = safe(params.Handler)
 
 	instance := Instance{
-		ctx:         ctx,
-		events:      make(chan Event),
-		handler:     params.Handler,
-		client:      params.Client,
-		logger:      params.Logger,
-		concurrency: params.Concurrency,
+		ctx:    ctx,
+		events: make(chan Event),
+		Params: params,
 	}
+
+	intf := params.Client.Meta.Resource(mapping.Resource)
 
 	instance.events, err = instance.eventsFromMetaGetter(ctx, intf, mapping)
 	if err != nil {
@@ -98,7 +97,7 @@ func (ctrl Instance) Run() error {
 	var (
 		activeMap   sync.Map
 		timers      sync.Map
-		concurrency = max(ctrl.concurrency, 1)
+		concurrency = max(ctrl.Concurrency, 1)
 	)
 
 	var wg sync.WaitGroup
@@ -117,6 +116,12 @@ func (ctrl Instance) Run() error {
 					return
 				case event := <-queue.C:
 					func() {
+						defer func() {
+							if e := recover(); e != nil {
+								Logger(ctrl.ctx).Error("Caught Control Loop Panic", "error", e, "stack", xruntime.CallStack(-1))
+							}
+						}()
+
 						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
 						if loaded {
 							wg.Add(1)
@@ -148,13 +153,13 @@ func (ctrl Instance) Run() error {
 						// Rather we only exit once the loop is idle.
 						ctx := context.WithoutCancel(ctrl.ctx)
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
-						ctx = context.WithValue(ctx, clientKey{}, ctrl.client)
+						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
 
 						logger.Info("processing event")
 
 						start := time.Now()
 
-						result, err := ctrl.handler(ctx, event)
+						result, err := ctrl.Handler(ctx, event)
 
 						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
 
@@ -244,9 +249,9 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 
 				intf := func() dynamic.ResourceInterface {
 					if mapping.Scope == meta.RESTScopeRoot {
-						return ctrl.client.Dynamic.Resource(mapping.Resource)
+						return ctrl.Client.Dynamic.Resource(mapping.Resource)
 					}
-					return ctrl.client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
+					return ctrl.Client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
 				}()
 
 				evt := Event{
@@ -334,4 +339,16 @@ func resourcesAreEqual(a, b *unstructured.Unstructured) bool {
 	}
 
 	return reflect.DeepEqual(a.Object, b.Object)
+}
+
+func safe(handler HandleFunc) HandleFunc {
+	return func(ctx context.Context, event Event) (result Result, err error) {
+		defer func() {
+			if e := recover(); e != nil {
+				err = xerr.MultiErrFrom("", err, fmt.Errorf("%v", e))
+				Logger(ctx).Error("Caught Panic", "error", err, "stack", xruntime.CallStack(-1).String())
+			}
+		}()
+		return handler(ctx, event)
+	}
 }
