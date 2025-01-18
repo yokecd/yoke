@@ -1,11 +1,14 @@
 package k8s
 
 import (
+	"bytes"
 	"cmp"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path"
 	"runtime"
 	"strconv"
@@ -386,6 +389,17 @@ func (client Client) CreateRevision(ctx context.Context, release, ns string, rev
 		return fmt.Errorf("failed to marshal resources: %w", err)
 	}
 
+	data = func() []byte {
+		var buffer bytes.Buffer
+		w := gzip.NewWriter(&buffer)
+		// Since we are only reading to in memory data structures it is safe to ignore potential
+		// write errors. The only way they can fail is if the system is out of memory. If that is the case,
+		// we have bigger fish to fry.
+		_, _ = w.Write(data)
+		_ = w.Close()
+		return buffer.Bytes()
+	}()
+
 	_, err = client.Clientset.CoreV1().Secrets(ns).Create(
 		ctx,
 		&corev1.Secret{
@@ -433,8 +447,22 @@ func (client Client) GetRevisionResources(ctx context.Context, revision internal
 		return nil, err
 	}
 
+	data, err := func() ([]byte, error) {
+		raw := secret.Data[internal.KeyResources]
+		r, err := gzip.NewReader(bytes.NewReader(raw))
+		if err != nil {
+			// If it fails to decode the bytes as valid gzip, the secret is from a previous version of yoke
+			// that did not gzip resource content. Use as is; this way we maintain backward compatibility.
+			return raw, nil
+		}
+		return io.ReadAll(r)
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read secret data: %w", err)
+	}
+
 	var resources []*unstructured.Unstructured
-	err = json.Unmarshal(secret.Data[internal.KeyResources], &resources)
+	err = json.Unmarshal(data, &resources)
 
 	return resources, err
 }
