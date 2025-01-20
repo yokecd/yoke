@@ -44,8 +44,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          GITHUB_ACTOR: davidmdm
         run: |
           go run ./cmd/internal/releaser \
             -cli \
