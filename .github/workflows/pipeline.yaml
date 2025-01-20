@@ -14,8 +14,10 @@ on:
 jobs:
   build-and-release:
     permissions:
-      packages: write
       contents: write
+      packages: write
+      attestations: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
