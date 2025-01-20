@@ -30,7 +30,7 @@ func init() {
 		fmt.Println("skipping docker login to ghcr.io")
 		return
 	}
-	if err := x.Xf("docker login ghcr.io -u %s --password-stin ", []any{actor}, x.Input(strings.NewReader(token))); err != nil {
+	if err := x.Xf("docker login ghcr.io -u %s --password-stdin ", []any{actor}, x.Input(strings.NewReader(token))); err != nil {
 		panic(fmt.Errorf("failed to login to ghcr.io: %w", err))
 	}
 }
