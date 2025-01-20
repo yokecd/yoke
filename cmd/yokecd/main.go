@@ -76,7 +76,7 @@ func run(ctx context.Context, cfg Config) (err error) {
 			defer os.Remove(cfg.Flight.Wasm)
 		}
 
-		wasm, err := func() (string, error) {
+		wasmPath, err := func() (string, error) {
 			if !strings.HasPrefix(cfg.Flight.Wasm, "http://") && !strings.HasPrefix(cfg.Flight.Wasm, "https://") {
 				return cfg.Flight.Wasm, nil
 			}
@@ -95,9 +95,12 @@ func run(ctx context.Context, cfg Config) (err error) {
 
 			return builder.String(), nil
 		}()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get wasm path: %w", err)
+		}
 
 		data, _, err := yoke.EvalFlight(ctx, cfg.Application.Name, yoke.FlightParams{
-			Path:      wasm,
+			Path:      wasmPath,
 			Input:     strings.NewReader(cfg.Flight.Input),
 			Args:      cfg.Flight.Args,
 			Namespace: cfg.Application.Namespace,
