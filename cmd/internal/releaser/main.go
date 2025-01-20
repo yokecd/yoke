@@ -22,12 +22,16 @@ import (
 )
 
 func init() {
-	dockerToken := os.Getenv("DOCKER_TOKEN")
-	if dockerToken == "" {
+	var (
+		actor = os.Getenv("GITHUB_ACTOR")
+		token = os.Getenv("GITHUB_TOKEN")
+	)
+	if token == "" || actor == "" {
+		fmt.Println("skipping docker login to ghcr.io")
 		return
 	}
-	if err := x.X("docker login -u davidmdm -p " + dockerToken); err != nil {
-		panic(fmt.Errorf("failed to login to docker: %w", err))
+	if err := x.Xf("docker login ghcr.io -u %s --password-stin ", []any{actor}, x.Input(strings.NewReader(token))); err != nil {
+		panic(fmt.Errorf("failed to login to ghcr.io: %w", err))
 	}
 }
 
@@ -271,7 +275,7 @@ func (releaser Releaser) ReleaseDockerFile(name string) error {
 	}
 
 	if err := x.Xf(
-		"docker buildx build -f ./Dockerfile.%s --platform linux/amd64,linux/arm64 -t davidmdm/%s:latest -t davidmdm/%s:%s --push .",
+		"docker buildx build -f ./Dockerfile.%s --platform linux/amd64,linux/arm64 -t ghcr.io/yokecd/%s:latest -t ghcr.io/yokecd/%s:%s --push .",
 		[]any{name, name, name, strings.TrimPrefix(nextVersion, "v")},
 	); err != nil {
 		return fmt.Errorf("failed to build and push docker image: %w", err)
