@@ -230,7 +230,7 @@ func Run(cfg Config) error {
 					Containers: []corev1.Container{
 						{
 							Name:            "yokecd-atc",
-							Image:           cmp.Or(cfg.Image, "davidmdm/atc") + ":" + cfg.Version,
+							Image:           cmp.Or(cfg.Image, "ghcr.io/yokecd/atc") + ":" + cfg.Version,
 							ImagePullPolicy: cmp.Or(cfg.ImagePullPolicy, corev1.PullIfNotPresent),
 							Env: []corev1.EnvVar{
 								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
