@@ -41,6 +41,9 @@ jobs:
       - name: Build and Release Flights
         if: github.ref == 'refs/heads/main'
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           go run ./cmd/internal/releaser \
             -cli \
