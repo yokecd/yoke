@@ -4,6 +4,26 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-20) atc/v0.6.1
+
+- ci: use classic token for publishing packages ([9571c09](https://github.com/yokecd/yoke/commit/9571c09f897d4403137bf3238bdfd681f9892a9a))
+
+## (2025-01-20) yokecd/v0.6.1
+
+- ci: update permissions for release job ([b0de12a](https://github.com/yokecd/yoke/commit/b0de12ad3471f8cfb0fa8c3fdde95b9112cb53df))
+
+## (2025-01-20) atc-installer/v0.6.0 - v0.7.1 - yokecd-installer/v0.6.0
+
+- internal/releaser: fix docker login command typo ([1aa806e](https://github.com/yokecd/yoke/commit/1aa806e5a3bb7f6f6a00807258e9226b76c9a738))
+- internal/releaser: fix docker login command typo ([e3ba6ba](https://github.com/yokecd/yoke/commit/e3ba6ba84417d03337acb349b3c0effd880fe3ca))
+- ci: add env variables for releaser script ([6784a36](https://github.com/yokecd/yoke/commit/6784a3655f4eec07717c503d61b2f8b20b6a9b8b))
+- yokecd: handle wasm path building error ([a1644b0](https://github.com/yokecd/yoke/commit/a1644b037c311d7f2430a4cd457b8fed3c25f7ce))
+- yokecd-installer: default image for yokecd is now ghcr.io/yokecd/yokecd ([d50145c](https://github.com/yokecd/yoke/commit/d50145c103b41ca62a3f177387aaa3571dd8dc03))
+- atc-installer: default image for atc is now ghcr.io/yokecd/atc ([2d22794](https://github.com/yokecd/yoke/commit/2d227947889c863283b62ca933e57618c03e52c5))
+- internal/releaser: release yokecd and atc images to ghcr.io/yokecd ([09cda16](https://github.com/yokecd/yoke/commit/09cda16a8b45382997f0c2b7f6d93507357d89cf))
+- readme: update documentation url ([5f66066](https://github.com/yokecd/yoke/commit/5f66066896d7ea457661cf13fbf11370406f2423))
+- internal/k8s/ctrl: add recovery to control loop and handler execution ([8c6c7ec](https://github.com/yokecd/yoke/commit/8c6c7ec1a98909021d06a8d3a6c30caefd9b5d90))
+
 ## (2025-01-18) atc/v0.6.0 - v0.7.0 - yokecd/v0.6.0
 
 > [!CAUTION]
