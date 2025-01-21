@@ -166,9 +166,8 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "/":
 			if !view.Search.Focused() {
-				view.Search.Focus()
 				view.Table.Blur()
-				return view, nil
+				return view, view.Search.Focus()
 			}
 		}
 	}
