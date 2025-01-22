@@ -4,6 +4,12 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-22) atc/v0.6.2 - atc-installer/v0.6.1 - v0.7.2
+
+- pkg/schema: make type cache local to each schema generation ([bf630dd](https://github.com/yokecd/yoke/commit/bf630dd6aadcb32c126877717516c190e27063ab))
+- atc-installer: include hash of tls secrets in deployment labels to trigger deployment restarts ([3f69266](https://github.com/yokecd/yoke/commit/3f692669962de91ac4ed441a7798e8fa69d232fe))
+- yoke: table_view runs textinput focus command to let cursor blink ([0f59963](https://github.com/yokecd/yoke/commit/0f599632b22983bc8c30b927a14dca7674f8fe64))
+
 ## (2025-01-20) atc/v0.6.1
 
 - ci: use classic token for publishing packages ([9571c09](https://github.com/yokecd/yoke/commit/9571c09f897d4403137bf3238bdfd681f9892a9a))
