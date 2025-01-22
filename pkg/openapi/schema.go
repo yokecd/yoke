@@ -14,7 +14,12 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-var cache = map[reflect.Type]*apiext.JSONSchemaProps{}
+// typeCache is used to break type recursions for the generated openapi schema.
+// Since kubernetes does not support schema refs and nil unions, when we generate a schema,
+// if we see a type we've already encountered (that is not  a base type like string or int)
+// we can opt out of recursively generating the schema, and simply put an any with a Description
+// to the property type.
+type typeCache = map[reflect.Type]*apiext.JSONSchemaProps
 
 // SchemaFrom builds an openapi schema for a given type as described by the kubernetes apiextensions server.
 // These schema's are used to translate Go types to openapi to be consumed by CustomResourceDefinitions.
@@ -25,10 +30,10 @@ var cache = map[reflect.Type]*apiext.JSONSchemaProps{}
 //
 // JSON Tags with an improper value (Say a string where an int is expected for example: `MaxLenghth:"hello"`) will cause a panic.
 func SchemaFrom(typ reflect.Type) *apiext.JSONSchemaProps {
-	return generateSchema(typ, true)
+	return generateSchema(typ, true, make(typeCache))
 }
 
-func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
+func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSchemaProps {
 	type OpenAPISchemer interface {
 		OpenAPISchema() *apiext.JSONSchemaProps
 	}
@@ -61,7 +66,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
-					return generateSchema(typ.Elem(), false)
+					return generateSchema(typ.Elem(), false, cache)
 				}(),
 			},
 		}
@@ -77,7 +82,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
-					return generateSchema(typ.Elem(), false)
+					return generateSchema(typ.Elem(), false, cache)
 				}(),
 			},
 		}
@@ -106,7 +111,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 			}
 
 			if f.Anonymous && jTag == "" {
-				maps.Copy(schema.Properties, generateSchema(f.Type, false).Properties)
+				maps.Copy(schema.Properties, generateSchema(f.Type, false, cache).Properties)
 				continue
 			}
 
@@ -114,7 +119,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 				schema.Required = append(schema.Required, key)
 			}
 
-			fieldSchema := generateSchema(f.Type, false)
+			fieldSchema := generateSchema(f.Type, false, cache)
 
 			if enum, ok := f.Tag.Lookup("Enum"); ok {
 				elems := strings.Split(enum, ",")
@@ -213,7 +218,7 @@ func generateSchema(typ reflect.Type, top bool) *apiext.JSONSchemaProps {
 				Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 			}
 		}
-		return generateSchema(typ.Elem(), false)
+		return generateSchema(typ.Elem(), false, cache)
 	}
 
 	panic("unreachable: " + typ.Kind().String())
