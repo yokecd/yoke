@@ -2,11 +2,14 @@ package installer
 
 import (
 	"cmp"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -157,6 +160,14 @@ func Run(cfg Config) error {
 			"server.key": tls.ServerKey,
 		},
 	}
+
+	labels["yoke.cd/dependency-hash"] = func() string {
+		hash := sha1.New()
+		for _, key := range slices.Sorted(maps.Keys(tlsSecret.Data)) {
+			hash.Write(tlsSecret.Data[key])
+		}
+		return hex.EncodeToString(hash.Sum(nil))
+	}()
 
 	airwayValidation := admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
