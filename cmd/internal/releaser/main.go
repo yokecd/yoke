@@ -43,9 +43,12 @@ func main() {
 }
 
 func run() error {
-	dry := flag.Bool("dry", false, "dry-run")
-	cli := flag.Bool("cli", false, "release main yoke cli")
-	local := flag.Bool("local", false, "run agains the locally checkout version instead of main")
+	var (
+		dry    = flag.Bool("dry", false, "dry-run")
+		cli    = flag.Bool("cli", false, "release main yoke cli")
+		local  = flag.Bool("local", false, "run agains the locally checkout version instead of main")
+		latest = flag.Bool("latest", false, "deploy artifacts under latest tag")
+	)
 
 	var wasms []string
 	flag.Func("wasm", "commands to buid as wasm and release", func(value string) error {
@@ -86,6 +89,12 @@ func run() error {
 		}
 	}
 
+	if *latest {
+		if err := releaser.ReleaseLatest(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to release latest artifacts: %w", err))
+		}
+	}
+
 	for _, cmd := range wasms {
 		if err := releaser.ReleaseWasmBinary(cmd); err != nil {
 			errs = append(errs, fmt.Errorf("failed to release wasm binary: %s: %v", cmd, err))
@@ -107,6 +116,40 @@ type Releaser struct {
 	DryRun   bool
 	Local    bool
 	Breaking bool
+}
+
+func (releaser Releaser) ReleaseLatest() error {
+	cliPaths, err := releaser.buildYokeCLI("latest")
+	if err != nil {
+		return fmt.Errorf("failed to build yoke cli: %w", err)
+	}
+
+	atcInstaller, err := buildCompressedWasm(filepath.Join("cmd", "atc-installer"))
+	if err != nil {
+		return fmt.Errorf("failed to build atc-installer: %w", err)
+	}
+
+	yokecdInstaller, err := buildCompressedWasm(filepath.Join("cmd", "yokecd-installer"))
+	if err != nil {
+		return fmt.Errorf("failed to build yokecd-installer: %w", err)
+	}
+
+	paths := append(cliPaths, atcInstaller, yokecdInstaller)
+
+	if releaser.DryRun {
+		fmt.Printf("Dry-run of latest assets (noop):\n  %s\n", strings.Join(paths, "\n  "))
+		return nil
+	}
+
+	if err := x.X("git tag -f latest"); err != nil {
+		return err
+	}
+
+	if err := x.X("git push --tags"); err != nil {
+		return err
+	}
+
+	return x.Xf("gh release upload --clobber latest %s", []any{strings.Join(paths, " ")})
 }
 
 func (releaser Releaser) ReleaseYokeCLI() error {
@@ -134,6 +177,19 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		return nil
 	}
 
+	compressedPaths, err := releaser.buildYokeCLI(nextVersion)
+	if err != nil {
+		return fmt.Errorf("failed to build yoke cli: %w", err)
+	}
+
+	if err := x.Xf("gh release create %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
+		return fmt.Errorf("failed to create github release: %v", err)
+	}
+
+	return nil
+}
+
+func (releaser Releaser) buildYokeCLI(version string) ([]string, error) {
 	targets := []struct {
 		OS   string
 		Arch []string
@@ -155,30 +211,26 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 	var compressedPaths []string
 	for _, target := range targets {
 		for _, arch := range target.Arch {
-			binaryPath := fmt.Sprintf("./build_output/yoke_%s_%s_%s", nextVersion, target.OS, arch)
+			binaryPath := fmt.Sprintf("./build_output/yoke_%s_%s_%s", version, target.OS, arch)
 			if target.OS == "windows" {
 				binaryPath += ".exe"
 			}
 
 			env := x.Env("GOOS="+target.OS, "GOARCH="+arch)
 			if err := x.Xf("go build -o %s ./cmd/yoke", []any{binaryPath}, env); err != nil {
-				return fmt.Errorf("failed to build %s: %v", binaryPath, err)
+				return nil, fmt.Errorf("failed to build %s: %v", binaryPath, err)
 			}
 
 			compressedPath, err := compressFile(binaryPath)
 			if err != nil {
-				return fmt.Errorf("failed to compress %s: %w", binaryPath, err)
+				return nil, fmt.Errorf("failed to compress %s: %w", binaryPath, err)
 			}
 
 			compressedPaths = append(compressedPaths, compressedPath)
 		}
 	}
 
-	if err := x.Xf("gh release create %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
-		return fmt.Errorf("failed to create github release: %v", err)
-	}
-
-	return nil
+	return compressedPaths, nil
 }
 
 func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
@@ -211,14 +263,9 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 	fmt.Println("attempting to create release for version:", nextVersion)
 	fmt.Println("building assets...")
 
-	outputPath, err := buildWasm(filepath.Join("cmd", name))
+	outputPath, err := buildCompressedWasm(filepath.Join("cmd", name))
 	if err != nil {
-		return fmt.Errorf("failed to build wasm: %w", err)
-	}
-
-	outputPath, err = compressFile(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to compress wasm: %w", err)
+		return fmt.Errorf("failed to build and compress wasm: %w", err)
 	}
 
 	tag := path.Join(name, nextVersion)
@@ -392,6 +439,14 @@ func buildWasm(path string) (string, error) {
 	out := name + ".wasm"
 	err := x.Xf("go build -o %s ./%s", []any{out, path}, x.Env("GOOS=wasip1", "GOARCH=wasm"))
 	return out, err
+}
+
+func buildCompressedWasm(path string) (string, error) {
+	path, err := buildWasm(path)
+	if err != nil {
+		return "", err
+	}
+	return compressFile(path)
 }
 
 func compressFile(path string) (out string, err error) {
