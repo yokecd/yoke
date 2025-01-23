@@ -145,7 +145,7 @@ func (releaser Releaser) ReleaseLatest() error {
 		return err
 	}
 
-	if err := x.X("git push --tags"); err != nil {
+	if err := x.X("git push -f --tags"); err != nil {
 		return err
 	}
 
