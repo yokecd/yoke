@@ -508,12 +508,39 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		params.Flight.RLock()
 		defer params.Flight.RUnlock()
 
+		module, err := func() (*wasi.Module, error) {
+			overrideURL, _, _ := unstructured.NestedString(resource.Object, "metadata", "annotations", flight.AnnotationOverrideFlight)
+			if overrideURL == "" {
+				return params.Flight.Module, nil
+			}
+
+			ctrl.Logger(ctx).Warn("using override module", "url", overrideURL)
+
+			// LoadWasm every time and compile. As much as it is tempting to introduce a caching layer, we must abstain.
+			// The override url serves to test fliht implementations that differ from the Airway's defined module; the content
+			// served does not need to be static. There is a performance hit here, but it is not meant to be the production approach
+			// to deploying changes.
+			wasm, err := yoke.LoadWasm(ctx, overrideURL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load override wasm module: %w", err)
+			}
+
+			mod, err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm})
+			if err != nil {
+				return nil, fmt.Errorf("failed to compile override wasm module: %w", err)
+			}
+			return &mod, nil
+		}()
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get wasm module: %w", err)
+		}
+
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
 		takeoffParams := yoke.TakeoffParams{
 			Release: ReleaseName(resource),
 			Flight: yoke.FlightParams{
-				Module:    params.Flight.Module,
+				Module:    module,
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
