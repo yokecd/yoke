@@ -29,3 +29,5 @@ type Status struct {
 	// Msg is a human readable message describing the status or error if any.
 	Msg string `json:"msg,omitempty"`
 }
+
+const AnnotationOverrideFlight = "overrides.yoke.cd/flight"
