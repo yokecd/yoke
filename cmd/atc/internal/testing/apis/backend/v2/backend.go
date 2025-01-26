@@ -19,12 +19,12 @@ type Backend struct {
 }
 
 type Meta struct {
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 type BackendSpec struct {
-	// Image has a breaking change in that `image` has been renamed to `img`
-	Image    string `json:"img"`
+	// Img has a breaking change in that `image` has been renamed to `img`
+	Img      string `json:"img"`
 	Replicas int32  `json:"replicas"`
 	// Meta differs from the previous version which only accepted a Labels field. Now it is within meta.
 	Meta        Meta `json:"meta,omitempty"`

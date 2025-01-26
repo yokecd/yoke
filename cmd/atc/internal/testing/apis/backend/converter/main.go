@@ -142,7 +142,7 @@ func V1ToV2(source v1.Backend) v2.Backend {
 			Annotations: source.Annotations,
 		},
 		Spec: v2.BackendSpec{
-			Image:    source.Spec.Image,
+			Img:      source.Spec.Image,
 			Replicas: source.Spec.Replicas,
 			Meta: v2.Meta{
 				Labels:      source.Spec.Labels,
@@ -169,7 +169,7 @@ func V2ToV1(source v2.Backend) v1.Backend {
 			Annotations: annotations,
 		},
 		Spec: v1.BackendSpec{
-			Image:       source.Spec.Image,
+			Image:       source.Spec.Img,
 			Replicas:    source.Spec.Replicas,
 			Labels:      source.Spec.Meta.Labels,
 			NodePort:    source.Spec.NodePort,
