@@ -31,6 +31,7 @@ type Event struct {
 	Namespace string
 
 	attempts int
+	typ      string
 }
 
 type Result struct {
@@ -145,8 +146,12 @@ func (ctrl Instance) Run() error {
 
 						logger := Logger(ctrl.ctx).With(
 							slog.String("loopId", randHex()),
-							slog.String("event", event.String()),
-							slog.Int("attempt", event.attempts),
+							slog.Group(
+								"event",
+								"name", event.String(),
+								"attempt", event.attempts,
+								"type", event.typ,
+							),
 						)
 
 						// It is important that we do not cancel the handler mid-execution.
@@ -257,6 +262,7 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 				evt := Event{
 					Name:      metadata.Name,
 					Namespace: metadata.Namespace,
+					typ:       string(event.Type),
 				}
 
 				if event.Type == watch.Modified || event.Type == watch.Added {

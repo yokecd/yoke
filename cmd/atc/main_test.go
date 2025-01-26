@@ -27,6 +27,7 @@ import (
 	"github.com/yokecd/yoke/internal/testutils"
 	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -382,6 +383,7 @@ func TestAirTrafficController(t *testing.T) {
 		"failed to detect new Backend version",
 	)
 
+	// ALthough we create a v1 version we will be able to fetch it as a v2  version.
 	require.NoError(
 		t,
 		commander.Takeoff(ctx, yoke.TakeoffParams{
@@ -403,31 +405,99 @@ func TestAirTrafficController(t *testing.T) {
 		}),
 	)
 
-	if setupOnly, _ := strconv.ParseBool(os.Getenv("SETUP_ONLY")); setupOnly {
-		return
+	getC4ts := func() backendv2.Backend {
+		rawBackend, err := client.Dynamic.
+			Resource(schema.GroupVersionResource{Group: "examples.com", Version: "v2", Resource: "backends"}).
+			Namespace("default").
+			Get(context.Background(), "c4ts", metav1.GetOptions{})
+
+		require.NoError(t, err)
+
+		var bv2 backendv2.Backend
+		require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(rawBackend.Object, &bv2))
+
+		return bv2
 	}
-
-	rawBackend, err := client.Dynamic.
-		Resource(schema.GroupVersionResource{Group: "examples.com", Version: "v2", Resource: "backends"}).
-		Namespace("default").
-		Get(context.Background(), "c4ts", metav1.GetOptions{})
-
-	require.NoError(t, err)
-
-	var bv2 backendv2.Backend
-	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(rawBackend.Object, &bv2))
 
 	require.Equal(
 		t,
 		backendv2.BackendSpec{
-			Image:    "yokecd/c4ts:test",
+			Img:      "yokecd/c4ts:test",
 			Replicas: 1,
 			Meta: backendv2.Meta{
 				Labels:      map[string]string{"test.app": "c4ts"},
-				Annotations: map[string]string{},
+				Annotations: nil,
 			},
 		},
-		bv2.Spec,
+		getC4ts().Spec,
+	)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployments, err := client.Clientset.AppsV1().Deployments("default").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+			if count := len(deployments.Items); count != 1 {
+				return fmt.Errorf("expected 1 deployment but got %d", count)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to view backend deployment",
+	)
+
+	if setupOnly, _ := strconv.ParseBool(os.Getenv("SETUP_ONLY")); setupOnly {
+		return
+	}
+
+	require.NoError(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release: "c4ts",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(backendv2.Backend{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c4ts",
+						Annotations: map[string]string{
+							flight.AnnotationOverrideFlight: "http://wasmcache/flight.dev.wasm",
+						},
+					},
+					Spec: backendv2.BackendSpec{
+						Img:      "yokecd/c4ts:test",
+						Replicas: 1,
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}),
+	)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployments, err := client.Clientset.AppsV1().Deployments("default").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to list deployments: %w", err)
+			}
+			if count := len(deployments.Items); count != 0 {
+				return fmt.Errorf("expected no deployments but got: %d", count)
+			}
+			daemonsets, err := client.Clientset.AppsV1().DaemonSets("default").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to list deployments: %w", err)
+			}
+			if count := len(daemonsets.Items); count != 1 {
+				return fmt.Errorf("expected 1 daemonsets but got: %d", count)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to see dev wasm take over",
 	)
 
 	airway, err := airwayIntf.Get(context.Background(), "backends.examples.com", metav1.GetOptions{})

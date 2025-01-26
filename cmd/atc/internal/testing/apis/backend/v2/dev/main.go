@@ -40,27 +40,23 @@ func run() error {
 	maps.Copy(backend.Spec.Meta.Labels, selector(backend))
 
 	return json.NewEncoder(os.Stdout).Encode([]any{
-		createDeployment(backend),
+		createDeamonSet(backend),
 		createService(backend),
 	})
 }
 
-func createDeployment(backend v2.Backend) *appsv1.Deployment {
-	return &appsv1.Deployment{
+func createDeamonSet(backend v2.Backend) *appsv1.DaemonSet {
+	return &appsv1.DaemonSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
-			Kind:       "Deployment",
+			Kind:       "DaemonSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      backend.Name,
 			Namespace: backend.Namespace,
 			Labels:    backend.Spec.Meta.Labels,
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &backend.Spec.Replicas,
-			Strategy: appsv1.DeploymentStrategy{
-				Type: appsv1.RollingUpdateDeploymentStrategyType,
-			},
+		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{MatchLabels: selector(backend)},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{

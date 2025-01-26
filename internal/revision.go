@@ -120,6 +120,20 @@ func Canonical(resource *unstructured.Unstructured) string {
 	))
 }
 
+func CanonicalWithoutVersion(resource *unstructured.Unstructured) string {
+	gvk := resource.GetObjectKind().GroupVersionKind()
+
+	return strings.ToLower(strings.Join(
+		[]string{
+			Namespace(resource),
+			cmp.Or(gvk.Group, "core"),
+			resource.GetKind(),
+			resource.GetName(),
+		},
+		"/",
+	))
+}
+
 func Namespace(resource *unstructured.Unstructured) string {
 	return cmp.Or(resource.GetNamespace(), "_")
 }

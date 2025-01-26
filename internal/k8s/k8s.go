@@ -218,18 +218,17 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 func (client Client) RemoveOrphans(ctx context.Context, previous, current []*unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
 	defer internal.DebugTimer(ctx, "remove orphaned resources")()
 
-	set := make(map[string]struct{})
+	curentSet := make(map[string]struct{})
 	for _, resource := range current {
-		set[internal.Canonical(resource)] = struct{}{}
+		curentSet[internal.CanonicalWithoutVersion(resource)] = struct{}{}
 	}
 
 	var errs []error
 	var removedResources []*unstructured.Unstructured
 	for _, resource := range previous {
 		func() {
-			name := internal.Canonical(resource)
-
-			if _, ok := set[name]; ok {
+			name := internal.CanonicalWithoutVersion(resource)
+			if _, ok := curentSet[name]; ok {
 				return
 			}
 
