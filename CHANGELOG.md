@@ -4,6 +4,13 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-26) atc/v0.6.3 - atc-installer/v0.6.2 - latest - v0.7.3 - yokecd/v0.6.2 - yokecd-installer/v0.6.1
+
+- atc: test flight override annotation ([f4f48a7](https://github.com/yokecd/yoke/commit/f4f48a7eeff73649ff74af41eadd2e86a5ce1945))
+- atc: introduce override flight annotation to change flight implementation per resource during flight reconciliation ([504a879](https://github.com/yokecd/yoke/commit/504a87948c81eb74603b8d4fd2c18bb24b2fac4b))
+- internal/releaser: push latest with force to override commit location ([f5ce2b1](https://github.com/yokecd/yoke/commit/f5ce2b1f1b068fcd302a3481c79fdec7c6f66c5a))
+- internal/releaser: feat: upload latest assets to tag latest ([f3a8377](https://github.com/yokecd/yoke/commit/f3a8377af6f1bd4dc2e37bdedd298e712659781e))
+
 ## (2025-01-22) atc/v0.6.2 - atc-installer/v0.6.1 - v0.7.2
 
 - pkg/schema: make type cache local to each schema generation ([bf630dd](https://github.com/yokecd/yoke/commit/bf630dd6aadcb32c126877717516c190e27063ab))
