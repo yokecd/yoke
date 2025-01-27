@@ -31,6 +31,10 @@ func run() error {
 		return err
 	}
 
+	if backend.Spec.Replicas%2 == 0 {
+		return fmt.Errorf("replicas must be odd but got %d", backend.Spec.Replicas)
+	}
+
 	backend.Spec.ServicePort = cmp.Or(backend.Spec.ServicePort, 3000)
 
 	if backend.Spec.Meta.Labels == nil {

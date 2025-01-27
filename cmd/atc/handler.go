@@ -26,6 +26,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -165,16 +166,6 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
-		flight := cache.Get(airway.Name).Flight
-
-		flight.RLock()
-		defer flight.RUnlock()
-
-		if flight.CompiledModule == nil {
-			http.Error(w, "flight not ready or not registered for custom resource", http.StatusNotFound)
-			return
-		}
-
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
@@ -184,7 +175,6 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		params := yoke.TakeoffParams{
 			Release: atc.ReleaseName(&cr),
 			Flight: yoke.FlightParams{
-				Module:    flight.Module,
 				Input:     bytes.NewReader(data),
 				Namespace: cr.GetNamespace(),
 			},
@@ -198,6 +188,22 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 					UID:        cr.GetUID(),
 				},
 			},
+		}
+
+		if overrideURL, _, _ := unstructured.NestedString(cr.Object, "metadata", "annotations", flight.AnnotationOverrideFlight); overrideURL != "" {
+			addRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
+			params.Flight.Path = overrideURL
+		} else {
+			flightMod := cache.Get(airway.Name).Flight
+
+			flightMod.RLock()
+			defer flightMod.RUnlock()
+
+			if flightMod.CompiledModule == nil {
+				http.Error(w, "flight not ready or not registered for custom resource", http.StatusNotFound)
+				return
+			}
+			params.Flight.Module = flightMod.Module
 		}
 
 		ctx := internal.WithStderr(r.Context(), io.Discard)

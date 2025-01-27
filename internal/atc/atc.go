@@ -505,9 +505,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
 
-		params.Flight.RLock()
-		defer params.Flight.RUnlock()
-
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
 		takeoffParams := yoke.TakeoffParams{
@@ -534,6 +531,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			// It is not recommended to override in production. As so it is allowable that users don't version the overrideURL and that the content can change.
 			takeoffParams.Flight.Path = overrideURL
 		} else {
+			params.Flight.RLock()
+			defer params.Flight.RUnlock()
 			takeoffParams.Flight.Module = params.Flight.Module
 		}
 

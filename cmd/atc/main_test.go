@@ -453,6 +453,31 @@ func TestAirTrafficController(t *testing.T) {
 		return
 	}
 
+	// Validations must be performed against the flight override module. The backend/v2/dev module fails if replicas is even.
+	require.ErrorContains(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release: "c4ts",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(backendv2.Backend{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c4ts",
+						Annotations: map[string]string{
+							flight.AnnotationOverrideFlight: "http://wasmcache/flight.dev.wasm",
+						},
+					},
+					Spec: backendv2.BackendSpec{
+						Img:      "yokecd/c4ts:test",
+						Replicas: 2,
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}),
+		"replicas must be odd but got 2",
+	)
+
 	require.NoError(
 		t,
 		commander.Takeoff(ctx, yoke.TakeoffParams{
