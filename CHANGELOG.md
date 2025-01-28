@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-01-27) atc/v0.6.4 - v0.7.4
+
+- atc: validation handler respects flight override url ([d439716](https://github.com/yokecd/yoke/commit/d43971604c7346c2e6402ee2876520d24f655889))
+
 ## (2025-01-26) atc/v0.6.3 - atc-installer/v0.6.2 - latest - v0.7.3 - yokecd/v0.6.2 - yokecd-installer/v0.6.1
 
 - atc: test flight override annotation ([f4f48a7](https://github.com/yokecd/yoke/commit/f4f48a7eeff73649ff74af41eadd2e86a5ce1945))
