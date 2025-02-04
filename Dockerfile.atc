@@ -4,13 +4,13 @@ WORKDIR /app
 
 COPY go.mod go.sum ./
 
-RUN go mod download
+RUN GOTOOLCHAIN=auto go mod download
 
 COPY ./cmd/atc ./cmd/atc
 COPY ./internal ./internal
 COPY ./pkg ./pkg
 
-RUN go build -o /bin/atc ./cmd/atc 
+RUN GOTOOLCHAIN=auto go build -o /bin/atc ./cmd/atc 
 
 FROM alpine
 

@@ -88,7 +88,7 @@ type TakeoffParams struct {
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
 	defer internal.DebugTimer(ctx, "takeoff of "+params.Release)()
 
-	output, wasm, err := EvalFlight(ctx, params.Release, params.Flight)
+	output, wasm, err := EvalFlight(ctx, commander.k8s, params.Release, params.Flight)
 	if err != nil {
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}
