@@ -16,10 +16,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -49,14 +49,14 @@ func run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to get in cluster config: %w", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(rest)
+	client, err := k8s.NewClient(rest)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
 	}
 
 	secrets := make(map[string]string, len(cfg.Flight.Refs))
 	for name, ref := range cfg.Flight.Refs {
-		secret, err := clientset.CoreV1().Secrets(cmp.Or(ref.Namespace, cfg.Namespace)).Get(ctx, ref.Secret, v1.GetOptions{})
+		secret, err := client.Clientset.CoreV1().Secrets(cmp.Or(ref.Namespace, cfg.Namespace)).Get(ctx, ref.Secret, v1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get secret reference %q: %w", ref.Secret, err)
 		}
@@ -99,7 +99,7 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get wasm path: %w", err)
 		}
 
-		data, _, err := yoke.EvalFlight(ctx, cfg.Application.Name, yoke.FlightParams{
+		data, _, err := yoke.EvalFlight(ctx, client, cfg.Application.Name, yoke.FlightParams{
 			Path:      wasmPath,
 			Input:     strings.NewReader(cfg.Flight.Input),
 			Args:      cfg.Flight.Args,

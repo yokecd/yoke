@@ -16,6 +16,7 @@ import (
 	"github.com/davidmdm/x/xerr"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
 )
 
@@ -92,7 +93,7 @@ func gzipReader(r io.Reader) io.Reader {
 	return pr
 }
 
-func EvalFlight(ctx context.Context, release string, flight FlightParams) ([]byte, []byte, error) {
+func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight FlightParams) ([]byte, []byte, error) {
 	if flight.Input != nil && flight.Path == "" && flight.Module == nil {
 		output, err := io.ReadAll(flight.Input)
 		return output, nil, err
@@ -120,6 +121,7 @@ func EvalFlight(ctx context.Context, release string, flight FlightParams) ([]byt
 			"NAMESPACE":      flight.Namespace,
 		},
 		CacheDir: flight.CompilationCacheDir,
+		Client:   client,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
