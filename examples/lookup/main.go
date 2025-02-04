@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yokecd/yoke/pkg/flight"
-	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 )
 
 func main() {
@@ -32,10 +33,6 @@ func run() error {
 		return fmt.Errorf("failed to lookup secret: %v", err)
 	}
 
-	if secret != nil {
-		return json.NewEncoder(os.Stdout).Encode(secret)
-	}
-
 	return json.NewEncoder(os.Stdout).Encode(corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -45,7 +42,14 @@ func run() error {
 			Name: secretName,
 		},
 		StringData: map[string]string{
-			"example": RandomString(),
+			"password": func() string {
+				if secret != nil {
+					// if the secret already exists we want to reuse the example value instead of generating a new random string.
+					return string(secret.Data["password"])
+				}
+				// Since the secret does not exist we need to generate a new password via the power of entropy!
+				return RandomString()
+			}(),
 		},
 	})
 }
