@@ -21,7 +21,7 @@ type ResourceIdentifier struct {
 	ApiVersion string
 }
 
-func Lookup(identifier ResourceIdentifier, resource any) error {
+func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 	var state wasm.State
 
 	buffer := lookup(
@@ -34,15 +34,19 @@ func Lookup(identifier ResourceIdentifier, resource any) error {
 
 	switch state {
 	case wasm.StateOK:
-		return json.Unmarshal(buffer.Slice(), &resource)
+		var resource T
+		if err := json.Unmarshal(buffer.Slice(), &resource); err != nil {
+			return nil, err
+		}
+		return &resource, nil
 	case wasm.StateError:
-		return errors.New(buffer.String())
+		return nil, errors.New(buffer.String())
 	case wasm.StateForbidden:
-		return ErrorForbidden(buffer.String())
+		return nil, ErrorForbidden(buffer.String())
 	case wasm.StateNotFound:
-		return ErrorNotFound(buffer.String())
+		return nil, ErrorNotFound(buffer.String())
 	case wasm.StateUnauthenticated:
-		return ErrorUnauthenticated(buffer.String())
+		return nil, ErrorUnauthenticated(buffer.String())
 
 	default:
 		panic("unknown state")
