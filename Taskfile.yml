@@ -46,11 +46,11 @@ tasks:
 
   kube:
     cmds:
-      - GOOS=wasip1 GOARCH=wasm go build -o kube.wasm ./examples/kube
+      - GOOS=wasip1 GOARCH=wasm go build -o basic.wasm ./examples/basic
 
   pg:
     cmds:
-      - GOOS=wasip1 GOARCH=wasm go build -o pg.wasm ./examples/pg
+      - GOOS=wasip1 GOARCH=wasm go build -o pg.wasm ./examples/embeddedfs
 
   redis:
     cmds:
