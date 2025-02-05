@@ -203,7 +203,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm: data,
+				Wasm:   data,
+				Client: ctrl.Client(ctx),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
