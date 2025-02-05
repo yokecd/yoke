@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-var background = context.Background()
+var background = internal.WithStdout(context.Background(), io.Discard)
 
 func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
 	labels := map[string]string{"app": name}
@@ -742,4 +742,61 @@ func TestTurbulenceFix(t *testing.T) {
 	configmap, err = client.CoreV1().ConfigMaps("default").Get(background, "test", metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "value", configmap.Data["key"])
+}
+
+func TestLookupResource(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flight", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	params := TakeoffParams{
+		GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Path:      "./test_output/flight.wasm",
+				Namespace: "default",
+			},
+			Wait: 10 * time.Second,
+			Poll: time.Second,
+		},
+	}
+
+	require.NoError(t, TakeOff(background, params))
+	defer func() {
+		require.NoError(t, Mayday(background, MaydayParams{
+			GlobalSettings: params.GlobalSettings,
+			Release:        "foo",
+		}))
+	}()
+
+	secret, err := client.Clientset.CoreV1().Secrets("default").Get(background, "foo-example", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, secret.Data["password"])
+
+	err = TakeOff(background, params)
+	require.NotNil(t, err)
+	require.True(t, internal.IsWarning(err), "should be warning but got: %v", err)
+	require.EqualError(t, err, "resources are the same as previous revision: skipping takeoff")
+
+	require.ErrorContains(
+		t,
+		TakeOff(background, TakeoffParams{
+			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+			TakeoffParams: yoke.TakeoffParams{
+				Release:          "foo",
+				CreateNamespaces: true,
+				Flight: yoke.FlightParams{
+					Path:      "./test_output/flight.wasm",
+					Namespace: "foo",
+					Input:     strings.NewReader(`{"Namespace": "default"}`),
+				},
+				Wait: 10 * time.Second,
+				Poll: time.Second,
+			},
+		}),
+		"cannot access resource outside of target release ownership",
+	)
 }
