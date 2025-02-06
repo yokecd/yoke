@@ -13,9 +13,6 @@ import (
 	_ "github.com/yokecd/yoke/pkg/flight/wasi"
 )
 
-//go:wasmimport host k8s_lookup
-func lookup(ptr wasm.Ptr, name, namespace, kind, apiversion wasm.String) wasm.Buffer
-
 type ResourceIdentifier struct {
 	Name       string
 	Namespace  string
