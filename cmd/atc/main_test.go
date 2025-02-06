@@ -382,16 +382,14 @@ func TestAirTrafficController(t *testing.T) {
 		"failed to detect new Backend version",
 	)
 
-	// ALthough we create a v1 version we will be able to fetch it as a v2  version.
+	// Although we create a v1 version we will be able to fetch it as a v2 version.
 	require.NoError(
 		t,
 		commander.Takeoff(ctx, yoke.TakeoffParams{
 			Release: "c4ts",
 			Flight: yoke.FlightParams{
 				Input: testutils.JsonReader(backendv1.Backend{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "c4ts",
-					},
+					ObjectMeta: metav1.ObjectMeta{Name: "c4ts"},
 					Spec: backendv1.BackendSpec{
 						Image:    "yokecd/c4ts:test",
 						Replicas: 1,
