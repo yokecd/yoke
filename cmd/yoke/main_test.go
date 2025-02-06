@@ -786,8 +786,8 @@ func TestLookupResource(t *testing.T) {
 		TakeOff(background, TakeoffParams{
 			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
 			TakeoffParams: yoke.TakeoffParams{
-				Release:          "foo",
-				CreateNamespaces: true,
+				Release:         "foo",
+				CreateNamespace: true,
 				Flight: yoke.FlightParams{
 					Path:      "./test_output/flight.wasm",
 					Namespace: "foo",

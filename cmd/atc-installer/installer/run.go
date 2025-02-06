@@ -23,6 +23,7 @@ import (
 
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
@@ -34,6 +35,7 @@ type Config struct {
 	Port               int               `json:"port"`
 	ServiceAccountName string            `json:"serviceAccountName"`
 	ImagePullPolicy    corev1.PullPolicy `json:"ImagePullPolicy"`
+	GenerateTLS        bool              `json:"generateTLS"`
 }
 
 var (
@@ -140,7 +142,34 @@ func Run(cfg Config) error {
 		},
 	}
 
-	tls, err := NewTLS(svc)
+	const (
+		keyRootCA     = "ca.crt"
+		keyServerCert = "server.crt"
+		keyServerKey  = "server.key"
+	)
+
+	tls, err := func() (*TLS, error) {
+		if cfg.GenerateTLS {
+			return NewTLS(svc)
+		}
+		secret, err := k8s.Lookup[corev1.Secret](k8s.ResourceIdentifier{
+			Name:       flight.Release() + "-tls",
+			Namespace:  flight.Namespace(),
+			Kind:       "Secret",
+			ApiVersion: "v1",
+		})
+		if err != nil && !k8s.IsErrNotFound(err) {
+			return nil, fmt.Errorf("failed to lookup tls secret: %v", err)
+		}
+		if secret != nil {
+			return &TLS{
+				RootCA:     secret.Data[keyRootCA],
+				ServerCert: secret.Data[keyServerCert],
+				ServerKey:  secret.Data[keyServerKey],
+			}, nil
+		}
+		return NewTLS(svc)
+	}()
 	if err != nil {
 		return err
 	}
@@ -155,9 +184,9 @@ func Run(cfg Config) error {
 			Namespace: flight.Namespace(),
 		},
 		Data: map[string][]byte{
-			"ca.crt":     tls.RootCA,
-			"server.crt": tls.ServerCert,
-			"server.key": tls.ServerKey,
+			keyRootCA:     tls.RootCA,
+			keyServerCert: tls.ServerCert,
+			keyServerKey:  tls.ServerKey,
 		},
 	}
 

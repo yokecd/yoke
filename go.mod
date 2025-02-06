@@ -2,7 +2,7 @@ module github.com/yokecd/yoke
 
 // TODO: use go1.24.0 once it is released. Blocker for releasing this feature.
 // It is needed for the go:wasmexport directive.
-go 1.24rc2
+go 1.24rc3
 
 require (
 	github.com/alecthomas/chroma/v2 v2.15.0
