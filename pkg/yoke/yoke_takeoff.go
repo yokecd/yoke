@@ -37,22 +37,56 @@ type FlightParams struct {
 }
 
 type TakeoffParams struct {
-	SendToStdout     bool
-	SkipDryRun       bool
-	DryRun           bool
-	ForceConflicts   bool
-	MultiNamespaces  bool
-	Release          string
-	Out              string
-	Flight           FlightParams
-	DiffOnly         bool
-	Context          int
-	Color            bool
+	// Directly send the result of evaluating the flight to stdout instead of applying it.
+	SendToStdout bool
+
+	// Skips running apply in dry-run before applying resources. Not recommended unless you know what you are doing and have specific reason to do so.
+	// May be removed in a future release.
+	SkipDryRun bool
+
+	// DryRun will send the patch apply requests to the k8s api server in dry-run mode only.
+	// Will not apply any state changes, nor create a revision to the release history.
+	DryRun bool
+
+	// ForceConflicts applies the path request with force. It will take ownership of fields owned by other fieldManagers.
+	ForceConflicts bool
+
+	// MultiNamespaces allows for a release to create resources in a namespace other than the release's own namespace.
+	MultiNamespaces bool
+
+	// Name of release
+	Release string
+
+	// Out is a folder to which to write all the resources hierarchically. This does not create a release or apply any state to the cluster.
+	// This is useful for debugging/inspecting output or for working CDK8s style using kubectl apply --recursive.
+	Out string
+
+	// Parameters for the flight.
+	Flight FlightParams
+
+	// Do not apply the release but diff it against the current active version.
+	DiffOnly bool
+
+	// How many lines of context in the diff. Has no effect if DiffOnly is false.
+	Context int
+
+	// Output diffs with ansi colors.
+	Color bool
+
+	// Create namespaces found in release output.
 	CreateNamespaces bool
-	CreateCRDs       bool
-	Wait             time.Duration
-	Poll             time.Duration
-	OwnerReferences  []metav1.OwnerReference
+
+	// Create CRDs foudn in release output.
+	CreateCRDs bool
+
+	// Wait interval for resources to become ready after being applied.
+	Wait time.Duration
+
+	// Poll interval to check for resource readiness
+	Poll time.Duration
+
+	// OwnerReferences to be added to each resource found in release.
+	OwnerReferences []metav1.OwnerReference
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
