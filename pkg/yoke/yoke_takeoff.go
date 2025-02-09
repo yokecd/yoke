@@ -102,41 +102,40 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return err
 	}
 
-	var resources internal.List[*unstructured.Unstructured]
-	if err := kyaml.Unmarshal(output, &resources); err != nil {
+	var stages internal.Stages
+	if err := kyaml.Unmarshal(output, &stages); err != nil {
 		return fmt.Errorf("failed to unmarshal raw resources: %w", err)
 	}
 
 	targetNS := cmp.Or(params.Flight.Namespace, "default")
-
-	dependencies, resources := SplitResources(resources)
-
-	internal.AddYokeMetadata(dependencies.CRDs, params.Release, targetNS)
-	internal.AddYokeMetadata(dependencies.Namespaces, params.Release, targetNS)
-	internal.AddYokeMetadata(resources, params.Release, targetNS)
+	for _, stage := range stages {
+		internal.AddYokeMetadata(stage, params.Release, targetNS)
+	}
 
 	if err := func() error {
 		defer internal.DebugTimer(ctx, "looking up resource mappings")()
 
 		var errs []error
-		for _, resource := range resources {
-			mapping, err := commander.k8s.LookupResourceMapping(resource)
-			if err != nil {
-				if meta.IsNoMatchError(err) {
-					continue
-				}
+		for _, stage := range stages {
+			for _, resource := range stage {
+				mapping, err := commander.k8s.LookupResourceMapping(resource)
+				if err != nil {
+					if meta.IsNoMatchError(err) {
+						continue
+					}
 
-				return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
-			}
-			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-				ns := resource.GetNamespace()
-				if ns == "" {
-					resource.SetNamespace(targetNS)
-				} else if !params.MultiNamespaces && ns != targetNS {
-					errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
+					return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
 				}
+				if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+					ns := resource.GetNamespace()
+					if ns == "" {
+						resource.SetNamespace(targetNS)
+					} else if !params.MultiNamespaces && ns != targetNS {
+						errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
+					}
+				}
+				resource.SetOwnerReferences(params.OwnerReferences)
 			}
-			resource.SetOwnerReferences(params.OwnerReferences)
 		}
 
 		return xerr.MultiErrFrom("Multiple namespaces detected (if desired enable multinamespace releases)", errs...)
@@ -146,9 +145,9 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if params.Out != "" {
 		if params.Out == "-" {
-			return ExportToStdout(ctx, resources)
+			return ExportToStdout(ctx, stages.Flatten())
 		}
-		return ExportToFS(params.Out, params.Release, resources)
+		return ExportToFS(params.Out, params.Release, stages.Flatten())
 	}
 
 	if params.DiffOnly {
@@ -156,17 +155,17 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		if err != nil {
 			return fmt.Errorf("failed to get revision history: %w", err)
 		}
-		currentResources, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+		current, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 		if err != nil {
 			return fmt.Errorf("failed to get current resources for revision: %w", err)
 		}
 
-		a, err := text.ToYamlFile("current", internal.CanonicalObjectMap(currentResources))
+		a, err := text.ToYamlFile("current", internal.CanonicalObjectMap(current.Flatten()))
 		if err != nil {
 			return err
 		}
 
-		b, err := text.ToYamlFile("next", internal.CanonicalObjectMap(resources))
+		b, err := text.ToYamlFile("next", internal.CanonicalObjectMap(stages.Flatten()))
 		if err != nil {
 			return err
 		}
@@ -187,7 +186,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
 
-	previous, err := func() ([]*unstructured.Unstructured, error) {
+	previous, err := func() (internal.Stages, error) {
 		if len(release.History) == 0 {
 			return nil, nil
 		}
@@ -197,7 +196,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to get previous resources for revision: %w", err)
 	}
 
-	if reflect.DeepEqual(previous, []*unstructured.Unstructured(resources)) {
+	if reflect.DeepEqual(previous, stages) {
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
@@ -210,20 +209,21 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		}
 	}
 
-	if params.CreateCRDs || params.CreateNamespaces {
-		if err := commander.applyDependencies(ctx, dependencies, params); err != nil {
-			return fmt.Errorf("failed to apply flight dependencies: %w", err)
-		}
-	}
-
 	applyOpts := k8s.ApplyResourcesOpts{
 		DryRunOnly:     params.DryRun,
 		SkipDryRun:     params.SkipDryRun,
 		ForceConflicts: params.ForceConflicts,
 	}
 
-	if err := commander.k8s.ApplyResources(ctx, resources, applyOpts); err != nil {
-		return fmt.Errorf("failed to apply resources: %w", err)
+	for _, stage := range stages {
+		if err := commander.k8s.ApplyResources(ctx, stage, applyOpts); err != nil {
+			return fmt.Errorf("failed to apply resources: %w", err)
+		}
+		if params.Wait > 0 {
+			if err := commander.k8s.WaitForReadyMany(ctx, stage, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
+				return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
+			}
+		}
 	}
 
 	if params.DryRun {
@@ -240,21 +240,15 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			Source:    internal.SourceFrom(params.Flight.Path, wasm),
 			CreatedAt: now,
 			ActiveAt:  now,
-			Resources: len(resources),
+			Resources: len(stages),
 		},
-		resources,
+		stages,
 	); err != nil {
 		return fmt.Errorf("failed to create revision: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous, resources); err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous.Flatten(), stages.Flatten()); err != nil {
 		return fmt.Errorf("failed to remove orhpans: %w", err)
-	}
-
-	if params.Wait > 0 {
-		if err := commander.k8s.WaitForReadyMany(ctx, resources, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
-			return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
-		}
 	}
 
 	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)

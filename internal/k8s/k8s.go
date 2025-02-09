@@ -382,8 +382,8 @@ func (client Client) GetReleasesByNS(ctx context.Context, ns string) ([]internal
 	return result, nil
 }
 
-func (client Client) CreateRevision(ctx context.Context, release, ns string, revision internal.Revision, resources []*unstructured.Unstructured) error {
-	data, err := json.Marshal(resources)
+func (client Client) CreateRevision(ctx context.Context, release, ns string, revision internal.Revision, stages internal.Stages) error {
+	data, err := json.Marshal(stages)
 	if err != nil {
 		return fmt.Errorf("failed to marshal resources: %w", err)
 	}
@@ -440,7 +440,7 @@ func (client Client) UpdateRevisionActiveState(ctx context.Context, revision int
 	return err
 }
 
-func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) ([]*unstructured.Unstructured, error) {
+func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) (internal.Stages, error) {
 	secret, err := client.Clientset.CoreV1().Secrets(revision.Namespace).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -460,10 +460,10 @@ func (client Client) GetRevisionResources(ctx context.Context, revision internal
 		return nil, fmt.Errorf("failed to read secret data: %w", err)
 	}
 
-	var resources []*unstructured.Unstructured
-	err = json.Unmarshal(data, &resources)
+	var stages internal.Stages
+	err = json.Unmarshal(data, &stages)
 
-	return resources, err
+	return stages, err
 }
 
 func (client Client) GetDynamicResourceInterface(resource *unstructured.Unstructured) (dynamic.ResourceInterface, error) {

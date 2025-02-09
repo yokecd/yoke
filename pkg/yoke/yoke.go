@@ -65,22 +65,23 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
 
-	if err := commander.k8s.ApplyResources(ctx, next, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
-		return fmt.Errorf("failed to apply resources: %w", err)
+	for _, resources := range next {
+		if err := commander.k8s.ApplyResources(ctx, resources, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
+			return fmt.Errorf("failed to apply resources: %w", err)
+		}
+		if params.Wait > 0 {
+			if err := commander.k8s.WaitForReadyMany(ctx, resources, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
+				return fmt.Errorf("release did not become ready within wait period: %w", err)
+			}
+		}
 	}
 
 	if err := commander.k8s.UpdateRevisionActiveState(ctx, targetRevision); err != nil {
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous, next); err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous.Flatten(), next.Flatten()); err != nil {
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
-	}
-
-	if params.Wait > 0 {
-		if err := commander.k8s.WaitForReadyMany(ctx, next, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
-			return fmt.Errorf("release did not become ready within wait period: %w", err)
-		}
 	}
 
 	return nil
@@ -100,12 +101,12 @@ func (client Commander) Mayday(ctx context.Context, name, ns string) error {
 		return internal.Warning("mayday noop: no history found for release: " + name)
 	}
 
-	resources, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+	state, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	if _, err := client.k8s.RemoveOrphans(ctx, resources, nil); err != nil {
+	if _, err := client.k8s.RemoveOrphans(ctx, state.Flatten(), nil); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
 
@@ -140,12 +141,12 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 		return fmt.Errorf("failed to get revisions for release %s: %w", params.Release, err)
 	}
 
-	resources, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+	stages, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get current resources: %w", err)
 	}
 
-	expected := internal.CanonicalMap(resources)
+	expected := internal.CanonicalMap(stages.Flatten())
 
 	actual := map[string]*unstructured.Unstructured{}
 	for name, resource := range expected {

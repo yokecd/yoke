@@ -139,12 +139,12 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return fmt.Errorf("revision %d not found", params.RevisionID)
 	}
 
-	resources, err := client.GetRevisionResources(ctx, release.History[params.RevisionID-1])
+	stages, err := client.GetRevisionResources(ctx, release.History[params.RevisionID-1])
 	if err != nil {
 		return fmt.Errorf("failed to get resources for revision %d: %w", params.RevisionID, err)
 	}
 
-	primaryRevision := internal.CanonicalObjectMap(resources)
+	primaryRevision := internal.CanonicalObjectMap(stages.Flatten())
 
 	if params.DiffRevisionID == 0 {
 		encoder := yaml.NewEncoder(os.Stdout)
@@ -160,12 +160,12 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		return fmt.Errorf("revision %d not found", params.DiffRevisionID)
 	}
 
-	resources, err = client.GetRevisionResources(ctx, release.History[params.DiffRevisionID-1])
+	stages, err = client.GetRevisionResources(ctx, release.History[params.DiffRevisionID-1])
 	if err != nil {
 		return fmt.Errorf("failed to get resources for revision %d: %w", params.DiffRevisionID, err)
 	}
 
-	diffRevision := internal.CanonicalObjectMap(resources)
+	diffRevision := internal.CanonicalObjectMap(stages.Flatten())
 
 	a, err := text.ToYamlFile(fmt.Sprintf("revision %d", params.RevisionID), primaryRevision)
 	if err != nil {
