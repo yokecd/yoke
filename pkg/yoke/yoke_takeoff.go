@@ -215,6 +215,13 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		ForceConflicts: params.ForceConflicts,
 	}
 
+	// If there is more than one stage we need a default wait/poll interval.
+	// The entire point of stages is the ordering of interdependent resources.
+	if len(stages) > 1 {
+		params.Wait = cmp.Or(params.Wait, 30*time.Second)
+		params.Poll = cmp.Or(params.Poll, 2*time.Second)
+	}
+
 	for _, stage := range stages {
 		if err := commander.k8s.ApplyResources(ctx, stage, applyOpts); err != nil {
 			return fmt.Errorf("failed to apply resources: %w", err)
@@ -240,7 +247,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			Source:    internal.SourceFrom(params.Flight.Path, wasm),
 			CreatedAt: now,
 			ActiveAt:  now,
-			Resources: len(stages),
+			Resources: len(stages.Flatten()),
 		},
 		stages,
 	); err != nil {

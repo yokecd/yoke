@@ -169,8 +169,6 @@ func TestCreateWithWait(t *testing.T) {
 	// either directly within yoke or within client-go, hence we capture the cause and the top level message only
 	require.Contains(t, err.Error(), "release did not become ready within wait period: to rollback use `yoke descent`: failed to get readiness for default/apps/v1/deployment/sample-app")
 	require.Contains(t, err.Error(), "1ns timeout reached")
-
-	require.NoError(t, mayday())
 }
 
 func TestFailApplyDryRun(t *testing.T) {
@@ -403,7 +401,7 @@ func TestTakeoffWithNamespace(t *testing.T) {
 	require.NoError(t, client.CoreV1().Namespaces().Delete(background, ns, metav1.DeleteOptions{}))
 }
 
-func TestTakeoffWithNamespaceResource(t *testing.T) {
+func TestTakeoffWithNamespaceStage(t *testing.T) {
 	rest, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -417,34 +415,54 @@ func TestTakeoffWithNamespaceResource(t *testing.T) {
 
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
-	params := func(createNamespaces bool) TakeoffParams {
+	params := func(withNamespaceStage bool) TakeoffParams {
+		resources := func() string {
+			if withNamespaceStage {
+				return `[
+            [
+              {
+                apiVersion: v1,
+                kind: Namespace,
+                metadata: {
+                  name: test-ns-resource,
+                },
+              },
+            ],
+            [
+              {
+                apiVersion: v1,
+                kind: ConfigMap,
+                metadata: {
+                  name: test-cm,
+                  namespace: test-ns-resource,
+                },
+                data: {
+                  hello: world,
+                },
+              },
+            ],
+					]`
+			}
+			return `{
+          apiVersion: v1,
+          kind: ConfigMap,
+          metadata: {
+            name: test-cm,
+            namespace: test-ns-resource,
+          },
+          data: {
+            hello: world,
+          },
+        }`
+		}()
+
 		return TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:          "foo",
-				MultiNamespaces:  true,
-				CreateNamespaces: createNamespaces,
+				Release:         "foo",
+				MultiNamespaces: true,
 				Flight: yoke.FlightParams{
-					Input: strings.NewReader(`[
-						{
-							apiVersion: v1,
-							kind: Namespace,
-							metadata: {
-								name: test-ns-resource,
-							},
-						},
-						{
-							apiVersion: v1,
-							kind: ConfigMap,
-							metadata: {
-								name: test-cm,
-								namespace: test-ns-resource,
-							},
-							data: {
-								hello: world,
-							},
-						},
-					]`),
+					Input: strings.NewReader(resources),
 				},
 			},
 		}
@@ -487,53 +505,68 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 
 	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
-	params := func(createCRDs bool) TakeoffParams {
+	params := func(withCRDStage bool) TakeoffParams {
+		resources := func() string {
+			if withCRDStage {
+				return `[
+					[
+            {
+              apiVersion: apiextensions.k8s.io/v1,
+              kind: CustomResourceDefinition,
+              metadata: {
+                name: crontabs.stable.example.com,
+              },
+              spec: {
+                group: stable.example.com,
+                scope: Cluster,
+                versions: [
+                  {
+                    name: v1,
+                    served: true,
+                    storage: true,
+                    schema: {
+                      openAPIV3Schema: {
+                        type: object,
+                        properties: {},
+                      },
+                    },
+                  },
+                ],
+                names: {
+                  plural: crontabs,
+                  singular: crontab,
+                  kind: CronTab,
+                  shortNames: [ct],
+                }
+              }
+            },
+          ],
+          [
+            {
+              apiVersion: stable.example.com/v1,
+              kind: CronTab,
+              metadata: {
+                name: test,
+              },
+            },
+          ]
+				]`
+			}
+
+			return `{
+        apiVersion: stable.example.com/v1,
+        kind: CronTab,
+        metadata: {
+          name: test,
+        },
+      }`
+		}()
+
 		return TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:    "foo",
-				CreateCRDs: createCRDs,
-				Flight: yoke.FlightParams{
-					Input: strings.NewReader(`[
-					{
-						apiVersion: apiextensions.k8s.io/v1,
-						kind: CustomResourceDefinition,
-						metadata: {
-							name: crontabs.stable.example.com,
-						},
-						spec: {
-							group: stable.example.com,
-							scope: Cluster,
-							versions: [
-								{
-									name: v1,
-									served: true,
-									storage: true,
-									schema: {
-										openAPIV3Schema: {
-											type: object,
-											properties: {},
-										},
-									},
-								},
-							],
-							names: {
-								plural: crontabs,
-								singular: crontab,
-								kind: CronTab,
-								shortNames: [ct],
-							}
-						}
-					},
-					{
-						apiVersion: stable.example.com/v1,
-						kind: CronTab,
-						metadata: {
-							name: test,
-						},
-					},
-				]`),
-				},
+				Release: "foo",
+				Flight:  yoke.FlightParams{Input: strings.NewReader(resources)},
 			},
 		}
 	}
