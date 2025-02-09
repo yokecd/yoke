@@ -513,7 +513,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
-			CreateCRDs: params.CreateCrds,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: resource.GetAPIVersion(),

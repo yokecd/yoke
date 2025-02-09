@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -73,11 +72,8 @@ type TakeoffParams struct {
 	// Output diffs with ansi colors.
 	Color bool
 
-	// Create namespaces found in release output.
-	CreateNamespaces bool
-
-	// Create CRDs foudn in release output.
-	CreateCRDs bool
+	// Create namespace of target release if not exists
+	CreateNamespace bool
 
 	// Wait interval for resources to become ready after being applied.
 	Wait time.Duration
@@ -200,12 +196,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
-	if namespace := params.Flight.Namespace; namespace != "" {
-		if err := commander.k8s.EnsureNamespace(ctx, namespace); err != nil {
+	if params.CreateNamespace {
+		if err := commander.k8s.EnsureNamespace(ctx, targetNS); err != nil {
 			return fmt.Errorf("failed to ensure namespace: %w", err)
 		}
-		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(namespace), k8s.WaitOptions{Interval: params.Poll}); err != nil {
-			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", namespace, err)
+		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(targetNS), k8s.WaitOptions{Interval: params.Poll}); err != nil {
+			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", targetNS, err)
 		}
 	}
 
@@ -261,73 +257,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
 
 	return nil
-}
-
-func (commander Commander) applyDependencies(ctx context.Context, dependencies FlightDependencies, params TakeoffParams) error {
-	defer internal.DebugTimer(ctx, "apply-dependencies")()
-
-	wg := sync.WaitGroup{}
-	errs := make([]error, 2)
-
-	applyOpts := k8s.ApplyResourcesOpts{
-		DryRunOnly:     params.DryRun,
-		SkipDryRun:     params.SkipDryRun,
-		ForceConflicts: params.ForceConflicts,
-	}
-
-	if params.CreateCRDs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := commander.k8s.ApplyResources(ctx, dependencies.CRDs, applyOpts); err != nil {
-				errs[0] = fmt.Errorf("failed to create CRDs: %w", err)
-				return
-			}
-			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.CRDs, k8s.WaitOptions{}); err != nil {
-				errs[0] = fmt.Errorf("failed to wait for CRDs to become ready: %w", err)
-				return
-			}
-		}()
-	}
-
-	if params.CreateNamespaces {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := commander.k8s.ApplyResources(ctx, dependencies.Namespaces, applyOpts); err != nil {
-				errs[1] = fmt.Errorf("failed to create namespaces: %w", err)
-				return
-			}
-			if err := commander.k8s.WaitForReadyMany(ctx, dependencies.Namespaces, k8s.WaitOptions{}); err != nil {
-				errs[1] = fmt.Errorf("failed to wait for namespaces to become ready: %w", err)
-				return
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	return xerr.MultiErrOrderedFrom("", errs...)
-}
-
-type FlightDependencies struct {
-	Namespaces []*unstructured.Unstructured
-	CRDs       []*unstructured.Unstructured
-}
-
-func SplitResources(resources []*unstructured.Unstructured) (deps FlightDependencies, core []*unstructured.Unstructured) {
-	for _, resource := range resources {
-		gvk := resource.GroupVersionKind()
-		switch {
-		case gvk.Kind == "Namespace" && gvk.Group == "":
-			deps.Namespaces = append(deps.Namespaces, resource)
-		case gvk.Kind == "CustomResourceDefinition" && gvk.Group == "apiextensions.k8s.io":
-			deps.CRDs = append(deps.CRDs, resource)
-		default:
-			core = append(core, resource)
-		}
-	}
-	return
 }
 
 func ExportToFS(dir, release string, resources []*unstructured.Unstructured) error {

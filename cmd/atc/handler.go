@@ -178,8 +178,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 				Input:     bytes.NewReader(data),
 				Namespace: cr.GetNamespace(),
 			},
-			CreateCRDs: airway.Spec.CreateCRDs,
-			DryRun:     true,
+			DryRun: true,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: cr.GetAPIVersion(),
