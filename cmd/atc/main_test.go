@@ -93,10 +93,9 @@ func TestAirTrafficController(t *testing.T) {
       }`),
 			Namespace: "atc",
 		},
-		CreateNamespaces: true,
-		CreateCRDs:       true,
-		Wait:             30 * time.Second,
-		Poll:             time.Second,
+		CreateNamespace: true,
+		Wait:            30 * time.Second,
+		Poll:            time.Second,
 	}
 
 	require.NoError(t, commander.Takeoff(ctx, atcTakeoffParams))

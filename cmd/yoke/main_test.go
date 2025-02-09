@@ -345,7 +345,8 @@ func TestReleasesInDifferentNamespaces(t *testing.T) {
 			TakeOff(background, TakeoffParams{
 				GlobalSettings: settings,
 				TakeoffParams: yoke.TakeoffParams{
-					Release: "rel",
+					Release:         "rel",
+					CreateNamespace: true,
 					Flight: yoke.FlightParams{
 						Input:     createBasicDeployment(t, "release", ""),
 						Namespace: ns,
@@ -385,7 +386,7 @@ func TestTakeoffWithNamespace(t *testing.T) {
 				Input:     createBasicDeployment(t, "sample-app", ns),
 				Namespace: ns,
 			},
-			CreateNamespaces: true,
+			CreateNamespace: true,
 		},
 	}
 
