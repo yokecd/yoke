@@ -149,18 +149,18 @@ func ATC(ctx context.Context, params ATCParams) error {
 							return fmt.Errorf("failed to get revisions for %q: %w", name, err)
 						}
 
-						resources, err := client.GetRevisionResources(ctx, release.ActiveRevision())
+						stages, err := client.GetRevisionResources(ctx, release.ActiveRevision())
 						if err != nil {
 							return fmt.Errorf("failed to get active resources for %q: %w", name, err)
 						}
 
 						var wg sync.WaitGroup
-						wg.Add(len(resources))
+						wg.Add(len(stages))
 
 						semaphore := make(chan struct{}, runtime.NumCPU())
 
-						result := make(tower.GetResourcesResult, len(resources))
-						for i, resource := range resources {
+						result := make(tower.GetResourcesResult, len(stages))
+						for i, resource := range stages.Flatten() {
 							go func() {
 								defer wg.Done()
 
