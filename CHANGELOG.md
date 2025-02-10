@@ -4,6 +4,11 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-10) atc/v0.7.1 - atc-installer/v0.7.0 - v0.8.1 - yokecd/v0.7.1 - yokecd-installer/v0.7.1
+
+- deps: update deps ([7d37db1](https://github.com/yokecd/yoke/commit/7d37db123c01ca2193c24ffec2028a19ecd35cc9))
+- yoke: remove orhpans while respecting stages in inverse order ([6f8212a](https://github.com/yokecd/yoke/commit/6f8212af613b6be1d95889ad484a40dfa5fba55e))
+
 ## (2025-02-09) atc/v0.7.0 - v0.8.0 - yokecd/v0.7.0 - yokecd-installer/v0.7.0
 
 > [!CAUTION]
