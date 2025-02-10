@@ -11,6 +11,7 @@ import (
 	"io"
 	"path"
 	"runtime"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -215,38 +216,43 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 	return nil
 }
 
-func (client Client) RemoveOrphans(ctx context.Context, previous, current []*unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+func (client Client) RemoveOrphans(ctx context.Context, previous, current internal.Stages) ([]*unstructured.Unstructured, error) {
 	defer internal.DebugTimer(ctx, "remove orphaned resources")()
 
 	curentSet := make(map[string]struct{})
-	for _, resource := range current {
+	for _, resource := range current.Flatten() {
 		curentSet[internal.CanonicalWithoutVersion(resource)] = struct{}{}
 	}
 
-	var errs []error
-	var removedResources []*unstructured.Unstructured
-	for _, resource := range previous {
-		func() {
-			name := internal.CanonicalWithoutVersion(resource)
-			if _, ok := curentSet[name]; ok {
-				return
-			}
+	var (
+		errs             []error
+		removedResources []*unstructured.Unstructured
+	)
 
-			defer internal.DebugTimer(ctx, "delete resource "+name)()
+	for _, stage := range slices.Backward(previous) {
+		for _, resource := range stage {
+			func() {
+				name := internal.CanonicalWithoutVersion(resource)
+				if _, ok := curentSet[name]; ok {
+					return
+				}
 
-			resourceInterface, err := client.GetDynamicResourceInterface(resource)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to resolve resource %s: %w", name, err))
-				return
-			}
+				defer internal.DebugTimer(ctx, "delete resource "+name)()
 
-			if err := resourceInterface.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}); err != nil {
-				errs = append(errs, fmt.Errorf("failed to delete %s: %w", name, err))
-				return
-			}
+				resourceInterface, err := client.GetDynamicResourceInterface(resource)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("failed to resolve resource %s: %w", name, err))
+					return
+				}
 
-			removedResources = append(removedResources, resource)
-		}()
+				if err := resourceInterface.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}); err != nil {
+					errs = append(errs, fmt.Errorf("failed to delete %s: %w", name, err))
+					return
+				}
+
+				removedResources = append(removedResources, resource)
+			}()
+		}
 	}
 
 	return removedResources, xerr.MultiErrOrderedFrom("", errs...)

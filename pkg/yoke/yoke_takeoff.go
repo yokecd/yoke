@@ -250,7 +250,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to create revision: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous.Flatten(), stages.Flatten()); err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous, stages); err != nil {
 		return fmt.Errorf("failed to remove orhpans: %w", err)
 	}
 

@@ -65,12 +65,12 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
 
-	for _, resources := range next {
-		if err := commander.k8s.ApplyResources(ctx, resources, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
+	for _, stage := range next {
+		if err := commander.k8s.ApplyResources(ctx, stage, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
 			return fmt.Errorf("failed to apply resources: %w", err)
 		}
 		if params.Wait > 0 {
-			if err := commander.k8s.WaitForReadyMany(ctx, resources, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
+			if err := commander.k8s.WaitForReadyMany(ctx, stage, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
 				return fmt.Errorf("release did not become ready within wait period: %w", err)
 			}
 		}
@@ -80,7 +80,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous.Flatten(), next.Flatten()); err != nil {
+	if _, err := commander.k8s.RemoveOrphans(ctx, previous, next); err != nil {
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (client Commander) Mayday(ctx context.Context, name, ns string) error {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	if _, err := client.k8s.RemoveOrphans(ctx, state.Flatten(), nil); err != nil {
+	if _, err := client.k8s.RemoveOrphans(ctx, state, nil); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
 
