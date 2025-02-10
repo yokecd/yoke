@@ -4,6 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-09) atc/v0.7.0 - v0.8.0 - yokecd/v0.7.0 - yokecd-installer/v0.7.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: breaking change: removed create-crd flag and made -create-namespace flag only relevant to target release namespace ([f47d20c](https://github.com/yokecd/yoke/commit/f47d20c688c301b15f876f0255dcf1a9533db44f))
+- yoke: fix tests ([cc1a42e](https://github.com/yokecd/yoke/commit/cc1a42e353bac86275b0c42d7f2e6a537b6788ee))
+- yoke: represent revisions as stages ([fbeaaed](https://github.com/yokecd/yoke/commit/fbeaaedf85d2fc2fbea5d21d786e2aef17734d06))
+- yoke: document takeoff parameters with comments ([e67ee9a](https://github.com/yokecd/yoke/commit/e67ee9ae64c461140f69e0048ccd56fe8515df33))
+
 ## (2025-01-27) atc/v0.6.4 - v0.7.4
 
 - atc: validation handler respects flight override url ([d439716](https://github.com/yokecd/yoke/commit/d43971604c7346c2e6402ee2876520d24f655889))
