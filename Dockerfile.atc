@@ -1,16 +1,16 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
 
-RUN GOTOOLCHAIN=auto go mod download
+RUN go mod download
 
 COPY ./cmd/atc ./cmd/atc
 COPY ./internal ./internal
 COPY ./pkg ./pkg
 
-RUN GOTOOLCHAIN=auto go build -o /bin/atc ./cmd/atc 
+RUN go build -o /bin/atc ./cmd/atc 
 
 FROM alpine
 
