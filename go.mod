@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/alecthomas/chroma/v2 v2.15.0
 	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v1.3.2
+	github.com/charmbracelet/bubbletea v1.3.3
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/davidmdm/ansi v0.0.6
 	github.com/davidmdm/conf v0.0.8
@@ -13,7 +13,7 @@ require (
 	github.com/davidmdm/x/xerr v0.0.3
 	github.com/davidmdm/x/xruntime v0.0.5
 	github.com/go-git/go-git/v5 v5.13.2
-	github.com/jedib0t/go-pretty/v6 v6.6.5
+	github.com/jedib0t/go-pretty/v6 v6.6.6
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.6.0
@@ -44,7 +44,7 @@ require (
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dlclark/regexp2 v1.11.4 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
