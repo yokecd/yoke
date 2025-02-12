@@ -24,10 +24,10 @@ func run() error {
 	secretName := flight.Release() + "-example"
 
 	secret, err := k8s.Lookup[corev1.Secret](k8s.ResourceIdentifier{
+		ApiVersion: "v1",
+		Kind:       "Secret",
 		Name:       secretName,
 		Namespace:  flight.Namespace(),
-		Kind:       "Secret",
-		ApiVersion: "v1",
 	})
 	if err != nil && !k8s.IsErrNotFound(err) {
 		return fmt.Errorf("failed to lookup secret: %v", err)
