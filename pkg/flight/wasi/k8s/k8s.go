@@ -59,6 +59,8 @@ func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 		}
 
 		return &resource, nil
+	case wasm.StateFeatureNotGranted:
+		return nil, ErrorClusterAccessNotGranted
 	case wasm.StateError:
 		return nil, errors.New(buffer.String())
 	case wasm.StateForbidden:

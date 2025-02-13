@@ -28,6 +28,7 @@ type State uint32
 
 const (
 	StateOK State = iota
+	StateFeatureNotGranted
 	StateError
 	StateNotFound
 	StateUnauthenticated
@@ -73,6 +74,9 @@ func FromString(value string) String {
 }
 
 func FromSlice(value []byte) Buffer {
+	if len(value) == 0 {
+		return 0
+	}
 	ptr := uint64(uintptr(unsafe.Pointer(&value[0])))
 	return Buffer(ptr<<32 | uint64(len(value)))
 }
