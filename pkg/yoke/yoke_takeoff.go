@@ -83,12 +83,25 @@ type TakeoffParams struct {
 
 	// OwnerReferences to be added to each resource found in release.
 	OwnerReferences []metav1.OwnerReference
+
+	// ClusterAccess grants the flight access to the kubernetes cluster. Users will be able to use the host k8s_lookup function.
+	ClusterAccess bool
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
 	defer internal.DebugTimer(ctx, "takeoff of "+params.Release)()
 
-	output, wasm, err := EvalFlight(ctx, commander.k8s, params.Release, params.Flight)
+	output, wasm, err := EvalFlight(
+		ctx,
+		func() *k8s.Client {
+			if !params.ClusterAccess {
+				return nil
+			}
+			return commander.k8s
+		}(),
+		params.Release,
+		params.Flight,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}

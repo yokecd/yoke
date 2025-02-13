@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -158,8 +159,8 @@ func Run(cfg Config) error {
 			Kind:       "Secret",
 			ApiVersion: "v1",
 		})
-		if err != nil && !k8s.IsErrNotFound(err) {
-			return nil, fmt.Errorf("failed to lookup tls secret: %v", err)
+		if err != nil && !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
+			return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
 		}
 		if secret != nil {
 			return &TLS{

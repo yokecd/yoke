@@ -161,6 +161,10 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 
 	for name, fn := range map[string]any{
 		"k8s_lookup": func(ctx context.Context, module api.Module, stateRef wasm.Ptr, name, namespace, kind, apiVersion wasm.String) wasm.Buffer {
+			if params.Client == nil {
+				return wasm.Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
+			}
+
 			gv, err := schema.ParseGroupVersion(apiVersion.Load(module))
 			if err != nil {
 				return wasm.Error(ctx, module, stateRef, wasm.StateError, err.Error())

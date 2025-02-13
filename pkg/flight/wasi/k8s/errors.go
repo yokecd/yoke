@@ -40,3 +40,5 @@ func (ErrorForbidden) Is(target error) bool {
 func IsErrForbidden(err error) bool {
 	return errors.Is(err, ErrorForbidden(""))
 }
+
+var ErrorClusterAccessNotGranted = errors.New("access to the cluster has not been granted for this flight invocation")
