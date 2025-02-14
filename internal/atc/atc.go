@@ -350,12 +350,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	flightController, err := ctrl.NewController(flightCtx, ctrl.Params{
 		GK: flightGK,
 		Handler: atc.FlightReconciler(FlightReconcilerParams{
-			GK:               flightGK,
-			Airway:           typedAirway.Name,
-			Version:          storageVersion,
-			Flight:           modules.Flight,
-			FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
-			ObjectPath:       typedAirway.Spec.ObjectPath,
+			GK:      flightGK,
+			Airway:  typedAirway,
+			Version: storageVersion,
+			Flight:  modules.Flight,
 		}),
 		Client:      ctrl.Client(ctx),
 		Logger:      ctrl.RootLogger(ctx),
@@ -393,12 +391,10 @@ func (atc atc) Teardown() {
 }
 
 type FlightReconcilerParams struct {
-	GK               schema.GroupKind
-	Airway           string
-	Version          string
-	Flight           *wasm.Module
-	FixDriftInterval time.Duration
-	ObjectPath       []string
+	GK      schema.GroupKind
+	Version string
+	Flight  *wasm.Module
+	Airway  v1alpha1.Airway
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -494,9 +490,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, nil
 		}
 
-		object, _, err := unstructured.NestedFieldNoCopy(resource.Object, params.ObjectPath...)
+		object, _, err := unstructured.NestedFieldNoCopy(resource.Object, params.Airway.Spec.ObjectPath...)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.ObjectPath, ","), err)
+			return ctrl.Result{}, fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.Airway.Spec.ObjectPath, ","), err)
 		}
 
 		data, err := json.Marshal(object)
@@ -512,6 +508,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
+			ClusterAccess: params.Airway.Spec.ClusterAccess,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: resource.GetAPIVersion(),
@@ -543,7 +540,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		if params.FixDriftInterval > 0 {
+		if params.Airway.Spec.FixDriftInterval > 0 {
 			flightStatus("InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release: event.String(),
@@ -556,7 +553,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		flightStatus("Ready", "Successfully deployed")
 
-		return ctrl.Result{RequeueAfter: params.FixDriftInterval}, nil
+		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration()}, nil
 	}
 }
 

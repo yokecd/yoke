@@ -38,6 +38,9 @@ type AirwaySpec struct {
 	// you to enforce the desired state of your resource against external manipulation.
 	FixDriftInterval openapi.Duration `json:"fixDriftInterval,omitempty"`
 
+	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
+	ClusterAccess bool `json:"clusterAccess,omitempty"`
+
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
