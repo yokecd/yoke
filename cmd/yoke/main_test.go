@@ -750,10 +750,28 @@ func TestLookupResource(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
+	require.ErrorContains(
+		t,
+		TakeOff(background, TakeoffParams{
+			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+			TakeoffParams: yoke.TakeoffParams{
+				Release: "foo",
+				Flight: yoke.FlightParams{
+					Path:      "./test_output/flight.wasm",
+					Namespace: "default",
+				},
+				Wait: 10 * time.Second,
+				Poll: time.Second,
+			},
+		}),
+		"access to the cluster has not been granted for this flight invocation",
+	)
+
 	params := TakeoffParams{
 		GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
 		TakeoffParams: yoke.TakeoffParams{
-			Release: "foo",
+			Release:       "foo",
+			ClusterAccess: true,
 			Flight: yoke.FlightParams{
 				Path:      "./test_output/flight.wasm",
 				Namespace: "default",
@@ -788,6 +806,7 @@ func TestLookupResource(t *testing.T) {
 			TakeoffParams: yoke.TakeoffParams{
 				Release:         "foo",
 				CreateNamespace: true,
+				ClusterAccess:   true,
 				Flight: yoke.FlightParams{
 					Path:      "./test_output/flight.wasm",
 					Namespace: "foo",
