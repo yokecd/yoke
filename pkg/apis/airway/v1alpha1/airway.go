@@ -20,7 +20,7 @@ type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              AirwaySpec    `json:"spec"`
-	Status            flight.Status `json:"status,omitempty"`
+	Status            flight.Status `json:"status,omitzero"`
 }
 
 type AirwaySpec struct {

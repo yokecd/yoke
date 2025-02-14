@@ -115,7 +115,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 				continue
 			}
 
-			if !strings.HasSuffix(jTag, ",omitempty") && f.Type.Kind() != reflect.Pointer {
+			if !strings.HasSuffix(jTag, ",omitempty") && !strings.HasSuffix(jTag, ",omitzero") && f.Type.Kind() != reflect.Pointer {
 				schema.Required = append(schema.Required, key)
 			}
 
