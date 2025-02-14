@@ -4,6 +4,34 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-14) atc/v0.7.2 - atc-installer/v0.7.1 - v0.8.2 - yokecd/v0.7.2 - yokecd-installer/v0.7.2
+
+<details>
+<summary>20 commits</summary>
+
+- pkg/openapi: support omitzero and update tests ([b5cf5b0](https://github.com/yokecd/yoke/commit/b5cf5b0d292339eb5c7c79fe9736786c3458ff79))
+- yoke: fix k8s lookup test ([83bbefe](https://github.com/yokecd/yoke/commit/83bbefeca00aa056b797ce623eacedb9e5bea084))
+- atc: support cluster access via property of Airway ([67ec7eb](https://github.com/yokecd/yoke/commit/67ec7eba4c791ddebeff802c333579fa1d145ce0))
+- atc: remove create crd option from airways as it did nothing ([f877ecf](https://github.com/yokecd/yoke/commit/f877ecfb6b41e363e2d7cc8304d547c286ef7928))
+- yoke: added cluster-access flag to guard wasi/k8s api ([12be90f](https://github.com/yokecd/yoke/commit/12be90f34559f562357f33dcd95908a782c7209c))
+- yokecd: bump image version to use go1.24 ([e66b482](https://github.com/yokecd/yoke/commit/e66b482ff1deeb50cc9cfed527a33a8e437137be))
+- example: refactor lookup example ([f44713b](https://github.com/yokecd/yoke/commit/f44713b337a995c5d017c2b88b895ee6d79a1c23))
+- deps: update deps ([eae383a](https://github.com/yokecd/yoke/commit/eae383a51c6f059d0513320da18e0daa6e530c85))
+- deps: use go1.24.0 ([3392dee](https://github.com/yokecd/yoke/commit/3392deec4cd9f7352558b03c3641bac082be82b0))
+- atc-installer: use wasi/k8s api to avoid generating new tls secrets when they already exist ([972382a](https://github.com/yokecd/yoke/commit/972382a6b5f8219f8154da8a94232990daa3e6d3))
+- wasi/k8s: use build tags in order to be able to build packages with wasm imports ([53e9e45](https://github.com/yokecd/yoke/commit/53e9e45ad4a112f7c752092524e23436bf2d3a70))
+- yoke: test lookup resource e2e ([a6f4e3a](https://github.com/yokecd/yoke/commit/a6f4e3a0d52d1702853fb0f8e4356407e33b0763))
+- wasi/k8s: validate resource ownership on k8s.Lookup ([fb61c53](https://github.com/yokecd/yoke/commit/fb61c5366f5f8fbc76556e065720022bfc887177))
+- examples: update lookup example ([81d2a0a](https://github.com/yokecd/yoke/commit/81d2a0a1135b1007516283eb5cdcf809d72a489a))
+- examples: add lookup example ([a138e85](https://github.com/yokecd/yoke/commit/a138e85fe02a4b92e9e540358935a85eee5895ca))
+- wasi/k8s: make lookup generically allocate underlying resource ([f698eed](https://github.com/yokecd/yoke/commit/f698eed20898906771d504095d9ad5acef73f32e))
+- examples: rename to be more descriptive of the example ([ad6d26c](https://github.com/yokecd/yoke/commit/ad6d26c5c1de17a02c8ce55eb89b29634b525491))
+- examples: remove redundant examples ([7d59f37](https://github.com/yokecd/yoke/commit/7d59f37c0c2464d549ba1a3f58c62afda4946d35))
+- examples: move examples directory from cmd/examples to top level examples ([2f738cb](https://github.com/yokecd/yoke/commit/2f738cb9c2de00342d8acd1aac25e998cb702b6e))
+- wasi/k8s: add host module for doing k8 lookups ([5fff1b2](https://github.com/yokecd/yoke/commit/5fff1b267f0a5ec3f840c4b67ac738a4e358199b))
+
+</details>
+
 ## (2025-02-10) atc/v0.7.1 - atc-installer/v0.7.0 - v0.8.1 - yokecd/v0.7.1 - yokecd-installer/v0.7.1
 
 - deps: update deps ([7d37db1](https://github.com/yokecd/yoke/commit/7d37db123c01ca2193c24ffec2028a19ecd35cc9))
