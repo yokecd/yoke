@@ -355,7 +355,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			Version:          storageVersion,
 			Flight:           modules.Flight,
 			FixDriftInterval: typedAirway.Spec.FixDriftInterval.Duration(),
-			CreateCrds:       typedAirway.Spec.CreateCRDs,
 			ObjectPath:       typedAirway.Spec.ObjectPath,
 		}),
 		Client:      ctrl.Client(ctx),
@@ -399,7 +398,6 @@ type FlightReconcilerParams struct {
 	Version          string
 	Flight           *wasm.Module
 	FixDriftInterval time.Duration
-	CreateCrds       bool
 	ObjectPath       []string
 }
 
