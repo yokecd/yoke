@@ -38,10 +38,6 @@ type AirwaySpec struct {
 	// you to enforce the desired state of your resource against external manipulation.
 	FixDriftInterval openapi.Duration `json:"fixDriftInterval,omitempty"`
 
-	// CreateCRDs indicates that CRDs generated from instantiating the resource should be applied. By default,
-	// CRDs are not applied. It is generally recommended to install CustomResourceDefinitions beforehand.
-	CreateCRDs bool `json:"createCrds,omitempty"`
-
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
