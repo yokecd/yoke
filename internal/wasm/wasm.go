@@ -8,12 +8,6 @@ import (
 	"github.com/tetratelabs/wazero/api"
 )
 
-type (
-	String uint64
-	Buffer uint64
-	Ptr    uint32
-)
-
 // State is used to convey the state of a host module function call. Given that a host function
 // will generally do something the wasm module cannot do, it will likely do some sort of IO.
 // This means that the call can either succeed or fail with some error. This allows us to interpret
@@ -35,6 +29,8 @@ const (
 	StateForbidden
 )
 
+type Ptr uint32
+
 func PtrTo[T any](value *T) Ptr {
 	return Ptr(uintptr(unsafe.Pointer(value)))
 }
@@ -55,6 +51,8 @@ func Error(ctx context.Context, module api.Module, ptr Ptr, state State, err str
 	return Malloc(ctx, module, []byte(err))
 }
 
+type String uint64
+
 func (value String) Load(module api.Module) string {
 	return string(value.LoadBytes(module))
 }
@@ -72,6 +70,8 @@ func FromString(value string) String {
 	bytes := uint32(len(value))
 	return String(uint64(position)<<32 | uint64(bytes))
 }
+
+type Buffer uint64
 
 func FromSlice(value []byte) Buffer {
 	if len(value) == 0 {
