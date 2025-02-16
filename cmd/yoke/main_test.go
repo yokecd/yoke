@@ -208,8 +208,8 @@ func TestMultiNamespaceValidation(t *testing.T) {
 		return TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:         "foo",
-				MultiNamespaces: multiNamespace,
+				Release:        "foo",
+				CrossNamespace: multiNamespace,
 				Flight: yoke.FlightParams{
 					Input: strings.NewReader(`[
             {
@@ -306,8 +306,8 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 	require.NoError(t, TakeOff(background, TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
-			Release:         "release",
-			MultiNamespaces: true,
+			Release:        "release",
+			CrossNamespace: true,
 			Flight: yoke.FlightParams{
 				Namespace: "default",
 				Input:     createBasicDeployment(t, "x", "shared"),
@@ -320,8 +320,8 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 		TakeOff(background, TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:         "release",
-				MultiNamespaces: true,
+				Release:        "release",
+				CrossNamespace: true,
 				Flight: yoke.FlightParams{
 					Namespace: "shared",
 					Input:     createBasicDeployment(t, "x", "shared"),
@@ -460,8 +460,8 @@ func TestTakeoffWithNamespaceStage(t *testing.T) {
 		return TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:         "foo",
-				MultiNamespaces: true,
+				Release:        "foo",
+				CrossNamespace: true,
 				Flight: yoke.FlightParams{
 					Input: strings.NewReader(resources),
 				},

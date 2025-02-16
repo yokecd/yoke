@@ -41,6 +41,9 @@ type AirwaySpec struct {
 	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
 	ClusterAccess bool `json:"clusterAccess,omitempty"`
 
+	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
+	CrossNamespace bool `json:"crossNamespace,omitempty"`
+
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`

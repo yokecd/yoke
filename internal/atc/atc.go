@@ -508,7 +508,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
-			ClusterAccess: params.Airway.Spec.ClusterAccess,
+			ClusterAccess:  params.Airway.Spec.ClusterAccess,
+			CrossNamespace: params.Airway.Spec.CrossNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: resource.GetAPIVersion(),
