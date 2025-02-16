@@ -50,8 +50,8 @@ type TakeoffParams struct {
 	// ForceConflicts applies the path request with force. It will take ownership of fields owned by other fieldManagers.
 	ForceConflicts bool
 
-	// MultiNamespaces allows for a release to create resources in a namespace other than the release's own namespace.
-	MultiNamespaces bool
+	// CrossNamespace allows for a release to create resources in a namespace other than the release's own namespace.
+	CrossNamespace bool
 
 	// Name of release
 	Release string
@@ -139,7 +139,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 					ns := resource.GetNamespace()
 					if ns == "" {
 						resource.SetNamespace(targetNS)
-					} else if !params.MultiNamespaces && ns != targetNS {
+					} else if !params.CrossNamespace && ns != targetNS {
 						errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
 					}
 				}

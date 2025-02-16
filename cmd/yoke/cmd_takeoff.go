@@ -58,7 +58,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.SkipDryRun, "skip-dry-run", false, "disables running dry run to resources before applying them; ineffective if dry-run is true")
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.CreateNamespace, "create-namespace", false, "create namespace of target release if not present")
-	flagset.BoolVar(&params.MultiNamespaces, "multi-namespaces", false, "allows releases to create resources in other namespaces than the target namespace")
+	flagset.BoolVar(&params.CrossNamespace, "cross-namespace", false, "allows releases to create resources in other namespaces than the target namespace")
 	flagset.BoolVar(&params.ClusterAccess, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
 
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
