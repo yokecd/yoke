@@ -4,6 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-16) atc/v0.8.0 - atc-installer/v0.8.0 - v0.9.0 - yokecd/v0.8.0 - yokecd-installer/v0.8.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- v1alpha1/airway: support cross-namespace releases ([476b311](https://github.com/yokecd/yoke/commit/476b3118c399d6a8070dae936987da86aa4e99fa))
+- yoke: breaking change: rename multi-namespaces flag to cross-namespace ([d1b0ad6](https://github.com/yokecd/yoke/commit/d1b0ad6e9421f4587fef90a2a5183103b75a0a11))
+- deps: update deps ([5638adc](https://github.com/yokecd/yoke/commit/5638adcd23afcb97a521088f0b647fd6dbda12d4))
+- internal/wasm: refactor file ([a895a93](https://github.com/yokecd/yoke/commit/a895a932504d44f9853a5f6c5cb9b25675eb788e))
+
 ## (2025-02-14) atc/v0.7.2 - atc-installer/v0.7.1 - v0.8.2 - yokecd/v0.7.2 - yokecd-installer/v0.7.2
 
 <details>
