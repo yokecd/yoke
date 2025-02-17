@@ -230,15 +230,19 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			return fmt.Errorf("failed to apply resources: %w", err)
 		}
 
+		waitOpts := k8s.WaitOptions{
+			Timeout:  params.Wait,
+			Interval: params.Poll,
+		}
+
 		// If this is not the last or only stage we need a default wait/poll interval.
 		// The entire point of stages is the ordering of interdependent resources.
-		var waitOpts k8s.WaitOptions
 		if i < len(stages)-1 {
 			waitOpts.Timeout = cmp.Or(params.Wait, 30*time.Second)
 			waitOpts.Interval = cmp.Or(params.Poll, 2*time.Second)
 		}
 
-		if params.Wait > 0 {
+		if waitOpts.Timeout > 0 {
 			if err := commander.k8s.WaitForReadyMany(ctx, stage, waitOpts); err != nil {
 				return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
 			}
