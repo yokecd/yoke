@@ -2,12 +2,13 @@ package k8s
 
 import (
 	"context"
+	"errors"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // isReady checks for readiness of workload resources, namespaces, and CRDs
-func isReady(_ context.Context, resource *unstructured.Unstructured) bool {
+func isReady(_ context.Context, resource *unstructured.Unstructured) (bool, error) {
 	gvk := resource.GroupVersionKind()
 
 	switch gvk.Group {
@@ -15,18 +16,18 @@ func isReady(_ context.Context, resource *unstructured.Unstructured) bool {
 		switch gvk.Kind {
 		case "Namespace":
 			phase, _, _ := unstructured.NestedString(resource.Object, "status", "phase")
-			return phase == "Active"
+			return phase == "Active", nil
 		case "Pod":
-			return meetsConditions(resource, "Available")
+			return meetsConditions(resource, "Available"), nil
 		}
 	case "apps":
 		switch gvk.Kind {
 		case "Deployment":
 			return true &&
 				meetsConditions(resource, "Available") &&
-				equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas")
+				equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
 		case "ReplicaSet", "StatefulSet":
-			return equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas")
+			return equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
 		case "DaemonSet":
 			return equalInts(
 				resource,
@@ -35,27 +36,30 @@ func isReady(_ context.Context, resource *unstructured.Unstructured) bool {
 				"updatedNumberScheduled",
 				"numberAvailable",
 				"numberReady",
-			)
+			), nil
 		}
 	case "batch":
 		switch gvk.Kind {
 		case "Job":
-			return meetsConditions(resource, "Complete")
+			if meetsConditions(resource, "Failed") {
+				return false, errors.New("job has failed")
+			}
+			return meetsConditions(resource, "Complete"), nil
 		}
 	case "apiextensions.k8s.io":
 		switch gvk.Kind {
 		case "CustomResourceDefinition":
-			return meetsConditions(resource, "Established")
+			return meetsConditions(resource, "Established"), nil
 		}
 	case "yoke.cd":
 		switch gvk.Kind {
 		case "Airway":
 			status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
-			return status == "Ready"
+			return status == "Ready", nil
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 func meetsConditions(resource *unstructured.Unstructured, keys ...string) bool {
