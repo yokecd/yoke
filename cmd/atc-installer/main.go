@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,13 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg := installer.Config{
 		Version: "latest",
 		Port:    3000,
@@ -20,16 +28,14 @@ func main() {
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&cfg); err != nil && err != io.EOF {
-			exit(err)
+			return err
 		}
 	}
 
-	if err := installer.Run(cfg); err != nil {
-		exit(err)
+	stages, err := installer.Run(cfg)
+	if err != nil {
+		return err
 	}
-}
 
-func exit(err error) {
-	fmt.Fprintln(os.Stderr, err)
-	os.Exit(1)
+	return json.NewEncoder(os.Stdout).Encode(stages)
 }
