@@ -46,7 +46,7 @@ var (
 	}
 )
 
-func Run(cfg Config) ([][]any, error) {
+func Run(cfg Config) (flight.Stages, error) {
 	crd := apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
@@ -320,20 +320,22 @@ func Run(cfg Config) ([][]any, error) {
 		},
 	}
 
-	stageOne := []any{
-		crd,
+	stageOne := flight.Stage{
+		&crd,
 	}
 
-	stageTwo := []any{
-		svc,
-		tlsSecret,
-		deployment,
-		airwayValidation,
+	crd.GroupVersionKind()
+
+	stageTwo := flight.Stage{
+		&svc,
+		&tlsSecret,
+		&deployment,
+		&airwayValidation,
 	}
 
 	if cfg.ServiceAccountName == "" {
-		stageTwo = append(stageTwo, account, binding)
+		stageTwo = append(stageTwo, &account, &binding)
 	}
 
-	return [][]any{stageOne, stageTwo}, nil
+	return flight.Stages{stageOne, stageTwo}, nil
 }
