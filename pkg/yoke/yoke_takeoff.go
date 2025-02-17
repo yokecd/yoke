@@ -72,13 +72,14 @@ type TakeoffParams struct {
 	// Output diffs with ansi colors.
 	Color bool
 
-	// Create namespace of target release if not exists
+	// Create namespace of target release if not exists.
 	CreateNamespace bool
 
-	// Wait interval for resources to become ready after being applied.
+	// Wait interval for resources to become ready after being applied. The same wait interval is used as a timeout for each stage in a release.
+	// Therefore if a stage contains a long-running job or workload it is important to set the wait time to a sufficiently long duration.
 	Wait time.Duration
 
-	// Poll interval to check for resource readiness
+	// Poll interval to check for resource readiness.
 	Poll time.Duration
 
 	// OwnerReferences to be added to each resource found in release.
@@ -224,19 +225,21 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		ForceConflicts: params.ForceConflicts,
 	}
 
-	// If there is more than one stage we need a default wait/poll interval.
-	// The entire point of stages is the ordering of interdependent resources.
-	if len(stages) > 1 {
-		params.Wait = cmp.Or(params.Wait, 30*time.Second)
-		params.Poll = cmp.Or(params.Poll, 2*time.Second)
-	}
-
-	for _, stage := range stages {
+	for i, stage := range stages {
 		if err := commander.k8s.ApplyResources(ctx, stage, applyOpts); err != nil {
 			return fmt.Errorf("failed to apply resources: %w", err)
 		}
+
+		// If this is not the last or only stage we need a default wait/poll interval.
+		// The entire point of stages is the ordering of interdependent resources.
+		var waitOpts k8s.WaitOptions
+		if i < len(stages)-1 {
+			waitOpts.Timeout = cmp.Or(params.Wait, 30*time.Second)
+			waitOpts.Interval = cmp.Or(params.Poll, 2*time.Second)
+		}
+
 		if params.Wait > 0 {
-			if err := commander.k8s.WaitForReadyMany(ctx, stage, k8s.WaitOptions{Timeout: params.Wait, Interval: params.Poll}); err != nil {
+			if err := commander.k8s.WaitForReadyMany(ctx, stage, waitOpts); err != nil {
 				return fmt.Errorf("release did not become ready within wait period: to rollback use `yoke descent`: %w", err)
 			}
 		}
