@@ -4,11 +4,9 @@ import (
 	"cmp"
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -48,7 +46,7 @@ var (
 	}
 )
 
-func Run(cfg Config) error {
+func Run(cfg Config) ([][]any, error) {
 	crd := apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
@@ -172,7 +170,7 @@ func Run(cfg Config) error {
 		return NewTLS(svc)
 	}()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tlsSecret := corev1.Secret{
@@ -322,8 +320,11 @@ func Run(cfg Config) error {
 		},
 	}
 
-	resources := []any{
+	stageOne := []any{
 		crd,
+	}
+
+	stageTwo := []any{
 		svc,
 		tlsSecret,
 		deployment,
@@ -331,8 +332,8 @@ func Run(cfg Config) error {
 	}
 
 	if cfg.ServiceAccountName == "" {
-		resources = append(resources, account, binding)
+		stageTwo = append(stageTwo, account, binding)
 	}
 
-	return json.NewEncoder(os.Stdout).Encode(resources)
+	return [][]any{stageOne, stageTwo}, nil
 }
