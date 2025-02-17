@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"os"
 	"path/filepath"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // Release is convenience for fetching the release name within the context of an executing flight.
@@ -31,3 +33,18 @@ type Status struct {
 }
 
 const AnnotationOverrideFlight = "overrides.yoke.cd/flight"
+
+// Resource is a best effort attempt at capturing the set of types that are kubernetes resources.
+// K8s resource embed the metav1.TypeMeta struct and thus expose this method; unstructured.Unstructured objects also expose it.
+//
+// Having this type allows us to not fallback to using `any` when building our flight implementations.
+type Resource interface {
+	GroupVersionKind() schema.GroupVersionKind
+}
+
+// Stage represents a single deployment stage. A stage is a valid flight output.
+type Stage []Resource
+
+// Stages is an ordered list of stages. Yoke will apply each stage one by one.
+// Stages is a valid flight output.
+type Stages []Stage
