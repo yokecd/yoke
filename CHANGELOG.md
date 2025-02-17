@@ -4,6 +4,13 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-17) atc/v0.8.1 - v0.9.1 - yokecd/v0.8.1
+
+- yoke: allow ready checks to have an error conditions for early exit ([b37dd77](https://github.com/yokecd/yoke/commit/b37dd77ba9fc103a481864207317ce91b3a8e2b1))
+- yoke: fix failing test ([f953e09](https://github.com/yokecd/yoke/commit/f953e09c45e7de2af58e47b4414fafac039d4863))
+- internal/k8s: add support readiness checks for jobs ([fb15512](https://github.com/yokecd/yoke/commit/fb15512285a6c7cc0a16c74f29c11cbeb4fe6d1c))
+- yoke: set default poll and wait only for stages that are not last ([4fb8c23](https://github.com/yokecd/yoke/commit/4fb8c23decef0ee3204caadcdb9e3c2537ab03d9))
+
 ## (2025-02-16) atc/v0.8.0 - atc-installer/v0.8.0 - v0.9.0 - yokecd/v0.8.0 - yokecd-installer/v0.8.0
 
 > [!CAUTION]
