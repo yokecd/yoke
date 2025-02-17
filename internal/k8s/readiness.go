@@ -37,6 +37,11 @@ func isReady(_ context.Context, resource *unstructured.Unstructured) bool {
 				"numberReady",
 			)
 		}
+	case "batch":
+		switch gvk.Kind {
+		case "Job":
+			return meetsConditions(resource, "Complete")
+		}
 	case "apiextensions.k8s.io":
 		switch gvk.Kind {
 		case "CustomResourceDefinition":
