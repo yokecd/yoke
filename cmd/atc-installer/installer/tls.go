@@ -23,7 +23,7 @@ type TLS struct {
 
 const org = "yoke.cd"
 
-func NewTLS(svc corev1.Service) (*TLS, error) {
+func NewTLS(svc *corev1.Service) (*TLS, error) {
 	rootTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(1991),
 		Subject: pkix.Name{

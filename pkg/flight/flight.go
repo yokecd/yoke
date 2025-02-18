@@ -2,8 +2,10 @@ package flight
 
 import (
 	"cmp"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -44,6 +46,19 @@ type Resource interface {
 
 // Stage represents a single deployment stage. A stage is a valid flight output.
 type Stage []Resource
+
+// MarshalJSON implements custom JSON marshalling for flight stages. It allows stages to have resources written as nil instead of omitting them entirely.
+// To support this convenience, a stage filters out nil values before serializing its content.
+func (stage Stage) MarshalJSON() ([]byte, error) {
+	resources := make([]Resource, 0, len(stage))
+	for _, resource := range stage {
+		if reflect.ValueOf(resource).IsNil() {
+			continue
+		}
+		resources = append(resources, resource)
+	}
+	return json.Marshal(resources)
+}
 
 // Stages is an ordered list of stages. Yoke will apply each stage one by one.
 // Stages is a valid flight output.

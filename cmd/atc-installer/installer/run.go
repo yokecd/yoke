@@ -47,7 +47,7 @@ var (
 )
 
 func Run(cfg Config) (flight.Stages, error) {
-	crd := apiextensionsv1.CustomResourceDefinition{
+	crd := &apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
@@ -75,39 +75,46 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
-	account := corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ServiceAccount",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-atc-service-account", flight.Release()),
-			Namespace: flight.Namespace(),
-		},
-	}
-
-	binding := rbacv1.ClusterRoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ClusterRoleBinding",
-			APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-atc-cluster-role-binding", flight.Release()),
-			Namespace: flight.Namespace(),
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      account.Kind,
-				Name:      account.Name,
-				Namespace: account.Namespace,
+	account, binding := func() (*corev1.ServiceAccount, *rbacv1.ClusterRoleBinding) {
+		if cfg.ServiceAccountName != "" {
+			return nil, nil
+		}
+		account := &corev1.ServiceAccount{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ServiceAccount",
+				APIVersion: "v1",
 			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "ClusterRole",
-			Name:     "cluster-admin",
-		},
-	}
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-atc-service-account", flight.Release()),
+				Namespace: flight.Namespace(),
+			},
+		}
+
+		binding := &rbacv1.ClusterRoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRoleBinding",
+				APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-atc-cluster-role-binding", flight.Release()),
+				Namespace: flight.Namespace(),
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      account.Kind,
+					Name:      account.Name,
+					Namespace: account.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "cluster-admin",
+			},
+		}
+
+		return account, binding
+	}()
 
 	selector := map[string]string{
 		"yoke.cd/app": "atc",
@@ -120,7 +127,7 @@ func Run(cfg Config) (flight.Stages, error) {
 
 	maps.Copy(labels, selector)
 
-	svc := corev1.Service{
+	svc := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Service",
@@ -173,7 +180,7 @@ func Run(cfg Config) (flight.Stages, error) {
 		return nil, err
 	}
 
-	tlsSecret := corev1.Secret{
+	tlsSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
 			APIVersion: "v1",
@@ -197,7 +204,7 @@ func Run(cfg Config) (flight.Stages, error) {
 		return hex.EncodeToString(hash.Sum(nil))
 	}()
 
-	airwayValidation := admissionregistrationv1.ValidatingWebhookConfiguration{
+	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
 			Kind:       "ValidatingWebhookConfiguration",
@@ -237,7 +244,7 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
-	deployment := appsv1.Deployment{
+	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
 			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
@@ -265,7 +272,12 @@ func Run(cfg Config) (flight.Stages, error) {
 							},
 						},
 					},
-					ServiceAccountName: cmp.Or(cfg.ServiceAccountName, account.Name),
+					ServiceAccountName: func() string {
+						if cfg.ServiceAccountName != "" {
+							return cfg.ServiceAccountName
+						}
+						return account.Name
+					}(),
 					Containers: []corev1.Container{
 						{
 							Name:            "yokecd-atc",
@@ -320,22 +332,17 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
-	stageOne := flight.Stage{
-		&crd,
-	}
-
-	crd.GroupVersionKind()
-
-	stageTwo := flight.Stage{
-		&svc,
-		&tlsSecret,
-		&deployment,
-		&airwayValidation,
-	}
-
-	if cfg.ServiceAccountName == "" {
-		stageTwo = append(stageTwo, &account, &binding)
-	}
-
-	return flight.Stages{stageOne, stageTwo}, nil
+	return flight.Stages{
+		{
+			crd,
+		},
+		{
+			svc,
+			tlsSecret,
+			deployment,
+			airwayValidation,
+			account,
+			binding,
+		},
+	}, nil
 }
