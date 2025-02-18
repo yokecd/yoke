@@ -4,6 +4,12 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-17) atc/v0.8.2 - atc-installer/v0.8.1 - v0.9.2 - yokecd-installer/v0.8.1
+
+- atc-installer: take advantage of flight.Stage custom JSON Marshalling to simplify implementation ([4619f8f](https://github.com/yokecd/yoke/commit/4619f8f210afa2a8cff06ed71a08855ff07d0285))
+- pkg/flight: add Resource, Stage, and Stages types to help type flight outputs ([a8aae42](https://github.com/yokecd/yoke/commit/a8aae42beea9e4e369214f3da570ffd75f1d46e6))
+- atc-installer: install the Airway CRD prior to installing other resources ([9ac81cf](https://github.com/yokecd/yoke/commit/9ac81cf45f4b324a5bc770920b536d48de29bab7))
+
 ## (2025-02-17) atc/v0.8.1 - v0.9.1 - yokecd/v0.8.1
 
 - yoke: allow ready checks to have an error conditions for early exit ([b37dd77](https://github.com/yokecd/yoke/commit/b37dd77ba9fc103a481864207317ce91b3a8e2b1))
