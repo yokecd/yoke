@@ -154,13 +154,15 @@ func ATC(ctx context.Context, params ATCParams) error {
 							return fmt.Errorf("failed to get active resources for %q: %w", name, err)
 						}
 
+						resources := stages.Flatten()
+
 						var wg sync.WaitGroup
-						wg.Add(len(stages))
+						wg.Add(len(resources))
 
 						semaphore := make(chan struct{}, runtime.NumCPU())
 
-						result := make(tower.GetResourcesResult, len(stages))
-						for i, resource := range stages.Flatten() {
+						result := make(tower.GetResourcesResult, len(resources))
+						for i, resource := range resources {
 							go func() {
 								defer wg.Done()
 
