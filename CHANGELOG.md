@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-02-20) latest - v0.9.3
+
+- yoke: atc tower: fix incorrect resource count when fetching readiness ([3c0b7fa](https://github.com/yokecd/yoke/commit/3c0b7fa00c5b5355370c569e6b73acf35c78229d))
+
 ## (2025-02-17) atc/v0.8.2 - atc-installer/v0.8.1 - v0.9.2 - yokecd-installer/v0.8.1
 
 - atc-installer: take advantage of flight.Stage custom JSON Marshalling to simplify implementation ([4619f8f](https://github.com/yokecd/yoke/commit/4619f8f210afa2a8cff06ed71a08855ff07d0285))
@@ -74,7 +78,7 @@
 
 - atc: validation handler respects flight override url ([d439716](https://github.com/yokecd/yoke/commit/d43971604c7346c2e6402ee2876520d24f655889))
 
-## (2025-01-26) atc/v0.6.3 - atc-installer/v0.6.2 - latest - v0.7.3 - yokecd/v0.6.2 - yokecd-installer/v0.6.1
+## (2025-01-26) atc/v0.6.3 - atc-installer/v0.6.2 - v0.7.3 - yokecd/v0.6.2 - yokecd-installer/v0.6.1
 
 - atc: test flight override annotation ([f4f48a7](https://github.com/yokecd/yoke/commit/f4f48a7eeff73649ff74af41eadd2e86a5ce1945))
 - atc: introduce override flight annotation to change flight implementation per resource during flight reconciliation ([504a879](https://github.com/yokecd/yoke/commit/504a87948c81eb74603b8d4fd2c18bb24b2fac4b))
