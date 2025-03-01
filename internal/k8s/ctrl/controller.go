@@ -226,6 +226,14 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 		kubeEvents := watcher.ResultChan()
 		defer watcher.Stop()
 
+		for _, item := range list.Items {
+			events <- Event{
+				Name:      item.Name,
+				Namespace: item.Namespace,
+				typ:       "start-up",
+			}
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
