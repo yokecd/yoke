@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 
 	backendv1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
 	backendv2 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v2"
@@ -32,13 +33,19 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func TestAirTrafficController(t *testing.T) {
-	require.NoError(t, os.RemoveAll("./test_output"))
-	require.NoError(t, os.MkdirAll("./test_output", 0o755))
+func TestMain(m *testing.M) {
+	must := func(err error) {
+		if err != nil {
+			panic(err)
+		}
+	}
 
-	require.NoError(t, x.X("kind delete clusters --all"))
+	must(os.RemoveAll("./test_output"))
+	must(os.MkdirAll("./test_output", 0o755))
 
-	require.NoError(t, x.X("kind create cluster --name=atc-test --config -", x.Input(strings.NewReader(`
+	must(x.X("kind delete cluster --name=atc-test"))
+
+	must(x.X("kind create cluster --name=atc-test --config -", x.Input(strings.NewReader(`
     kind: Cluster
     apiVersion: kind.x-k8s.io/v1alpha4
     nodes:
@@ -51,39 +58,39 @@ func TestAirTrafficController(t *testing.T) {
     `))))
 
 	if ci, _ := strconv.ParseBool(os.Getenv("CI")); !ci {
-		require.NoError(t, x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
-		require.NoError(t, x.X(`kubectl patch -n kube-system deployment metrics-server --type=json -p [{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]`))
+		must(x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
+		must(x.X(`kubectl patch -n kube-system deployment metrics-server --type=json -p [{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]`))
 	}
 
-	require.NoError(t, x.X(
+	must(x.X(
 		"go build -o ./test_output/atc-installer.wasm ../atc-installer",
 		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
-	require.NoError(t, x.X(
+	must(x.X(
 		"go build -o ./test_output/backend.v1.wasm ./internal/testing/apis/backend/v1/flight",
 		x.Env("GOOS=wasip1", "GOARCH=wasm"),
 	))
 
-	require.NoError(t, x.X(
+	must(x.X(
 		"docker build -t yokecd/atc:test -f Dockerfile.atc .",
 		x.Dir("../.."),
 	))
-	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/atc:test"))
+	must(x.X("kind load --name=atc-test docker-image yokecd/atc:test"))
 
-	require.NoError(t, x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
-	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
+	must(x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
+	must(x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
 
-	require.NoError(t, x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
-	require.NoError(t, x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
+	must(x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
+	must(x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
 
-	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
-	require.NoError(t, err)
+	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
+	if err != nil {
+		panic(err)
+	}
 
-	ctx := internal.WithDebugFlag(context.Background(), func(value bool) *bool { return &value }(true))
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
 
-	commander := yoke.FromK8Client(client)
-
-	atcTakeoffParams := yoke.TakeoffParams{
+	must(commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/atc-installer.wasm",
@@ -96,11 +103,9 @@ func TestAirTrafficController(t *testing.T) {
 		CreateNamespace: true,
 		Wait:            30 * time.Second,
 		Poll:            time.Second,
-	}
+	}))
 
-	require.NoError(t, commander.Takeoff(ctx, atcTakeoffParams))
-
-	wasmcacheTakeoffParams := yoke.TakeoffParams{
+	must(commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "wasmcache",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/backend.v1.wasm",
@@ -115,11 +120,21 @@ func TestAirTrafficController(t *testing.T) {
 			}),
 			Namespace: "atc",
 		},
-		Wait: 30 * time.Second,
-		Poll: time.Second,
-	}
+		CreateNamespace: true,
+		Wait:            30 * time.Second,
+		Poll:            time.Second,
+	}))
 
-	require.NoError(t, commander.Takeoff(ctx, wasmcacheTakeoffParams))
+	os.Exit(m.Run())
+}
+
+func TestAirTrafficController(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), func(value bool) *bool { return &value }(true))
+
+	commander := yoke.FromK8Client(client)
 
 	require.ErrorContains(
 		t,
@@ -553,4 +568,138 @@ func TestAirTrafficController(t *testing.T) {
 
 	_, err = validationWebhookIntf.Get(ctx, typedAirway.CRGroupResource().String(), metav1.GetOptions{})
 	require.True(t, kerrors.IsNotFound(err))
+
+	crdIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    apiextv1.SchemeGroupVersion.Group,
+		Version:  apiextv1.SchemeGroupVersion.Version,
+		Resource: "customresourcedefinitions",
+	})
+
+	_, err = crdIntf.Get(ctx, typedAirway.Name, metav1.GetOptions{})
+	require.True(t, kerrors.IsNotFound(err))
+}
+
+func TestRestarts(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "backend-airway",
+				Flight: yoke.FlightParams{
+					Input: testutils.JsonReader(v1alpha1.Airway{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "backends.examples.com",
+						},
+						Spec: v1alpha1.AirwaySpec{
+							WasmURLs: v1alpha1.WasmURLs{
+								Flight: "http://wasmcache/flight.v1.wasm",
+							},
+							Template: apiextv1.CustomResourceDefinitionSpec{
+								Group: "examples.com",
+								Names: apiextv1.CustomResourceDefinitionNames{
+									Plural:     "backends",
+									Singular:   "backend",
+									ShortNames: []string{"be"},
+									Kind:       "Backend",
+								},
+								Scope: apiextv1.NamespaceScoped,
+								Versions: []apiextv1.CustomResourceDefinitionVersion{
+									{
+										Name:    "v1",
+										Served:  true,
+										Storage: true,
+										Schema: &apiextv1.CustomResourceValidation{
+											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+										},
+									},
+								},
+							},
+						},
+					}),
+				},
+				Wait: 30 * time.Second,
+				Poll: time.Second,
+			}); err != nil {
+				if internal.IsWarning(err) {
+					fmt.Println("WARNING:", err)
+					return nil
+				}
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create airway",
+	)
+
+	fmt.Printf("\n\n\n\n\n\n")
+	time.Sleep(30 * time.Second)
+
+	for _, scale := range []int32{0, 1} {
+		atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, "atc-atc", metav1.GetOptions{})
+		require.NoError(t, err)
+
+		atc.Spec.Replicas = ptr.To(scale)
+
+		_, err = client.Clientset.AppsV1().Deployments("atc").Update(ctx, atc, metav1.UpdateOptions{FieldManager: "yoke"})
+		require.NoError(t, err)
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				pods, err := client.Clientset.CoreV1().Pods("atc").List(ctx, metav1.ListOptions{
+					LabelSelector: "yoke.cd/app=atc",
+				})
+				if err != nil {
+					return err
+				}
+				if count := len(pods.Items); count != int(scale) {
+					return fmt.Errorf("expected %d pods but got %d", scale, count)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"pods did not scale to 0",
+		)
+	}
+
+	// Connection issue when attempting webhook. Therefore wrap in an eventually.
+	// TODO: investigate webhook readiness
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "example",
+				Flight: yoke.FlightParams{
+					Namespace: "default",
+					Input: testutils.JsonReader(backendv1.Backend{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "example",
+						},
+						Spec: backendv1.BackendSpec{
+							Image:    "nginx:latest",
+							Replicas: 1,
+						},
+					}),
+				},
+				Wait: 30 * time.Second,
+				Poll: time.Second,
+			}); err != nil && !internal.IsWarning(err) {
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create backend",
+	)
 }
