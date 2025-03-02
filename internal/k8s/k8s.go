@@ -578,7 +578,7 @@ func (client Client) IsReady(ctx context.Context, resource *unstructured.Unstruc
 		return false, fmt.Errorf("resource not found")
 	}
 
-	return isReady(ctx, state)
+	return client.isReady(ctx, state)
 }
 
 func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstructured.Unstructured, opts WaitOptions) error {

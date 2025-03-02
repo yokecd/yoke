@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // isReady checks for readiness of workload resources, namespaces, and CRDs
-func isReady(_ context.Context, resource *unstructured.Unstructured) (bool, error) {
+func (client Client) isReady(ctx context.Context, resource *unstructured.Unstructured) (bool, error) {
 	gvk := resource.GroupVersionKind()
 
 	switch gvk.Group {
@@ -19,6 +21,12 @@ func isReady(_ context.Context, resource *unstructured.Unstructured) (bool, erro
 			return phase == "Active", nil
 		case "Pod":
 			return meetsConditions(resource, "Available"), nil
+		case "Service":
+			endpoints, err := client.Clientset.CoreV1().Endpoints(resource.GetNamespace()).Get(ctx, resource.GetName(), metav1.GetOptions{})
+			if kerrors.IsNotFound(err) {
+				err = nil
+			}
+			return endpoints != nil && len(endpoints.Subsets) > 0, err
 		}
 	case "apps":
 		switch gvk.Kind {

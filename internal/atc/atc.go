@@ -125,6 +125,61 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
+	modules := atc.moduleCache.Get(typedAirway.Name)
+
+	if typedAirway.DeletionTimestamp != nil {
+		airwayStatus("Terminating", "cleaning up resources")
+
+		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
+			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
+			}
+
+			crdIntf := ctrl.Client(ctx).Dynamic.Resource(schema.GroupVersionResource{
+				Group:    apiextv1.SchemeGroupVersion.Group,
+				Version:  apiextv1.SchemeGroupVersion.Version,
+				Resource: "customresourcedefinitions",
+			})
+
+			foregroundDelete := metav1.DeleteOptions{
+				PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
+			}
+
+			if err := crdIntf.Delete(ctx, typedAirway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
+			}
+
+			for attempt := range 10 {
+				if _, err := crdIntf.Get(ctx, typedAirway.Name, metav1.GetOptions{}); err != nil {
+					if kerrors.IsNotFound(err) {
+						break
+					}
+					return ctrl.Result{}, fmt.Errorf("failed to get CRD associated to airway: %v", err)
+				}
+				if attempt == 9 {
+					return ctrl.Result{}, fmt.Errorf("Termination is hung: crd is not being deleted: manual intervention may be needed.")
+				}
+				time.Sleep(time.Second)
+			}
+
+			if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
+				cleanup()
+			}
+
+			modules.LockAll()
+			modules.Reset()
+			modules.UnlockAll()
+
+			finalizers := slices.Delete(typedAirway.Finalizers, idx, idx+1)
+			airway.SetFinalizers(finalizers)
+
+			if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to remove cleanup finalizer to airway: %v", err)
+			}
+			return ctrl.Result{}, nil
+		}
+	}
+
 	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
 		airwayStatus("InProgress", "Cleaning up previous flight controller")
 		cleanup()
@@ -136,35 +191,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 			return ctrl.Result{}, err
-		}
-	}
-
-	modules := atc.moduleCache.Get(typedAirway.Name)
-
-	if typedAirway.DeletionTimestamp != nil {
-		airwayStatus("Terminating", "cleaning up resources")
-
-		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
-			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
-			}
-
-			// Since deleting the airway does not delete the CRD for safety reasons, we cannot remove
-			// the converter from the module list.
-			//
-			// We can however drop the flight module and reclaim that little piece of the heap.
-			modules.Flight.Lock()
-			defer modules.Flight.Unlock()
-
-			modules.Flight.Close()
-
-			finalizers := slices.Delete(typedAirway.Finalizers, idx, idx+1)
-			airway.SetFinalizers(finalizers)
-
-			if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to remove cleanup finalizer to airway: %v", err)
-			}
-			return ctrl.Result{}, nil
 		}
 	}
 
@@ -340,6 +366,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		cancel()
 		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
 		<-done
+		delete(atc.cleanups, typedAirway.Name)
 	}
 
 	flightGK := schema.GroupKind{

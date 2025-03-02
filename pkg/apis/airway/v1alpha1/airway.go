@@ -6,6 +6,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
@@ -78,10 +79,11 @@ func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
 			Name: airway.Name,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: airway.APIVersion,
-					Kind:       airway.Kind,
-					Name:       airway.Name,
-					UID:        airway.UID,
+					APIVersion:         airway.APIVersion,
+					Kind:               airway.Kind,
+					Name:               airway.Name,
+					UID:                airway.UID,
+					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
 		},
