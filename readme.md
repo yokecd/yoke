@@ -22,6 +22,12 @@ From source:
 go install github.com/yokecd/yoke/cmd/yoke@latest
 ```
 
+With Homebrew:
+
+```bash
+brew install yoke
+```
+
 ## Documentation
 
 Official documentation can be found [here](https://yokecd.github.io/docs)
