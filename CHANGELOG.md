@@ -4,6 +4,14 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-01) atc/v0.9.0 - atc-installer/v0.9.0 - v0.10.0 - yokecd/v0.9.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: breaking change: deletion of airways cascade to crds and their custom resources ([c395f10](https://github.com/yokecd/yoke/commit/c395f1004936a457b954017a2518070cb30e94a8))
+- atc: on controller creation replay initial list of resources ([9d059ef](https://github.com/yokecd/yoke/commit/9d059efaea55b54ea6f32ff8272ed0b59c5772fb))
+
 ## (2025-02-20) latest - v0.9.3
 
 - yoke: atc tower: fix incorrect resource count when fetching readiness ([3c0b7fa](https://github.com/yokecd/yoke/commit/3c0b7fa00c5b5355370c569e6b73acf35c78229d))
