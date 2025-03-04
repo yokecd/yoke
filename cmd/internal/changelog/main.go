@@ -73,8 +73,12 @@ func run() error {
 		if strings.HasPrefix(c.Message, "changelog:") {
 			return nil
 		}
+
+		msg, _, _ := strings.Cut(c.Message, "\n")
+		msg = strings.TrimSpace(msg)
+
 		changelog[len(changelog)-1].Commits = append(changelog[len(changelog)-1].Commits, Commit{
-			Msg: strings.TrimSpace(c.Message),
+			Msg: msg,
 			Sha: c.Hash.String(),
 		})
 		return nil

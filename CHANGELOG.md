@@ -4,6 +4,11 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-03) atc/v0.9.1 - v0.10.1 - yokecd/v0.9.1
+
+- yoke: descent fails with proper message when release not found in namespace ([664422a](https://github.com/yokecd/yoke/commit/664422a1f563c94379f9bf6a2ed1f7f9a8eadd95))
+- readme: add Homebrew installation instructions ([d09865f](https://github.com/yokecd/yoke/commit/d09865fb5da05b1404f2434ebeb5583c9a68ac51))
+
 ## (2025-03-01) atc/v0.9.0 - atc-installer/v0.9.0 - v0.10.0 - yokecd/v0.9.0
 
 > [!CAUTION]
@@ -434,10 +439,7 @@
 
 ## (2024-06-01) v0.0.7
 
-- cmd/yoke: add create namespace and crd logic to takeoff (#20)
-
-* cmd/yoke: add create namespace and crd logic to takeoff
-* pkg/yoke: refactor move all takeoff command logic into commander.Takeoff ([5aebdcc](https://github.com/yokecd/yoke/commit/5aebdccb99ccf63a595052b269598756c4d83faf))
+- cmd/yoke: add create namespace and crd logic to takeoff (#20) ([5aebdcc](https://github.com/yokecd/yoke/commit/5aebdccb99ccf63a595052b269598756c4d83faf))
 
 ## (2024-05-29) yokecd-installer/v0.0.4
 
