@@ -71,6 +71,11 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to lookup current revision resources: %w", err)
 	}
 
+	previousID := release.ActiveIndex() + 1
+	if id := params.RevisionID; id == previousID {
+		return fmt.Errorf("can't descend from %d to %d", previousID, id)
+	}
+
 	for _, stage := range next {
 		if err := commander.k8s.ApplyResources(ctx, stage, k8s.ApplyResourcesOpts{SkipDryRun: true}); err != nil {
 			return fmt.Errorf("failed to apply resources: %w", err)
@@ -90,7 +95,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
 	}
 
-	fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s\n", params.Release)
+	fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s from revision %d to %d\n", params.Release, previousID, params.RevisionID)
 
 	return nil
 }
