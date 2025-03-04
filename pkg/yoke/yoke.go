@@ -90,6 +90,8 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to remove orphaned resources: %w", err)
 	}
 
+	fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s\n", params.Release)
+
 	return nil
 }
 
