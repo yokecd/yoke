@@ -415,8 +415,8 @@ func (client Client) CreateRevision(ctx context.Context, release, ns string, rev
 					internal.LabelRelease: release,
 				},
 				Annotations: map[string]string{
-					internal.AnnotationCreatedAt:      revision.CreatedAt.Format(time.RFC3339),
-					internal.AnnotationActiveAt:       revision.ActiveAt.Format(time.RFC3339),
+					internal.AnnotationCreatedAt:      revision.CreatedAt.Format(time.RFC3339Nano),
+					internal.AnnotationActiveAt:       revision.ActiveAt.Format(time.RFC3339Nano),
 					internal.AnnotationResourceCount:  strconv.Itoa(revision.Resources),
 					internal.AnnotationSourceURL:      revision.Source.Ref,
 					internal.AnnotationSourceChecksum: revision.Source.Checksum,

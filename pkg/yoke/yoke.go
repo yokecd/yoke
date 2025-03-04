@@ -44,9 +44,15 @@ type DescentParams struct {
 func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
 	defer internal.DebugTimer(ctx, "descent")()
 
-	release, err := commander.k8s.GetRelease(ctx, params.Release, params.Namespace)
+	targetNS := cmp.Or(params.Namespace, "default")
+
+	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
+	}
+
+	if len(release.History) == 0 {
+		return fmt.Errorf("no release found %q in namespace %q", params.Release, targetNS)
 	}
 
 	if id := params.RevisionID; id < 1 || id > len(release.History) {
