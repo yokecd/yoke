@@ -25,6 +25,7 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/testutils"
 	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -641,6 +642,78 @@ func TestTakeoffDiffOnly(t *testing.T) {
 
 	require.NoError(t, TakeOff(ctx, params))
 	require.Equal(t, "--- current\n+++ next\n@@ -4 +4 @@\n-    foo: bar\n+    baz: boop\n", stdout.String())
+}
+
+func TestDescent(t *testing.T) {
+	rest, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+	require.NoError(t, err)
+
+	client, err := kubernetes.NewForConfig(rest)
+	require.NoError(t, err)
+
+	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
+
+	require.EqualError(
+		t,
+		Descent(context.Background(), DescentParams{
+			GlobalSettings: settings,
+			DescentParams: yoke.DescentParams{
+				Release:    "foo",
+				RevisionID: 1,
+			},
+		}),
+		`no release found "foo" in namespace "default"`,
+	)
+
+	for _, value := range []string{"a", "b"} {
+		require.NoError(
+			t,
+			TakeOff(context.Background(), TakeoffParams{
+				GlobalSettings: settings,
+				TakeoffParams: yoke.TakeoffParams{
+					Release: "foo",
+					Flight: yoke.FlightParams{
+						Input: testutils.JsonReader(&corev1.ConfigMap{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: "v1",
+								Kind:       "ConfigMap",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "foo",
+							},
+							Data: map[string]string{"key": value},
+						}),
+					},
+				},
+			}),
+		)
+	}
+
+	configMap, err := client.CoreV1().ConfigMaps("default").Get(context.Background(), "foo", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "b", configMap.Data["key"])
+
+	require.NoError(
+		t,
+		Descent(context.Background(), DescentParams{
+			GlobalSettings: settings,
+			DescentParams: yoke.DescentParams{
+				Release:    "foo",
+				RevisionID: 1,
+			},
+		}),
+	)
+
+	configMap, err = client.CoreV1().ConfigMaps("default").Get(context.Background(), "foo", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "a", configMap.Data["key"])
+
+	require.NoError(t, Mayday(context.Background(), MaydayParams{
+		GlobalSettings: settings,
+		Release:        "foo",
+	}))
 }
 
 func TestTurbulenceFix(t *testing.T) {
