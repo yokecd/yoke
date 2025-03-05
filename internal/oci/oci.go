@@ -10,7 +10,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/davidmdm/x/xerr"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
@@ -18,22 +17,28 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+
+	"github.com/davidmdm/x/xerr"
+
 	"github.com/yokecd/yoke/internal"
 )
 
 const (
 	configMediaType = "application/vnd.yoke.config.v1+json"
-	wasmMediaType   = "application/vnd.yoke.wasm.v1.gzip"
+	wasmMediaType   = "application/vnd.yoke.wasm.gzip"
 	ociScheme       = "oci://"
 )
 
-type PushArtfiactParams struct {
+type PushArtifactParams struct {
 	URL      string
 	Data     []byte
 	Insecure bool
+	Tags     []string
 }
 
-func PushArtifact(ctx context.Context, params PushArtfiactParams) (digestURL string, err error) {
+func PushArtifact(ctx context.Context, params PushArtifactParams) (digestURL string, err error) {
+	defer internal.DebugTimer(ctx, "push artifact")()
+
 	ociURL, ok := strings.CutPrefix(params.URL, ociScheme)
 	if !ok {
 		return "", fmt.Errorf("url must start with oci scheme: oci:// but got: %s", ociURL)
@@ -72,6 +77,12 @@ func PushArtifact(ctx context.Context, params PushArtfiactParams) (digestURL str
 		return "", err
 	}
 
+	for _, tag := range params.Tags {
+		if err := crane.Tag(ref.String(), tag, opts...); err != nil {
+			return "", fmt.Errorf("failed to apply tag: %s: %w", tag, err)
+		}
+	}
+
 	digest, err := img.Digest()
 	if err != nil {
 		return "", fmt.Errorf("failed to get digest from image: %w", err)
@@ -86,6 +97,8 @@ type PullArtifactParams struct {
 }
 
 func PullArtifact(ctx context.Context, params PullArtifactParams) (artifact []byte, err error) {
+	defer internal.DebugTimer(ctx, "pull artifact")()
+
 	ociURL, ok := strings.CutPrefix(params.URL, ociScheme)
 	if !ok {
 		return nil, fmt.Errorf("url must start with oci scheme: oci:// but got: %s", ociURL)
@@ -112,7 +125,7 @@ func PullArtifact(ctx context.Context, params PullArtifactParams) (artifact []by
 	}
 
 	if manifest.Config.MediaType != configMediaType {
-		return nil, fmt.Errorf("unexpected manifest media type got: %w", manifest.MediaType)
+		return nil, fmt.Errorf("unexpected manifest media type got: %s", manifest.MediaType)
 	}
 
 	wasmLayer, ok := internal.Find(manifest.Layers, func(desc gcrv1.Descriptor) bool {
@@ -134,7 +147,7 @@ func PullArtifact(ctx context.Context, params PullArtifactParams) (artifact []by
 		}
 	}()
 
-	rc, err := layer.Uncompressed()
+	rc, err := layer.Compressed()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get layer's data stream: %w", err)
 	}

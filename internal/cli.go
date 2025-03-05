@@ -16,8 +16,9 @@ func CutArgs(args []string) ([]string, []string) {
 }
 
 var (
-	cyan   = ansi.MakeStyle(ansi.FgCyan)
-	yellow = ansi.MakeStyle(ansi.FgYellow)
+	cyan    = ansi.MakeStyle(ansi.FgCyan)
+	yellow  = ansi.MakeStyle(ansi.FgYellow)
+	magenta = ansi.MakeStyle(ansi.FgMagenta)
 )
 
 func Colorize(value string) string {
@@ -33,6 +34,8 @@ func Colorize(value string) string {
 			lines[i] = cyan.Sprint(line)
 		case "!yellow":
 			lines[i] = yellow.Sprint(line)
+		case "!magenta":
+			lines[i] = magenta.Sprint(line)
 		default:
 			lines[i] = line
 		}
