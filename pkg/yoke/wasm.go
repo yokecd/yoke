@@ -17,6 +17,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/oci"
 	"github.com/yokecd/yoke/internal/wasi"
 )
 
@@ -32,8 +33,15 @@ func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {
 		return wasm, nil
 	}
 
-	if !slices.Contains([]string{"http", "https"}, uri.Scheme) {
-		return nil, errors.New("unsupported protocol: %s - http(s) supported only")
+	if !slices.Contains([]string{"http", "https", "oci"}, uri.Scheme) {
+		return nil, errors.New("unsupported protocol: %s - http(s) and oci supported only")
+	}
+
+	if uri.Scheme == "oci" {
+		return oci.PullArtifact(ctx, oci.PullArtifactParams{
+			URL:      uri.String(),
+			Insecure: true, // TODO: check if this is an ok default for pulling???
+		})
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", uri.String(), nil)

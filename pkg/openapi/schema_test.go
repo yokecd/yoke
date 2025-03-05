@@ -97,7 +97,7 @@ func TestAirwaySchema(t *testing.T) {
 	require.NoError(t, err)
 
 	if golden {
-		require.NoError(t, os.WriteFile("flight.golden.json", data, 0644))
+		require.NoError(t, os.WriteFile("flight.golden.json", data, 0o644))
 	}
 
 	require.JSONEq(t, string(data), flight)
