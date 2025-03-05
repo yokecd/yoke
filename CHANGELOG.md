@@ -4,6 +4,11 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-05) atc/v0.9.2 - v0.10.2 - yokecd/v0.9.2
+
+- yoke/descent: add check for target revision id equals active revision id ([a4a5df4](https://github.com/yokecd/yoke/commit/a4a5df40d0183d76362826ef084294d924c8c959))
+- yoke/descent: add success message ([fee5ece](https://github.com/yokecd/yoke/commit/fee5ece4214ebc07731a75fcc1c00ab488892492))
+
 ## (2025-03-03) atc/v0.9.1 - v0.10.1 - yokecd/v0.9.1
 
 - yoke: descent fails with proper message when release not found in namespace ([664422a](https://github.com/yokecd/yoke/commit/664422a1f563c94379f9bf6a2ed1f7f9a8eadd95))
