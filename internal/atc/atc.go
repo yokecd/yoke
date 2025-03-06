@@ -260,6 +260,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				Properties: apiextv1.JSONSchemaDefinitions{},
 			}
 		}
+		if version.Schema.OpenAPIV3Schema.Properties == nil {
+			version.Schema.OpenAPIV3Schema.Properties = map[string]apiextv1.JSONSchemaProps{}
+		}
 		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[flight.Status]())
 	}
 

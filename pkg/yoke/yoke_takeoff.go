@@ -230,6 +230,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			return fmt.Errorf("failed to apply resources: %w", err)
 		}
 
+		if params.DryRun {
+			// If we are running in dry-run mode, we are not actually applying resources
+			// so we do not want to wait for them to become ready.
+			continue
+		}
+
 		waitOpts := k8s.WaitOptions{
 			Timeout:  params.Wait,
 			Interval: params.Poll,
