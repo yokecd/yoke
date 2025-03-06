@@ -224,7 +224,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if value.URL == "" {
 				continue
 			}
-			data, err := yoke.LoadWasm(ctx, value.URL, typedAirway.Spec.CrossNamespace)
+			data, err := yoke.LoadWasm(ctx, value.URL, typedAirway.Spec.Insecure)
 			if err != nil {
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
