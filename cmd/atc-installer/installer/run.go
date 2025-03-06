@@ -27,14 +27,15 @@ import (
 )
 
 type Config struct {
-	Labels             map[string]string `json:"labels"`
-	Annotations        map[string]string `json:"annotations"`
-	Image              string            `json:"image"`
-	Version            string            `json:"version"`
-	Port               int               `json:"port"`
-	ServiceAccountName string            `json:"serviceAccountName"`
-	ImagePullPolicy    corev1.PullPolicy `json:"ImagePullPolicy"`
-	GenerateTLS        bool              `json:"generateTLS"`
+	Labels                 map[string]string `json:"labels"`
+	Annotations            map[string]string `json:"annotations"`
+	Image                  string            `json:"image"`
+	Version                string            `json:"version"`
+	Port                   int               `json:"port"`
+	ServiceAccountName     string            `json:"serviceAccountName"`
+	ImagePullPolicy        corev1.PullPolicy `json:"ImagePullPolicy"`
+	GenerateTLS            bool              `json:"generateTLS"`
+	DockerConfigSecretName string            `json:"DockerConfigSecretName"`
 }
 
 var (
@@ -291,6 +292,7 @@ func Run(cfg Config) (flight.Stages, error) {
 								{Name: "SVC_NAME", Value: svc.Name},
 								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
 								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
+								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
