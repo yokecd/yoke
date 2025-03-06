@@ -8,18 +8,25 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/davidmdm/x/xcontext"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
+	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	retryWatcher "k8s.io/client-go/tools/watch"
 
 	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/atc/wasm"
+	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 )
@@ -78,7 +85,7 @@ func run() (err error) {
 
 	defer wg.Wait()
 
-	e := make(chan error, 2)
+	e := make(chan error, 3)
 
 	go func() {
 		wg.Wait()
@@ -87,6 +94,64 @@ func run() (err error) {
 
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
+
+	go func() {
+		defer wg.Done()
+
+		if cfg.DockerConfigSecretName == "" {
+			return
+		}
+
+		if err := os.MkdirAll(filepath.Join(home.Dir, ".docker"), 0755); err != nil {
+			e <- fmt.Errorf("failed to ensure docker config directory: %w", err)
+		}
+
+		targetPath := filepath.Join(home.Dir, ".docker/config.json")
+
+		secretIntf := client.Clientset.CoreV1().Secrets(cfg.Service.Namespace)
+
+		secrets, err := secretIntf.List(ctx, metav1.ListOptions{
+			FieldSelector: "metadata.name=" + cfg.DockerConfigSecretName,
+		})
+		if err != nil {
+			e <- fmt.Errorf("failed to lookup docker config secret: %w", err)
+		}
+
+		if len(secrets.Items) > 0 {
+			if err := os.WriteFile(targetPath, secrets.Items[0].Data[".dockerconfigjson"], 0644); err != nil {
+				e <- fmt.Errorf("failed to write docker config: %w", err)
+				return
+			}
+		}
+
+		watcher, err := retryWatcher.NewRetryWatcher(cmp.Or(secrets.ResourceVersion, "1"), &kcache.ListWatch{
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+				return secretIntf.Watch(ctx, opts)
+			},
+		})
+		if err != nil {
+			e <- fmt.Errorf("failed to watch for dockerconfig secrets: %w", err)
+			return
+		}
+
+		// TODO: consider is this should crash the service instead of logging errors?
+		for evt := range watcher.ResultChan() {
+			switch evt.Type {
+			case watch.Added, watch.Modified:
+				if err := os.WriteFile(targetPath, evt.Object.(*corev1.Secret).Data[".dockerconfigjson"], 0644); err != nil {
+					logger.Error("failed to write docker config", "error", err)
+				}
+			case watch.Deleted:
+				if err := os.Remove(targetPath); err != nil {
+					logger.Error("failed to remove dockerconfig json", "error", err)
+				}
+			case watch.Error:
+				logger.Error("docker config secret watcher sent error", "error", evt)
+			}
+		}
+
+		logger.Warn("docker config secret watcher exited unexpectedly", err)
+	}()
 
 	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
 
