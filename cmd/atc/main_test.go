@@ -640,9 +640,6 @@ func TestRestarts(t *testing.T) {
 		"failed to create airway",
 	)
 
-	fmt.Printf("\n\n\n\n\n\n")
-	time.Sleep(30 * time.Second)
-
 	for _, scale := range []int32{0, 1} {
 		atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, "atc-atc", metav1.GetOptions{})
 		require.NoError(t, err)
@@ -701,5 +698,127 @@ func TestRestarts(t *testing.T) {
 		time.Second,
 		30*time.Second,
 		"failed to create backend",
+	)
+}
+
+func TestCrossNamespace(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	type EmptyCRD struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+	}
+
+	airwayWithCrossNamespace := func(crossNamespace bool) v1alpha1.Airway {
+		return v1alpha1.Airway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "tests.examples.com",
+			},
+			Spec: v1alpha1.AirwaySpec{
+				WasmURLs: v1alpha1.WasmURLs{
+					Flight: "http://wasmcache/crossnamespace.wasm",
+				},
+				CrossNamespace: crossNamespace,
+				Template: apiextv1.CustomResourceDefinitionSpec{
+					Group: "examples.com",
+					Names: apiextv1.CustomResourceDefinitionNames{
+						Plural:   "tests",
+						Singular: "test",
+						Kind:     "Test",
+					},
+					Scope: apiextv1.NamespaceScoped,
+					Versions: []apiextv1.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextv1.CustomResourceValidation{
+								OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "crossnamespace-airway",
+				Flight:  yoke.FlightParams{Input: testutils.JsonReader(airwayWithCrossNamespace(false))},
+				Wait:    5 * time.Second,
+				Poll:    time.Second,
+			}); err != nil && !internal.IsWarning(err) {
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create airway",
+	)
+
+	for _, ns := range []string{"foo", "bar"} {
+		require.NoError(t, client.EnsureNamespace(context.Background(), ns))
+	}
+
+	testIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "tests",
+		}).
+		Namespace("default")
+
+	emptyTest := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "examples.com/v1",
+			"kind":       "Test",
+			"metadata": map[string]any{
+				"name": "test",
+			},
+		},
+	}
+
+	_, err = testIntf.Create(ctx, emptyTest, metav1.CreateOptions{})
+	require.ErrorContains(t, err, "Multiple namespaces detected (if desired enable multinamespace releases)")
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "crossnamespace-airway",
+				Flight:  yoke.FlightParams{Input: testutils.JsonReader(airwayWithCrossNamespace(true))},
+				Wait:    30 * time.Second,
+				Poll:    time.Second,
+			}); err != nil && !internal.IsWarning(err) {
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create airway",
+	)
+
+	_, err = testIntf.Create(ctx, emptyTest, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		client.Dynamic.
+			Resource(schema.GroupVersionResource{
+				Group:    "yoke.cd",
+				Version:  "v1alpha1",
+				Resource: "airways",
+			}).
+			Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}),
 	)
 }
