@@ -21,7 +21,7 @@ import (
 	"github.com/yokecd/yoke/internal/wasi"
 )
 
-func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {
+func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err error) {
 	defer internal.DebugTimer(ctx, "load wasm")()
 
 	uri, _ := url.Parse(path)
@@ -40,7 +40,7 @@ func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {
 	if uri.Scheme == "oci" {
 		return oci.PullArtifact(ctx, oci.PullArtifactParams{
 			URL:      uri.String(),
-			Insecure: true, // TODO: check if this is an ok default for pulling???
+			Insecure: insecure,
 		})
 	}
 
@@ -111,7 +111,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 		if flight.Module != nil {
 			return nil, nil
 		}
-		return LoadWasm(ctx, flight.Path)
+		return LoadWasm(ctx, flight.Path, flight.Insecure)
 	}()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)
