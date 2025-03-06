@@ -26,6 +26,9 @@
             "type": "string"
           }
         },
+        "skipAdmissionWebhook": {
+          "type": "boolean"
+        },
         "template": {
           "type": "object",
           "required": [

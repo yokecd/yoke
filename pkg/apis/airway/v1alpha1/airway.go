@@ -45,6 +45,14 @@ type AirwaySpec struct {
 	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
 	CrossNamespace bool `json:"crossNamespace,omitempty"`
 
+	// SkipAdmissionWebhook bypasses admission webhook for the airway's CRs.
+	// The admission webhook validates that the resources that would be created pass a dry-run phase.
+	// However in the case of some multi-stage implementations, stages that depend on prior stages cannot pass dry-run.
+	// In this case there is no option but to skip the admission webhook.
+	//
+	// Therefore multi-stage Airways are not generally recommended.
+	SkipAdmissionWebhook bool `json:"skipAdmissionWebhook,omitempty"`
+
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`

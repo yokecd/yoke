@@ -154,6 +154,20 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
+		if airway.Spec.SkipAdmissionWebhook {
+			review.Response = &admissionv1.AdmissionResponse{
+				UID:     review.Request.UID,
+				Allowed: true,
+				Result:  &metav1.Status{Status: metav1.StatusSuccess, Message: "admission skipped"},
+			}
+			review.Request = nil
+
+			addRequestAttrs(r.Context(), slog.Bool("skipped", true))
+
+			json.NewEncoder(w).Encode(&review)
+			return
+		}
+
 		object, _, err := unstructured.NestedFieldNoCopy(cr.Object, airway.Spec.ObjectPath...)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get object path: %v", err), http.StatusInternalServerError)
