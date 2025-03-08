@@ -32,6 +32,7 @@ type ExecParams struct {
 	Module   *Module
 	Release  string
 	Stdin    io.Reader
+	Stderr   io.Writer
 	Args     []string
 	Env      map[string]string
 	CacheDir string
@@ -68,10 +69,22 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		stderr bytes.Buffer
 	)
 
+	defer func() {
+		if params.Stderr == nil || len(stderr.Bytes()) == 0 {
+			return
+		}
+		params.Stderr.Write([]byte("---\n"))
+	}()
+
 	moduleCfg := wazero.
 		NewModuleConfig().
 		WithStdout(&stdout).
-		WithStderr(&stderr).
+		WithStderr(func() io.Writer {
+			if params.Stderr != nil {
+				return io.MultiWriter(params.Stderr, &stderr)
+			}
+			return &stderr
+		}()).
 		WithRandSource(rand.Reader).
 		WithSysNanosleep().
 		WithSysNanotime().
@@ -89,6 +102,9 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 	defer internal.DebugTimer(ctx, "execute wasm module")()
 
 	if err := mod.Instantiate(ctx, moduleCfg); err != nil {
+		if params.Stderr != nil {
+			return nil, fmt.Errorf("failed to instantiate module: %w", err)
+		}
 		details := stderr.String()
 		if details == "" {
 			details = "(no output captured on stderr)"
