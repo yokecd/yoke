@@ -29,10 +29,14 @@ import (
 type FlightParams struct {
 	Path                string
 	Module              *wasi.Module
-	Input               io.Reader
 	Args                []string
 	Namespace           string
 	CompilationCacheDir string
+
+	// Stderr is the writer that the wasm module will use to write to.
+	// If not provided it is internally buffered and only surfaced on non zero exit codes.
+	Stderr io.Writer
+	Input  io.Reader
 }
 
 type TakeoffParams struct {
