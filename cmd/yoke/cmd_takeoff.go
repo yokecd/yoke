@@ -94,5 +94,9 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 	if err != nil {
 		return err
 	}
+
+	// We want the CLI to stream stderr back to the user instead of buffering.
+	params.TakeoffParams.Flight.Stderr = internal.Stderr(ctx)
+
 	return commander.Takeoff(ctx, params.TakeoffParams)
 }

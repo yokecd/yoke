@@ -30,10 +30,15 @@ type FlightParams struct {
 	Path                string
 	Insecure            bool
 	Module              *wasi.Module
-	Input               io.Reader
 	Args                []string
 	Namespace           string
 	CompilationCacheDir string
+
+	// Stderr is the writer that will be exposed to the wasm module as os.Stderr.
+	// If not provided all stderr writes in the wasm module will be buffered instead
+	// and surfaced to the user only on error exit codes.
+	Stderr io.Writer
+	Input  io.Reader
 }
 
 type TakeoffParams struct {
