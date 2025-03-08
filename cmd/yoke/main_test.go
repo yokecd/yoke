@@ -823,9 +823,12 @@ func TestLookupResource(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
+	var stderr bytes.Buffer
+	ctx := internal.WithStderr(background, &stderr)
+
 	require.ErrorContains(
 		t,
-		TakeOff(background, TakeoffParams{
+		TakeOff(ctx, TakeoffParams{
 			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
 			TakeoffParams: yoke.TakeoffParams{
 				Release: "foo",
@@ -837,8 +840,10 @@ func TestLookupResource(t *testing.T) {
 				Poll: time.Second,
 			},
 		}),
-		"access to the cluster has not been granted for this flight invocation",
+		"exit_code(1)",
 	)
+
+	require.Contains(t, stderr.String(), "access to the cluster has not been granted for this flight invocation")
 
 	params := TakeoffParams{
 		GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
@@ -872,9 +877,11 @@ func TestLookupResource(t *testing.T) {
 	require.True(t, internal.IsWarning(err), "should be warning but got: %v", err)
 	require.EqualError(t, err, "resources are the same as previous revision: skipping takeoff")
 
+	stderr.Reset()
+
 	require.ErrorContains(
 		t,
-		TakeOff(background, TakeoffParams{
+		TakeOff(ctx, TakeoffParams{
 			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
 			TakeoffParams: yoke.TakeoffParams{
 				Release:         "foo",
@@ -889,8 +896,10 @@ func TestLookupResource(t *testing.T) {
 				Poll: time.Second,
 			},
 		}),
-		"cannot access resource outside of target release ownership",
+		"exit_code(1)",
 	)
+
+	require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
 }
 
 func TestOciFlight(t *testing.T) {

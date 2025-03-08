@@ -122,6 +122,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 		Module:  flight.Module,
 		Release: release,
 		Stdin:   flight.Input,
+		Stderr:  flight.Stderr,
 		Args:    flight.Args,
 		Env: map[string]string{
 			"YOKE_RELEASE":   release,
