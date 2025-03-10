@@ -117,6 +117,10 @@ func run() (err error) {
 			e <- fmt.Errorf("failed to lookup docker config secret: %w", err)
 		}
 
+		if len(secrets.Items) == 0 {
+			logger.Warn("no docker config found", "secretName", cfg.DockerConfigSecretName)
+		}
+
 		if len(secrets.Items) > 0 {
 			if err := os.WriteFile(targetPath, secrets.Items[0].Data[".dockerconfigjson"], 0644); err != nil {
 				e <- fmt.Errorf("failed to write docker config: %w", err)
@@ -126,6 +130,7 @@ func run() (err error) {
 
 		watcher, err := retryWatcher.NewRetryWatcher(cmp.Or(secrets.ResourceVersion, "1"), &kcache.ListWatch{
 			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+				opts.FieldSelector = "metadata.name=" + cfg.DockerConfigSecretName
 				return secretIntf.Watch(ctx, opts)
 			},
 		})
