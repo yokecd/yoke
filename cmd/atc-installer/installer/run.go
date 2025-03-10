@@ -35,7 +35,7 @@ type Config struct {
 	ServiceAccountName     string            `json:"serviceAccountName"`
 	ImagePullPolicy        corev1.PullPolicy `json:"ImagePullPolicy"`
 	GenerateTLS            bool              `json:"generateTLS"`
-	DockerConfigSecretName string            `json:"DockerConfigSecretName"`
+	DockerConfigSecretName string            `json:"dockerConfigSecretName"`
 }
 
 var (
