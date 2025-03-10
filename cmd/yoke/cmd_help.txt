@@ -12,6 +12,7 @@ descent      (aliases: down, restore)
 mayday       (aliases: delete)
 blackbox     (aliases: inspect)
 turbulence   (aliases: drift)
+stow         (aliases: push)
 atc
 version
 
