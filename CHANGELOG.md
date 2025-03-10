@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-10) v0.10.5
+
+- yoke/cmd: add stow command to top level help text ([a634f43](https://github.com/yokecd/yoke/commit/a634f436e7e47bb861c2614021c79c21642fad4e))
+
 ## (2025-03-10) atc/v0.9.4 - atc-installer/v0.9.2 - v0.10.4 - yokecd/v0.9.4 - yokecd-installer/v0.9.0
 
 - atc: extractor docker-watcher into its own component with more observability ([b121b5a](https://github.com/yokecd/yoke/commit/b121b5ac4ef3bc9f9250770f495aca142a550c3e))
