@@ -16,6 +16,8 @@ type Config struct {
 
 	Service atc.ServiceDef
 
+	DockerConfigSecretName string
+
 	TLS TLSConfig
 }
 
@@ -46,6 +48,8 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Service.Name, "SVC_NAME", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.Service.Namespace, "SVC_NAMESPACE", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.Service.Port, "SVC_PORT", conf.RequiredNonEmpty[int32]())
+
+	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
 
 	if err := parser.Parse(); err != nil {
 		return nil, err

@@ -16,6 +16,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func main() {
@@ -105,6 +106,14 @@ func run() error {
 				return err
 			}
 			return Turbulence(ctx, *params)
+		}
+	case "stow", "push":
+		{
+			params, err := GetStowParams(subcmdArgs)
+			if err != nil {
+				return err
+			}
+			return yoke.Stow(ctx, *params)
 		}
 	case "version":
 		{

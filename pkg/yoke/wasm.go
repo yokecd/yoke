@@ -17,10 +17,11 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/oci"
 	"github.com/yokecd/yoke/internal/wasi"
 )
 
-func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {
+func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err error) {
 	defer internal.DebugTimer(ctx, "load wasm")()
 
 	uri, _ := url.Parse(path)
@@ -32,8 +33,15 @@ func LoadWasm(ctx context.Context, path string) (wasm []byte, err error) {
 		return wasm, nil
 	}
 
-	if !slices.Contains([]string{"http", "https"}, uri.Scheme) {
-		return nil, errors.New("unsupported protocol: %s - http(s) supported only")
+	if !slices.Contains([]string{"http", "https", "oci"}, uri.Scheme) {
+		return nil, errors.New("unsupported protocol: %s - http(s) and oci supported only")
+	}
+
+	if uri.Scheme == "oci" {
+		return oci.PullArtifact(ctx, oci.PullArtifactParams{
+			URL:      uri.String(),
+			Insecure: insecure,
+		})
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", uri.String(), nil)
@@ -103,7 +111,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 		if flight.Module != nil {
 			return nil, nil
 		}
-		return LoadWasm(ctx, flight.Path)
+		return LoadWasm(ctx, flight.Path, flight.Insecure)
 	}()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)

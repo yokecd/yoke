@@ -20,6 +20,9 @@
         "fixDriftInterval": {
           "type": "string"
         },
+        "insecure": {
+          "type": "boolean"
+        },
         "objectPath": {
           "type": "array",
           "items": {

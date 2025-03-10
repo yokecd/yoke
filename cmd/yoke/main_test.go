@@ -892,3 +892,43 @@ func TestLookupResource(t *testing.T) {
 		"cannot access resource outside of target release ownership",
 	)
 }
+
+func TestOciFlight(t *testing.T) {
+	require.NoError(
+		t,
+		x.X(
+			"go build -o ./test_output/basic.wasm ../../examples/basic",
+			x.Env("GOOS=wasip1", "GOARCH=wasm"),
+		),
+	)
+
+	require.NoError(t, x.X("docker rm -f registry"))
+	require.NoError(t, x.X("docker run -d -p 5001:5000 --name registry registry:2.7"))
+
+	require.NoError(t, yoke.Stow(context.Background(), yoke.StowParams{
+		WasmFile: "./test_output/basic.wasm",
+		URL:      "oci://localhost:5001/test:v1",
+		Tags:     []string{"alt"},
+	}))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	ctx := internal.WithStdout(context.Background(), io.Discard)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		SendToStdout: true,
+		Release:      "registry",
+		Flight: yoke.FlightParams{
+			Path: "oci://localhost:5001/test:v1",
+		},
+	}))
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "registry",
+		Flight: yoke.FlightParams{
+			Path: "oci://localhost:5001/test:alt",
+		},
+	}))
+}

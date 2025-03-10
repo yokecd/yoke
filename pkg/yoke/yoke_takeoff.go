@@ -28,6 +28,7 @@ import (
 
 type FlightParams struct {
 	Path                string
+	Insecure            bool
 	Module              *wasi.Module
 	Input               io.Reader
 	Args                []string

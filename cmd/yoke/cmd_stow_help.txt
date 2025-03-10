@@ -1,0 +1,18 @@
+!yellow yoke stow
+
+!magenta ** Authentication with private registries is done via your local keychain -> docker login <registry> **
+
+!cyan Usage:
+  yoke stow [flags] <wasm-file> <oci-url>
+
+!cyan Aliases:
+  push
+
+!cyan Examples:
+  # push a wasm artifact to a registry
+  yoke stow ./main.wasm oci://ghcr.io/org/example
+
+  # disable tls
+  yoke stow -insecure ./main.wasm oci://localhost:5000/example
+
+!cyan Flags:

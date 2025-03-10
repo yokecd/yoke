@@ -45,6 +45,9 @@ type AirwaySpec struct {
 	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
 	CrossNamespace bool `json:"crossNamespace,omitempty"`
 
+	// Insecure only applies to flights using OCI urls. Allows image references to be fetched without TLS verification.
+	Insecure bool `json:"insecure,omitempty"`
+
 	// SkipAdmissionWebhook bypasses admission webhook for the airway's CRs.
 	// The admission webhook validates that the resources that would be created pass a dry-run phase.
 	// However in the case of some multi-stage implementations, stages that depend on prior stages cannot pass dry-run.
