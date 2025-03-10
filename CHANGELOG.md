@@ -4,6 +4,23 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-10) atc/v0.9.4 - atc-installer/v0.9.2 - v0.10.4 - yokecd/v0.9.4 - yokecd-installer/v0.9.0
+
+- atc: extractor docker-watcher into its own component with more observability ([b121b5a](https://github.com/yokecd/yoke/commit/b121b5ac4ef3bc9f9250770f495aca142a550c3e))
+- atc: docker config secret retry watcher sets fieldSelector ([3de7239](https://github.com/yokecd/yoke/commit/3de7239b7c3db237d544bfa03d9e22ecd5eac142))
+- atc-installer: use camel-case for dockerConfigSecretName ([1c6f29a](https://github.com/yokecd/yoke/commit/1c6f29ab0021ecaa10b57310af28f382d6b83623))
+- atc: basic support for docker config secret loading and watching ([d6b6343](https://github.com/yokecd/yoke/commit/d6b6343272cb669f15a197ae34e1635a6ec1bedf))
+- yoke/takeoff: add insecure flag for disable tls for oci images ([0af0aa9](https://github.com/yokecd/yoke/commit/0af0aa98042a41ed9c99b6a68a992e269aa0a899))
+- yoke: add oci test ([b224238](https://github.com/yokecd/yoke/commit/b2242386db83ea2546c92c00b11ae52f967555c6))
+- yoke/stow: add yoke stow command for push wasm artifacts to an oci registry ([13cd570](https://github.com/yokecd/yoke/commit/13cd57059df975274fef5947ce7efd006d88d6da))
+- internal/oci: add oci package to push and pull yoke wasm artifacts ([7d89461](https://github.com/yokecd/yoke/commit/7d8946103b03e7d54b2d3aebc4bc27f7fd23cb41))
+
+## (2025-03-05) atc/v0.9.3 - atc-installer/v0.9.1 - v0.10.3 - yokecd/v0.9.3
+
+- atc: allow airways to skip admission review if configured ([ca69888](https://github.com/yokecd/yoke/commit/ca69888cba2ea273d5405c5e9c82245abf7d7bc5))
+- atc: add crossnamespace test ([57577d7](https://github.com/yokecd/yoke/commit/57577d7ab10934f1f5799ee97c97edeb029fca57))
+- atc: admission webhook: propagate cluster-access and cross-namespace options during dry-run ([4722a0b](https://github.com/yokecd/yoke/commit/4722a0bb8a4ba00d99b04a5698a701020eace7bd))
+
 ## (2025-03-05) atc/v0.9.2 - v0.10.2 - yokecd/v0.9.2
 
 - yoke/descent: add check for target revision id equals active revision id ([a4a5df4](https://github.com/yokecd/yoke/commit/a4a5df40d0183d76362826ef084294d924c8c959))
