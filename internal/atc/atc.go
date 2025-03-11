@@ -532,8 +532,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		commander := yoke.FromK8Client(ctrl.Client(ctx))
 
+		release := ReleaseName(resource)
+
 		takeoffParams := yoke.TakeoffParams{
-			Release: ReleaseName(resource),
+			Release: release,
 			Flight: yoke.FlightParams{
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
@@ -574,7 +576,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if params.Airway.Spec.FixDriftInterval > 0 {
 			flightStatus("InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
-				Release: event.String(),
+				Release: release,
 				Fix:     true,
 				Silent:  true,
 			}); err != nil && !internal.IsWarning(err) {
