@@ -156,6 +156,10 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 		return fmt.Errorf("failed to get revisions for release %s: %w", params.Release, err)
 	}
 
+	if len(release.History) == 0 {
+		return fmt.Errorf("release not found for %q in namespace %q", params.Release, targetNS)
+	}
+
 	stages, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get current resources: %w", err)
