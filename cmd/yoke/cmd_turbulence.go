@@ -68,12 +68,5 @@ func Turbulence(ctx context.Context, params TurbulenceParams) error {
 	if err != nil {
 		return err
 	}
-	return commander.Turbulence(ctx, yoke.TurbulenceParams{
-		Release:       params.Release,
-		Context:       params.Context,
-		ConflictsOnly: params.ConflictsOnly,
-		Fix:           params.Fix,
-		Color:         params.Color,
-		Namespace:     params.Namespace,
-	})
+	return commander.Turbulence(ctx, params.TurbulenceParams)
 }
