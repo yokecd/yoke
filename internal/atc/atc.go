@@ -102,7 +102,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			"status",
 		)
 
-		updated, err := airwayIntf.UpdateStatus(ctx, airway.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
+		updated, err := airwayIntf.UpdateStatus(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
 			return
