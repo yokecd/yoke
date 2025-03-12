@@ -576,9 +576,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if params.Airway.Spec.FixDriftInterval > 0 {
 			flightStatus("InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
-				Release: release,
-				Fix:     true,
-				Silent:  true,
+				Release:   release,
+				Namespace: event.Namespace,
+				Fix:       true,
+				Silent:    true,
 			}); err != nil && !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to fix drift: %w", err)
 			}
