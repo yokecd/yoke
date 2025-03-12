@@ -4,6 +4,18 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-11) atc/v0.9.6 - latest - v0.10.7 - yokecd/v0.9.6
+
+- cmd/turbulence: use embedded TurbulenceParams instead of field plumbing ([83aaae0](https://github.com/yokecd/yoke/commit/83aaae087595fbc3515936fe44d03827a5512d95))
+- pkg/yoke/yoke.go add type checking ([ab53e7c](https://github.com/yokecd/yoke/commit/ab53e7c37a6461dd20d805d0864f3ed32f0b1bb0))
+
+## (2025-03-11) atc/v0.9.5 - v0.10.6 - yokecd/v0.9.5
+
+- atc: pass event namespace to turbulence ([6b4fc2d](https://github.com/yokecd/yoke/commit/6b4fc2d7e0fd62393d8e1a741905b5f258acfd29))
+- atc: do not deep copy on status update ([961347e](https://github.com/yokecd/yoke/commit/961347e0e7f10b4a6442868f1b72880e56499cea))
+- atc: add fixDriftInterval test ([0a85eaf](https://github.com/yokecd/yoke/commit/0a85eaf007265478654e1b1e97f67a9d8cb7bdfc))
+- atc: fixDriftInterval must use proper fully qualified release name ([b124727](https://github.com/yokecd/yoke/commit/b12472788a5cc67ae1dd287d7754803c134136eb))
+
 ## (2025-03-10) v0.10.5
 
 - yoke/cmd: add stow command to top level help text ([a634f43](https://github.com/yokecd/yoke/commit/a634f436e7e47bb861c2614021c79c21642fad4e))
@@ -43,7 +55,7 @@
 - atc: breaking change: deletion of airways cascade to crds and their custom resources ([c395f10](https://github.com/yokecd/yoke/commit/c395f1004936a457b954017a2518070cb30e94a8))
 - atc: on controller creation replay initial list of resources ([9d059ef](https://github.com/yokecd/yoke/commit/9d059efaea55b54ea6f32ff8272ed0b59c5772fb))
 
-## (2025-02-20) latest - v0.9.3
+## (2025-02-20) v0.9.3
 
 - yoke: atc tower: fix incorrect resource count when fetching readiness ([3c0b7fa](https://github.com/yokecd/yoke/commit/3c0b7fa00c5b5355370c569e6b73acf35c78229d))
 
