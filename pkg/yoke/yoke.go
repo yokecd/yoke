@@ -224,7 +224,8 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 // Values passed to removeAdditions are expected to be generic json compliant structures:
 // map[string]any, []any, or scalars.
 func removeAdditions[T any](expected, actual T) T {
-	if reflect.ValueOf(expected).Type() != reflect.ValueOf(actual).Type() {
+	// Check if we can access the types safely
+	if !reflect.ValueOf(expected).IsValid() || !reflect.ValueOf(actual).IsValid() || reflect.ValueOf(actual).Type() != reflect.ValueOf(expected).Type() {
 		return actual
 	}
 
