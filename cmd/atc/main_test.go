@@ -640,6 +640,30 @@ func TestRestarts(t *testing.T) {
 		"failed to create airway",
 	)
 
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "backend-airway", ""))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := client.Dynamic.
+					Resource(schema.GroupVersionResource{Group: "yoke.cd", Version: "v1alpha1", Resource: "airways"}).
+					Get(ctx, "backends.examples.com", metav1.GetOptions{})
+
+				if kerrors.IsNotFound(err) {
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				return fmt.Errorf("expected airway not found but got no error")
+			},
+			time.Second,
+			30*time.Second,
+			"airway was never fully removed",
+		)
+	}()
+
 	for _, scale := range []int32{0, 1} {
 		atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, "atc-atc", metav1.GetOptions{})
 		require.NoError(t, err)
@@ -820,5 +844,115 @@ func TestCrossNamespace(t *testing.T) {
 				Resource: "airways",
 			}).
 			Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}),
+	)
+}
+
+func TestFixDriftInterval(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "test-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/flight.v1.wasm",
+					},
+					FixDriftInterval: openapi.Duration(time.Second / 2),
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "backends",
+							Singular: "backend",
+							Kind:     "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "test-airway", ""))
+	}()
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "test",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(backendv1.Backend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: backendv1.BackendSpec{
+					Image:    "yokecd/c4ts:test",
+					Replicas: 2,
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+
+	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err := deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if replicas := *deployment.Spec.Replicas; replicas != 2 {
+				return fmt.Errorf("expected initial replicas to be 2 but got %d", replicas)
+			}
+
+			deployment.Spec.Replicas = ptr.To[int32](1)
+
+			if _, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "yoke"}); err != nil {
+				return fmt.Errorf("failed to update replicas count to 1: %w", err)
+			}
+
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to drift deployment",
+	)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			dep, err := deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if *dep.Spec.Replicas != 2 {
+				return fmt.Errorf("expected replicas to be 2 but got %d", *dep.Spec.Replicas)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected drift to be fixed but was not",
 	)
 }
