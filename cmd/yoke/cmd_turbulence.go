@@ -74,5 +74,6 @@ func Turbulence(ctx context.Context, params TurbulenceParams) error {
 		ConflictsOnly: params.ConflictsOnly,
 		Fix:           params.Fix,
 		Color:         params.Color,
+		Namespace:     params.Namespace,
 	})
 }
