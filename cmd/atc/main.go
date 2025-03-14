@@ -71,7 +71,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
-	locks := new(wasm.ModuleCache)
+	moduleCache := new(wasm.ModuleCache)
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -105,7 +105,7 @@ func run() (err error) {
 
 	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, locks, cfg.Concurrency)
+	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, moduleCache, cfg.Concurrency)
 	defer teardown()
 
 	controller, err := ctrl.NewController(ctx, ctrl.Params{
@@ -130,7 +130,7 @@ func run() (err error) {
 		defer wg.Done()
 
 		svr := http.Server{
-			Handler: Handler(client, locks, logger.With("component", "server")),
+			Handler: Handler(client, moduleCache, logger.With("component", "server")),
 			Addr:    fmt.Sprintf(":%d", cfg.Port),
 		}
 

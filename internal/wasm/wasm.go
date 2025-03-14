@@ -86,7 +86,7 @@ func (buffer Buffer) Address() uint32 {
 }
 
 func (buffer Buffer) Length() uint32 {
-	return uint32((buffer << 32) >> 32)
+	return uint32(buffer)
 }
 
 func (buffer Buffer) Slice() []byte {
