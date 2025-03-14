@@ -4,6 +4,17 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
+
+- internal/releaser: update stow command to use proper tag flag ([2db9ba4](https://github.com/yokecd/yoke/commit/2db9ba4e6bf77077a3f546e85c981dc21bbaf03b))
+- deps: update dependencies ([be06643](https://github.com/yokecd/yoke/commit/be0664365a9104dacda032904804df18655cde40))
+- internal/releaser: stow wasm artifacts to ghcr ([6fad9bf](https://github.com/yokecd/yoke/commit/6fad9bfbae8b4272e8ce2b637fa77f9954490057))
+- refactor: simplify wasm buffer length func, and rename locks var to module cache ([67e1e98](https://github.com/yokecd/yoke/commit/67e1e986ad5f5289811d2b3e8636fb1ef02aa501))
+
+## (2025-03-13) atc/v0.9.7 - v0.10.8 - yokecd/v0.9.7
+
+- yoke/takeoff: stream stderr back to user instead of internal buffering on error ([c88817c](https://github.com/yokecd/yoke/commit/c88817cee37e6bf25b346200512b51fd00f86e4d))
+
 ## (2025-03-11) atc/v0.9.6 - latest - v0.10.7 - yokecd/v0.9.6
 
 - cmd/turbulence: use embedded TurbulenceParams instead of field plumbing ([83aaae0](https://github.com/yokecd/yoke/commit/83aaae087595fbc3515936fe44d03827a5512d95))
