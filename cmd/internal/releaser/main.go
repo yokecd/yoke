@@ -273,7 +273,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 
 	if releaser.DryRun {
 		fmt.Println("dry-run: create realease", tag)
-		fmt.Printf("would stow wasm artifact: go run ./cmd/yoke stow -t %s,latest ./%s oci://ghcr.io/yokecd/%s", ociVersion, outputPath, name)
+		fmt.Printf("would stow wasm artifact: go run ./cmd/yoke stow -tag %s,latest ./%s oci://ghcr.io/yokecd/%s\n", ociVersion, outputPath, name)
 		return nil
 	}
 
@@ -281,7 +281,7 @@ func (releaser Releaser) ReleaseWasmBinary(name string) (err error) {
 		return fmt.Errorf("failed to create github release: %w", err)
 	}
 
-	if err := x.Xf("go run ./cmd/yoke stow -t %s,latest ./%s oci://ghcr.io/%s", []any{ociVersion, outputPath, name}); err != nil {
+	if err := x.Xf("go run ./cmd/yoke stow -tag %s,latest ./%s oci://ghcr.io/yokecd/%s", []any{ociVersion, outputPath, name}); err != nil {
 		return fmt.Errorf("failed to stow wasm artifact to oci registry: %w", err)
 	}
 
