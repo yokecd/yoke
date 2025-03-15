@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -428,6 +429,8 @@ type FlightReconcilerParams struct {
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
+	pollerCleanups := map[string]func(){}
+
 	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
 
@@ -585,7 +588,79 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			}
 		}
 
-		flightStatus("Ready", "Successfully deployed")
+		if err := func() (err error) {
+			release, err := ctrl.Client(ctx).GetRelease(ctx, release, event.Namespace)
+			if err != nil {
+				return err
+			}
+			if len(release.History) == 0 {
+				return fmt.Errorf("release not found")
+			}
+
+			resources, err := ctrl.Client(ctx).GetRevisionResources(ctx, release.ActiveRevision())
+			if err != nil {
+				return fmt.Errorf("failed to get release resources: %w", err)
+			}
+
+			if cleanup := pollerCleanups[event.String()]; cleanup != nil {
+				cleanup()
+			}
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			ctx, cancel := context.WithCancel(ctx)
+
+			pollerCleanups[event.String()] = func() {
+				cancel()
+				wg.Wait()
+			}
+
+			e := make(chan error, 1)
+
+			go func() {
+				defer wg.Done()
+				e <- ctrl.Client(ctx).WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
+					// Todo: Perhaps a negative number could represent no timeout?
+					Timeout:  365 * 24 * time.Hour,
+					Interval: 2 * time.Second,
+				})
+			}()
+
+			go func() {
+				// Release resources if no longer polling.
+				defer cancel()
+
+				defer wg.Done()
+				start := time.Now()
+
+				ticker := time.NewTicker(2 * time.Second)
+				defer ticker.Stop()
+
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						flightStatus(
+							"InProgress",
+							fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
+						)
+					case err := <-e:
+						if err != nil {
+							flightStatus("Error", fmt.Sprintf("Flight to wait for flight to become ready: %v", err))
+						} else {
+							flightStatus("Ready", "Successfully deployed")
+						}
+						return
+					}
+				}
+			}()
+
+			return nil
+		}(); err != nil {
+			return ctrl.Result{}, err
+		}
 
 		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration()}, nil
 	}
