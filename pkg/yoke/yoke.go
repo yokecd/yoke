@@ -11,6 +11,7 @@ import (
 	"github.com/davidmdm/x/xerr"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -21,6 +22,14 @@ import (
 
 type Commander struct {
 	k8s *k8s.Client
+}
+
+func FromKubeConfigFlags(flags *genericclioptions.ConfigFlags) (*Commander, error) {
+	client, err := k8s.NewClientFromConfigFlags(flags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize k8s client: %w", err)
+	}
+	return &Commander{client}, nil
 }
 
 func FromKubeConfig(path string) (*Commander, error) {

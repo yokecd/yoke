@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -47,17 +48,26 @@ type Client struct {
 	Mapper    *restmapper.DeferredDiscoveryRESTMapper
 }
 
+func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {
+	restcfg, err := cfgFlags.ToRESTConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build k8 config: %w", err)
+	}
+	return NewClient(restcfg)
+}
+
 func NewClientFromKubeConfig(path string) (*Client, error) {
 	restcfg, err := clientcmd.BuildConfigFromFlags("", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build k8 config: %w", err)
 	}
-	restcfg.Burst = cmp.Or(restcfg.Burst, 300)
-	restcfg.QPS = cmp.Or(restcfg.QPS, 50)
 	return NewClient(restcfg)
 }
 
 func NewClient(cfg *rest.Config) (*Client, error) {
+	cfg.Burst = cmp.Or(cfg.Burst, 300)
+	cfg.QPS = cmp.Or(cfg.QPS, 50)
+
 	dynamicClient, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dynamic client component: %w", err)

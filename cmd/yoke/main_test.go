@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -43,7 +44,16 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-var background = internal.WithStdout(context.Background(), io.Discard)
+var (
+	settings = GlobalSettings{
+		Kube: func() *genericclioptions.ConfigFlags {
+			flags := genericclioptions.NewConfigFlags(false)
+			flags.KubeConfig = &home.Kubeconfig
+			return flags
+		}(),
+	}
+	background = internal.WithStdout(context.Background(), io.Discard)
+)
 
 func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
 	labels := map[string]string{"app": name}
@@ -85,7 +95,6 @@ func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
 }
 
 func TestCreateDeleteCycle(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
@@ -135,7 +144,6 @@ func TestCreateDeleteCycle(t *testing.T) {
 }
 
 func TestCreateWithWait(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	params := func(timeout time.Duration) TakeoffParams {
 		return TakeoffParams{
 			GlobalSettings: settings,
@@ -173,7 +181,6 @@ func TestCreateWithWait(t *testing.T) {
 }
 
 func TestFailApplyDryRun(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
@@ -202,8 +209,6 @@ func TestMultiNamespaceValidation(t *testing.T) {
 			require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{}))
 		}()
 	}
-
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	makeParams := func(multiNamespace bool) TakeoffParams {
 		return TakeoffParams{
@@ -250,8 +255,6 @@ func TestMultiNamespaceValidation(t *testing.T) {
 }
 
 func TestReleaseOwnership(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
-
 	makeParams := func(name string) TakeoffParams {
 		return TakeoffParams{
 			GlobalSettings: settings,
@@ -294,8 +297,6 @@ func TestReleaseOwnership(t *testing.T) {
 }
 
 func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
-
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -334,7 +335,6 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 }
 
 func TestReleasesInDifferentNamespaces(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 	namespaces := []string{"foo", "bar"}
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
@@ -377,8 +377,6 @@ func TestTakeoffWithNamespace(t *testing.T) {
 	_, err = client.CoreV1().Namespaces().Get(background, ns, metav1.GetOptions{})
 	require.True(t, kerrors.IsNotFound(err))
 
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
-
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
@@ -414,8 +412,6 @@ func TestTakeoffWithNamespaceStage(t *testing.T) {
 
 	ns, err := client.CoreV1().Namespaces().Get(background, "test-ns-resource", metav1.GetOptions{})
 	require.True(t, kerrors.IsNotFound(err) || ns.Status.Phase == corev1.NamespaceTerminating)
-
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	params := func(withNamespaceStage bool) TakeoffParams {
 		resources := func() string {
@@ -503,10 +499,6 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 	_, err = kubernetes.NewForConfig(rest)
 	require.NoError(t, err)
 
-	background := background
-
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
-
 	params := func(withCRDStage bool) TakeoffParams {
 		resources := func() string {
 			if withCRDStage {
@@ -589,8 +581,6 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 }
 
 func TestTakeoffDiffOnly(t *testing.T) {
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
-
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
@@ -650,8 +640,6 @@ func TestDescent(t *testing.T) {
 
 	client, err := kubernetes.NewForConfig(rest)
 	require.NoError(t, err)
-
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	require.EqualError(
 		t,
@@ -722,8 +710,6 @@ func TestTurbulenceFix(t *testing.T) {
 
 	client, err := kubernetes.NewForConfig(rest)
 	require.NoError(t, err)
-
-	settings := GlobalSettings{KubeConfigPath: home.Kubeconfig}
 
 	takeoffParams := TakeoffParams{
 		GlobalSettings: settings,
@@ -829,7 +815,7 @@ func TestLookupResource(t *testing.T) {
 	require.ErrorContains(
 		t,
 		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release: "foo",
 				Flight: yoke.FlightParams{
@@ -846,7 +832,7 @@ func TestLookupResource(t *testing.T) {
 	require.Contains(t, stderr.String(), "access to the cluster has not been granted for this flight invocation")
 
 	params := TakeoffParams{
-		GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
 			Release:       "foo",
 			ClusterAccess: true,
@@ -882,7 +868,7 @@ func TestLookupResource(t *testing.T) {
 	require.ErrorContains(
 		t,
 		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: GlobalSettings{KubeConfigPath: home.Kubeconfig},
+			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:         "foo",
 				CreateNamespace: true,

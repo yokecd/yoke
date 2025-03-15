@@ -14,6 +14,8 @@ import (
 
 	"github.com/davidmdm/x/xcontext"
 
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/pkg/yoke"
@@ -37,7 +39,11 @@ func init() {
 }
 
 func run() error {
-	settings := GlobalSettings{Debug: new(bool)}
+	settings := GlobalSettings{
+		Debug: new(bool),
+		Kube:  genericclioptions.NewConfigFlags(false),
+	}
+
 	RegisterGlobalFlags(flag.CommandLine, &settings)
 
 	flag.Usage = func() {
@@ -125,11 +131,12 @@ func run() error {
 }
 
 type GlobalSettings struct {
-	KubeConfigPath string
-	Debug          *bool
+	Kube  *genericclioptions.ConfigFlags
+	Debug *bool
 }
 
 func RegisterGlobalFlags(flagset *flag.FlagSet, settings *GlobalSettings) {
-	flagset.StringVar(&settings.KubeConfigPath, "kubeconfig", home.Kubeconfig, "path to kube config")
+	flagset.StringVar(settings.Kube.KubeConfig, "kubeconfig", home.Kubeconfig, "path to kube config")
+	flagset.StringVar(settings.Kube.Context, "kube-context", "", "kubernetes context to use")
 	flagset.BoolVar(settings.Debug, "debug", false, "debug output mode")
 }

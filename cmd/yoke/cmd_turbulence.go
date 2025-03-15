@@ -64,7 +64,7 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 }
 
 func Turbulence(ctx context.Context, params TurbulenceParams) error {
-	commander, err := yoke.FromKubeConfig(params.KubeConfigPath)
+	commander, err := yoke.FromKubeConfigFlags(params.Kube)
 	if err != nil {
 		return err
 	}
