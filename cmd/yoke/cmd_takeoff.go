@@ -13,7 +13,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -90,7 +89,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 }
 
 func TakeOff(ctx context.Context, params TakeoffParams) error {
-	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
+	commander, err := yoke.FromKubeConfigFlags(params.Kube)
 	if err != nil {
 		return err
 	}

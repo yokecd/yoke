@@ -42,7 +42,7 @@ func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
 }
 
 func ATC(ctx context.Context, params ATCParams) error {
-	client, err := k8s.NewClientFromKubeConfig(params.KubeConfigPath)
+	client, err := k8s.NewClientFromConfigFlags(params.Kube)
 	if err != nil {
 		return fmt.Errorf("failed to initialize kube client: %w", err)
 	}

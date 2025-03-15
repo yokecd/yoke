@@ -14,8 +14,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gopkg.in/yaml.v3"
 
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/text"
@@ -74,12 +72,7 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 }
 
 func Blackbox(ctx context.Context, params BlackboxParams) error {
-	restcfg, err := clientcmd.BuildConfigFromFlags("", params.KubeConfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to build k8 config: %w", err)
-	}
-
-	client, err := k8s.NewClient(restcfg)
+	client, err := k8s.NewClientFromConfigFlags(params.Kube)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate k8 client: %w", err)
 	}
