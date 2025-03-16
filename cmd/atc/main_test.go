@@ -327,55 +327,63 @@ func TestAirTrafficController(t *testing.T) {
 		"c4ts assets are not cleaned up after delete",
 	)
 
-	airwayTakeoffParams = yoke.TakeoffParams{
-		Release: "backend-airway",
-		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
-				TypeMeta: metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "backends.examples.com",
-				},
-				Spec: v1alpha1.AirwaySpec{
-					WasmURLs: v1alpha1.WasmURLs{
-						Flight:    "http://wasmcache/flight.v2.wasm",
-						Converter: "http://wasmcache/converter.wasm",
-					},
-					Template: apiextv1.CustomResourceDefinitionSpec{
-						Group: "examples.com",
-						Names: apiextv1.CustomResourceDefinitionNames{
-							Plural:     "backends",
-							Singular:   "backend",
-							ShortNames: []string{"be"},
-							Kind:       "Backend",
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			// In CI validation webhook get connection refused...
+			// TODO: investigate if we can avoid this without retry logic.
+			return commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "backend-airway",
+				Flight: yoke.FlightParams{
+					Input: testutils.JsonReader(v1alpha1.Airway{
+						TypeMeta: metav1.TypeMeta{},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "backends.examples.com",
 						},
-						Scope: apiextv1.NamespaceScoped,
-						Versions: []apiextv1.CustomResourceDefinitionVersion{
-							{
-								Name:    "v1",
-								Served:  true,
-								Storage: false,
-								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+						Spec: v1alpha1.AirwaySpec{
+							WasmURLs: v1alpha1.WasmURLs{
+								Flight:    "http://wasmcache/flight.v2.wasm",
+								Converter: "http://wasmcache/converter.wasm",
+							},
+							Template: apiextv1.CustomResourceDefinitionSpec{
+								Group: "examples.com",
+								Names: apiextv1.CustomResourceDefinitionNames{
+									Plural:     "backends",
+									Singular:   "backend",
+									ShortNames: []string{"be"},
+									Kind:       "Backend",
+								},
+								Scope: apiextv1.NamespaceScoped,
+								Versions: []apiextv1.CustomResourceDefinitionVersion{
+									{
+										Name:    "v1",
+										Served:  true,
+										Storage: false,
+										Schema: &apiextv1.CustomResourceValidation{
+											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+										},
+									},
+									{
+										Name:    "v2",
+										Served:  true,
+										Storage: true,
+										Schema: &apiextv1.CustomResourceValidation{
+											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv2.Backend]()),
+										},
+									},
 								},
 							},
-							{
-								Name:    "v2",
-								Served:  true,
-								Storage: true,
-								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv2.Backend]()),
-								},
-							},
 						},
-					},
+					}),
 				},
-			}),
+				Wait: 30 * time.Second,
+				Poll: time.Second,
+			})
 		},
-		Wait: 30 * time.Second,
-		Poll: time.Second,
-	}
-
-	require.NoError(t, commander.Takeoff(ctx, airwayTakeoffParams))
+		time.Second,
+		10*time.Second,
+		"failed to update airway",
+	)
 
 	testutils.EventuallyNoErrorf(
 		t,
