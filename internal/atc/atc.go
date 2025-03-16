@@ -627,8 +627,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			go func() {
 				defer wg.Done()
 				e <- ctrl.Client(ctx).WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
-					// Todo: Perhaps a negative number could represent no timeout?
-					Timeout:  365 * 24 * time.Hour,
+					Timeout:  k8s.NoTimeout,
 					Interval: 2 * time.Second,
 				})
 			}()
@@ -654,7 +653,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 						)
 					case err := <-e:
 						if err != nil {
-							flightStatus("Error", fmt.Sprintf("Flight to wait for flight to become ready: %v", err))
+							flightStatus("Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
 						} else {
 							flightStatus("Ready", "Successfully deployed")
 						}

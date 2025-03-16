@@ -552,11 +552,14 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 		timeout  = cmp.Or(opts.Timeout, 2*time.Minute)
 	)
 
+	var cancel context.CancelFunc
+	if timeout >= 0 {
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("%s timeout reached", timeout))
+		defer cancel()
+	}
+
 	timer := time.NewTimer(0)
 	defer timer.Stop()
-
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("%s timeout reached", timeout))
-	defer cancel()
 
 	for {
 		select {
@@ -618,3 +621,7 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 
 	return <-errs
 }
+
+// NoTimeout as a timeout values will cause Wait for ready to never timeout. Any negative number will do.
+// This constant is added for semantic clarity.
+const NoTimeout = -1
