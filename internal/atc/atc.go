@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -20,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -85,7 +86,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	var typedAirway v1alpha1.Airway
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -111,7 +112,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		airway = updated
 
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
 			return
 		}
@@ -190,7 +191,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -237,6 +238,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
 			*value.Mod = mod
+
+			// Compiling a module creates a lot of heap usage that we don't need to hang onto
+			// and that Go is loathe to release for no reason. Given that compiling is rare, it
+			// is reasonable to let the runtime know this is an okay place to run GC.
+			runtime.GC()
 		}
 		return nil
 	}(); err != nil {
