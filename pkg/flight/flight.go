@@ -44,22 +44,23 @@ type Resource interface {
 	GroupVersionKind() schema.GroupVersionKind
 }
 
-// Stage represents a single deployment stage. A stage is a valid flight output.
-type Stage []Resource
+// Resources represents a single deployment stage. A stage is a valid flight output.
+// Nil resource elements are ignored when marshalling.
+type Resources []Resource
 
 // MarshalJSON implements custom JSON marshalling for flight stages. It allows stages to have resources written as nil instead of omitting them entirely.
 // To support this convenience, a stage filters out nil values before serializing its content.
-func (stage Stage) MarshalJSON() ([]byte, error) {
-	resources := make([]Resource, 0, len(stage))
-	for _, resource := range stage {
+func (resources Resources) MarshalJSON() ([]byte, error) {
+	filtered := make([]Resource, 0, len(resources))
+	for _, resource := range resources {
 		if reflect.ValueOf(resource).IsNil() {
 			continue
 		}
-		resources = append(resources, resource)
+		filtered = append(filtered, resource)
 	}
-	return json.Marshal(resources)
+	return json.Marshal(filtered)
 }
 
 // Stages is an ordered list of stages. Yoke will apply each stage one by one.
 // Stages is a valid flight output.
-type Stages []Stage
+type Stages []Resources
