@@ -142,6 +142,10 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 				fieldSchema.XValidations = rules
 			}
 
+			if defaultValue, ok := f.Tag.Lookup("Default"); ok {
+				fieldSchema.Default = &apiext.JSON{Raw: []byte(defaultValue)}
+			}
+
 			fieldValue := reflect.ValueOf(fieldSchema).Elem()
 
 			for _, name := range []string{

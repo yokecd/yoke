@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -963,4 +964,115 @@ func TestFixDriftInterval(t *testing.T) {
 		30*time.Second,
 		"expected drift to be fixed but was not",
 	)
+}
+
+func TestStatusReadiness(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	type EmptyCRD struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+	}
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "longrunning-airway",
+				Flight: yoke.FlightParams{Input: testutils.JsonReader(v1alpha1.Airway{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "tests.examples.com",
+					},
+					Spec: v1alpha1.AirwaySpec{
+						WasmURLs: v1alpha1.WasmURLs{
+							Flight: "http://wasmcache/longrunning.wasm",
+						},
+						Template: apiextv1.CustomResourceDefinitionSpec{
+							Group: "examples.com",
+							Names: apiextv1.CustomResourceDefinitionNames{
+								Plural:   "tests",
+								Singular: "test",
+								Kind:     "Test",
+							},
+							Scope: apiextv1.NamespaceScoped,
+							Versions: []apiextv1.CustomResourceDefinitionVersion{
+								{
+									Name:    "v1",
+									Served:  true,
+									Storage: true,
+									Schema: &apiextv1.CustomResourceValidation{
+										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+									},
+								},
+							},
+						},
+					},
+				})},
+				Wait: 15 * time.Second,
+				Poll: time.Second,
+			}); err != nil && !internal.IsWarning(err) {
+				return err
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create airway",
+	)
+
+	testIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "tests",
+		}).
+		Namespace("default")
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "longrunning-airway", ""))
+	}()
+
+	emptyTest := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "examples.com/v1",
+			"kind":       "Test",
+			"metadata": map[string]any{
+				"name": "test",
+			},
+		},
+	}
+
+	_, err = testIntf.Create(ctx, emptyTest, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	var statuses []string
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			resource, err := testIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get test resource: %v", err)
+			}
+
+			status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
+			if status != "" && !slices.Contains(statuses, status) {
+				statuses = append(statuses, status)
+			}
+			if status == "Ready" {
+				return nil
+			}
+
+			return fmt.Errorf("not ready: %s", status)
+		},
+		time.Second,
+		15*time.Second,
+		"test resource failed to become ready",
+	)
+
+	require.EqualValues(t, []string{"InProgress", "Ready"}, statuses)
 }
