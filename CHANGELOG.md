@@ -4,7 +4,24 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
+## (2025-03-20) atc/v0.10.0 - atc-installer/v0.10.0 - v0.11.0 - yokecd/v0.10.0 - yokecd-installer/v0.10.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: test status progression for atc flight resources ([26affc2](https://github.com/yokecd/yoke/commit/26affc2dbfa6c8d62fb65cef157d185d873dd62f))
+- refactor: run modernize -fix tooling ([d434f68](https://github.com/yokecd/yoke/commit/d434f6885b5cefb3536c6250132b15695738b34b))
+- pkg/flight: breaking change: rename flight.Stage to flight.Resources ([c65ecea](https://github.com/yokecd/yoke/commit/c65eceab18b04ad7b80eb4a692670e852d7f7718))
+- atc: fix flaky test ([f02e5b4](https://github.com/yokecd/yoke/commit/f02e5b434a2e54be952f69b6bd08978db72c4303))
+- atc: refactor poll flight error message and timeout logic ([3de56ff](https://github.com/yokecd/yoke/commit/3de56ff8e8de1b48bec98c8c1dd04d8017437cdf))
+- atc: run GC after module compilation ([0fa1e15](https://github.com/yokecd/yoke/commit/0fa1e1536b97818359f4ac49a94ed18f07849415))
+- atc: poll flight resources for readiness ([19a310a](https://github.com/yokecd/yoke/commit/19a310ae6ca35ca401c3a428d8c5760c69d0306d))
+
+## (2025-03-15) atc/v0.9.9 - v0.10.10 - yokecd/v0.9.9
+
+- yoke: support flag -kube-context ([fcec417](https://github.com/yokecd/yoke/commit/fcec4173500f3e943c212a55f3ecc9e97b17864e))
+
+## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - latest - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
 
 - internal/releaser: update stow command to use proper tag flag ([2db9ba4](https://github.com/yokecd/yoke/commit/2db9ba4e6bf77077a3f546e85c981dc21bbaf03b))
 - deps: update dependencies ([be06643](https://github.com/yokecd/yoke/commit/be0664365a9104dacda032904804df18655cde40))
@@ -15,7 +32,7 @@
 
 - yoke/takeoff: stream stderr back to user instead of internal buffering on error ([c88817c](https://github.com/yokecd/yoke/commit/c88817cee37e6bf25b346200512b51fd00f86e4d))
 
-## (2025-03-11) atc/v0.9.6 - latest - v0.10.7 - yokecd/v0.9.6
+## (2025-03-11) atc/v0.9.6 - v0.10.7 - yokecd/v0.9.6
 
 - cmd/turbulence: use embedded TurbulenceParams instead of field plumbing ([83aaae0](https://github.com/yokecd/yoke/commit/83aaae087595fbc3515936fe44d03827a5512d95))
 - pkg/yoke/yoke.go add type checking ([ab53e7c](https://github.com/yokecd/yoke/commit/ab53e7c37a6461dd20d805d0864f3ed32f0b1bb0))
