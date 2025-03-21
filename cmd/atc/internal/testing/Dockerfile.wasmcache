@@ -14,6 +14,7 @@ RUN \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/flight.dev.wasm ./cmd/atc/internal/testing/apis/backend/v2/dev && \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/converter.wasm ./cmd/atc/internal/testing/apis/backend/converter && \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/crossnamespace.wasm ./cmd/atc/internal/testing/flights/crossnamespace && \
+  GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/longrunning.wasm ./cmd/atc/internal/testing/flights/longrunning && \
   go build -o ./bin/server ./cmd/atc/internal/testing/wasmcache
 
 FROM alpine
