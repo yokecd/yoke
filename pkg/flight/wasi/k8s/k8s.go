@@ -36,7 +36,7 @@ func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 		var obj struct {
 			Metadata struct {
 				Labels map[string]string `json:"labels,omitempty"`
-			} `json:"metadata,omitempty"`
+			} `json:"metadata,omitzero"`
 		}
 		if err := json.Unmarshal(buffer.Slice(), &obj); err != nil {
 			return nil, err
