@@ -19,7 +19,7 @@ const (
 
 type Airway struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 	Spec              AirwaySpec    `json:"spec"`
 	Status            flight.Status `json:"status,omitzero"`
 }

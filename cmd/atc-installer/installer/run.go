@@ -122,9 +122,7 @@ func Run(cfg Config) (flight.Stages, error) {
 	}
 
 	labels := map[string]string{}
-	for k, v := range cfg.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, cfg.Labels)
 
 	maps.Copy(labels, selector)
 
