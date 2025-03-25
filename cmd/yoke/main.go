@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	_ "embed"
 	"flag"
@@ -136,12 +137,7 @@ type GlobalSettings struct {
 }
 
 func RegisterGlobalFlags(flagset *flag.FlagSet, settings *GlobalSettings) {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		kubeconfig = home.Kubeconfig
-	}
-
-	flagset.StringVar(settings.Kube.KubeConfig, "kubeconfig", kubeconfig, "path to kube config")
+	flagset.StringVar(settings.Kube.KubeConfig, "kubeconfig", cmp.Or(os.Getenv("KUBECONFIG"), home.Kubeconfig), "path to kube config")
 	flagset.StringVar(settings.Kube.Context, "kube-context", "", "kubernetes context to use")
 	flagset.BoolVar(settings.Debug, "debug", false, "debug output mode")
 }
