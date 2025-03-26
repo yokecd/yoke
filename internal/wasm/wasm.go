@@ -1,8 +1,6 @@
 package wasm
 
 import (
-	"cmp"
-	"context"
 	"unsafe"
 
 	"github.com/tetratelabs/wazero/api"
@@ -33,22 +31,6 @@ type Ptr uint32
 
 func PtrTo[T any](value *T) Ptr {
 	return Ptr(uintptr(unsafe.Pointer(value)))
-}
-
-func Malloc(ctx context.Context, module api.Module, data []byte) Buffer {
-	results, err := module.ExportedFunction("malloc").Call(ctx, uint64(len(data)))
-	if err != nil {
-		panic(err)
-	}
-	buffer := Buffer(results[0])
-	module.Memory().Write(buffer.Address(), data)
-	return buffer
-}
-
-func Error(ctx context.Context, module api.Module, ptr Ptr, state State, err string) Buffer {
-	mem := module.Memory()
-	mem.WriteUint32Le(uint32(ptr), uint32(cmp.Or(state, StateError)))
-	return Malloc(ctx, module, []byte(err))
 }
 
 type String uint64
