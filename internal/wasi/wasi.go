@@ -181,12 +181,12 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 				return Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
 			}
 
-			gv, err := schema.ParseGroupVersion(apiVersion.Load(module))
+			gv, err := schema.ParseGroupVersion(LoadString(module, apiVersion))
 			if err != nil {
 				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
 
-			mapping, err := params.Client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: kind.Load(module)}, gv.Version)
+			mapping, err := params.Client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: LoadString(module, kind)}, gv.Version)
 			if err != nil {
 				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
@@ -194,12 +194,12 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 			intf := func() dynamic.ResourceInterface {
 				intf := params.Client.Dynamic.Resource(mapping.Resource)
 				if mapping.Scope == meta.RESTScopeNamespace {
-					return intf.Namespace(cmp.Or(namespace.Load(module), "default"))
+					return intf.Namespace(cmp.Or(LoadString(module, namespace), "default"))
 				}
 				return intf
 			}()
 
-			resource, err := intf.Get(ctx, name.Load(module), metav1.GetOptions{})
+			resource, err := intf.Get(ctx, LoadString(module, name), metav1.GetOptions{})
 			if err != nil {
 				errState := func() wasm.State {
 					switch {
@@ -265,4 +265,19 @@ func Malloc(ctx context.Context, module api.Module, data []byte) wasm.Buffer {
 	buffer := wasm.Buffer(results[0])
 	module.Memory().Write(buffer.Address(), data)
 	return buffer
+}
+
+func LoadString(module api.Module, value wasm.String) string {
+	return string(LoadBytes(module, wasm.Buffer(value)))
+}
+
+func LoadBytes(module api.Module, value wasm.Buffer) []byte {
+	if value == 0 {
+		return nil
+	}
+	data, ok := module.Memory().Read(uint32(value>>32), uint32(value))
+	if !ok {
+		panic("memory read out of bounds")
+	}
+	return data
 }
