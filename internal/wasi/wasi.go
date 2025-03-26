@@ -178,17 +178,17 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 	for name, fn := range map[string]any{
 		"k8s_lookup": func(ctx context.Context, module api.Module, stateRef wasm.Ptr, name, namespace, kind, apiVersion wasm.String) wasm.Buffer {
 			if params.Client == nil {
-				return wasm.Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
+				return Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
 			}
 
 			gv, err := schema.ParseGroupVersion(apiVersion.Load(module))
 			if err != nil {
-				return wasm.Error(ctx, module, stateRef, wasm.StateError, err.Error())
+				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
 
 			mapping, err := params.Client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: kind.Load(module)}, gv.Version)
 			if err != nil {
-				return wasm.Error(ctx, module, stateRef, wasm.StateError, err.Error())
+				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
 
 			intf := func() dynamic.ResourceInterface {
@@ -213,12 +213,12 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 						return wasm.StateError
 					}
 				}()
-				return wasm.Error(ctx, module, stateRef, errState, err.Error())
+				return Error(ctx, module, stateRef, errState, err.Error())
 			}
 
 			data, err := resource.MarshalJSON()
 			if err != nil {
-				return wasm.Error(ctx, module, stateRef, wasm.StateError, err.Error())
+				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
 
 			results, err := module.ExportedFunction("malloc").Call(ctx, uint64(len(data)))
@@ -249,4 +249,20 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 	}
 
 	return Module{Runtime: runtime, CompiledModule: mod}, nil
+}
+
+func Error(ctx context.Context, module api.Module, ptr wasm.Ptr, state wasm.State, err string) wasm.Buffer {
+	mem := module.Memory()
+	mem.WriteUint32Le(uint32(ptr), uint32(cmp.Or(state, wasm.StateError)))
+	return Malloc(ctx, module, []byte(err))
+}
+
+func Malloc(ctx context.Context, module api.Module, data []byte) wasm.Buffer {
+	results, err := module.ExportedFunction("malloc").Call(ctx, uint64(len(data)))
+	if err != nil {
+		panic(err)
+	}
+	buffer := wasm.Buffer(results[0])
+	module.Memory().Write(buffer.Address(), data)
+	return buffer
 }
