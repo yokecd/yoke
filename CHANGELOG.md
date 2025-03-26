@@ -4,6 +4,18 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-03-26) atc/v0.10.1 - atc-installer/v0.10.1 - v0.11.2 - yokecd/v0.10.1 - yokecd-installer/v0.10.1
+
+- internal/wasi: move all methods in internal/wasm that included references to api.Module to internal/wasi ([ddae54a](https://github.com/yokecd/yoke/commit/ddae54a2cdaa07d299ea77aba53fe811f9d057f0))
+- deps: update deps ([16ccd52](https://github.com/yokecd/yoke/commit/16ccd52db72af5d56066663391f8e12f9f2adfb8))
+- internal/wasi: move api.Module aware functions out of internal/wasm into internal/wasi ([0fff739](https://github.com/yokecd/yoke/commit/0fff7396e07c88a82dc987b896f10e1990f93e5e))
+
+## (2025-03-25) v0.11.1
+
+- fix: use cmp.Or ([3bf54b6](https://github.com/yokecd/yoke/commit/3bf54b631bbd96c844fb0f98032e97a957f82afa))
+- yoke: Respect KUBECONFIG env var ([6bf1e65](https://github.com/yokecd/yoke/commit/6bf1e65cac7bfbb68120b416afd3ef71956406fb))
+- atc: fix tests that did not cleanup after themselves ([456bb01](https://github.com/yokecd/yoke/commit/456bb019aac894113e45630ff871f1cb497bda17))
+
 ## (2025-03-20) atc/v0.10.0 - atc-installer/v0.10.0 - v0.11.0 - yokecd/v0.10.0 - yokecd-installer/v0.10.0
 
 > [!CAUTION]
