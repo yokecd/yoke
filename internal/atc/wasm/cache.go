@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type Type interface {
@@ -28,11 +29,11 @@ func AirwayModuleDir(airwayName string) string {
 }
 
 type ModuleCache struct {
-	modules sync.Map
+	modules xsync.Map[string, *Modules]
 }
 
 func (cache *ModuleCache) Get(name string) *Modules {
-	lock, _ := cache.modules.LoadOrStore(name, &Modules{
+	modules, _ := cache.modules.LoadOrStore(name, &Modules{
 		Flight: &Module{
 			Module: new(wasi.Module),
 		},
@@ -40,7 +41,7 @@ func (cache *ModuleCache) Get(name string) *Modules {
 			Module: new(wasi.Module),
 		},
 	})
-	return lock.(*Modules)
+	return modules
 }
 
 func (cache *ModuleCache) Delete(name string) {
