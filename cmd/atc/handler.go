@@ -263,7 +263,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
-		if internal.GetOwner(prev) != internal.GetOwner(next) {
+		if internal.GetOwner(&prev) != internal.GetOwner(&next) {
 			review.Response.Allowed = false
 			review.Response.Result = &metav1.Status{
 				Message: "cannot modify yoke labels",
