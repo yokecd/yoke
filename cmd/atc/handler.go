@@ -246,14 +246,33 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 			return
 		}
 
-		fmt.Println(review.Request.Resource.String())
-
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
 		}
-		review.Request = nil
 
+		var prev unstructured.Unstructured
+		if err := json.Unmarshal(review.Request.OldObject.Raw, &prev); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var next unstructured.Unstructured
+		if err := json.Unmarshal(review.Request.Object.Raw, &next); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if internal.GetOwner(prev) != internal.GetOwner(next) {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Message: "cannot modify yoke labels",
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonBadRequest,
+			}
+		}
+
+		review.Request = nil
 		json.NewEncoder(w).Encode(review)
 	})
 
