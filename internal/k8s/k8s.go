@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path"
 	"runtime"
 	"slices"
 	"strconv"
@@ -216,8 +215,8 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 		return fmt.Errorf("failed to get resource: %w", err)
 	}
 
-	localOwner := path.Join(resource.GetLabels()[internal.LabelYokeReleaseNS], resource.GetLabels()[internal.LabelYokeRelease])
-	svrOwner := path.Join(svrResource.GetLabels()[internal.LabelYokeReleaseNS], svrResource.GetLabels()[internal.LabelYokeRelease])
+	localOwner := internal.GetOwner(resource)
+	svrOwner := internal.GetOwner(svrResource)
 
 	if localOwner != svrOwner {
 		return fmt.Errorf("expected release %q but resource is already owned by %q", localOwner, svrOwner)
