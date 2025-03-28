@@ -24,6 +24,7 @@ import (
 	retryWatcher "k8s.io/client-go/tools/watch"
 
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type Event struct {
@@ -96,7 +97,7 @@ func NewController(ctx context.Context, params Params) (Instance, error) {
 
 func (ctrl Instance) Run() error {
 	var (
-		activeMap   sync.Map
+		activeMap   xsync.Map[string, chan struct{}]
 		timers      sync.Map
 		concurrency = max(ctrl.Concurrency, 1)
 	)
@@ -131,13 +132,13 @@ func (ctrl Instance) Run() error {
 								select {
 								case <-ctrl.ctx.Done():
 									return
-								case <-done.(chan struct{}):
+								case <-done:
 									queue.Enqueue(event)
 								}
 							}()
 							return
 						}
-						defer close(done.(chan struct{}))
+						defer close(done)
 						defer activeMap.Delete(event.String())
 
 						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
