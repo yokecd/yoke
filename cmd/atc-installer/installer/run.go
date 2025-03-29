@@ -244,54 +244,6 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
-	resourceValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
-			Kind:       "ValidatingWebhookConfiguration",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: flight.Release() + "-resources",
-		},
-		Webhooks: []admissionregistrationv1.ValidatingWebhook{
-			{
-				Name: "resources.yoke.cd",
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{
-					Service: &admissionregistrationv1.ServiceReference{
-						Namespace: svc.Namespace,
-						Name:      svc.Name,
-						Path:      ptr.To("/validations/resources"),
-						Port:      &svc.Spec.Ports[0].Port,
-					},
-					CABundle: tls.RootCA,
-				},
-				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
-				AdmissionReviewVersions: []string{"v1"},
-				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
-				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
-				MatchConditions: []admissionregistrationv1.MatchCondition{
-					{
-						Name:       "yoke-labeled",
-						Expression: fmt.Sprintf(`%q in object.metadata.labels`, internal.LabelYokeRelease),
-					},
-				},
-				Rules: []admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{
-							admissionregistrationv1.Update,
-						},
-
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{"*"},
-							APIVersions: []string{"*"},
-							Resources:   []string{"*"},
-							Scope:       ptr.To(admissionregistrationv1.AllScopes),
-						},
-					},
-				},
-			},
-		},
-	}
-
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -378,6 +330,61 @@ func Run(cfg Config) (flight.Stages, error) {
 				},
 			},
 			Strategy: appsv1.DeploymentStrategy{Type: "Recreate"},
+		},
+	}
+
+	resourceValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: flight.Release() + "-resources",
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "resources.yoke.cd",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: svc.Namespace,
+						Name:      svc.Name,
+						Path:      ptr.To("/validations/resources"),
+						Port:      &svc.Spec.Ports[0].Port,
+					},
+					CABundle: tls.RootCA,
+				},
+				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				AdmissionReviewVersions: []string{"v1"},
+				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
+				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
+				MatchConditions: []admissionregistrationv1.MatchCondition{
+					{
+						Name:       "yoke-labeled",
+						Expression: fmt.Sprintf("%q in object.metadata.labels", internal.LabelYokeRelease),
+					},
+					{
+						Name: "not-atc-service-account",
+						Expression: fmt.Sprintf(
+							`request.userInfo.username != "system:serviceaccount:%s:%s-service-account"`,
+							deployment.Namespace,
+							deployment.Name,
+						),
+					},
+				},
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Update,
+						},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"*"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"*"},
+							Scope:       ptr.To(admissionregistrationv1.AllScopes),
+						},
+					},
+				},
+			},
 		},
 	}
 
