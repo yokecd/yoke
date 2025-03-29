@@ -24,11 +24,13 @@ import (
 	retryWatcher "k8s.io/client-go/tools/watch"
 
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type Event struct {
 	Name      string
 	Namespace string
+	Drift     bool
 
 	attempts int
 	typ      string
@@ -51,6 +53,8 @@ type HandleFunc func(context.Context, Event) (Result, error)
 type Instance struct {
 	ctx    context.Context
 	events chan Event
+	mu     *sync.Mutex
+	closed bool
 	Params
 }
 
@@ -62,12 +66,12 @@ type Params struct {
 	Concurrency int
 }
 
-func NewController(ctx context.Context, params Params) (Instance, error) {
+func NewController(ctx context.Context, params Params) (*Instance, error) {
 	params.Client.Mapper.Reset()
 
 	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
 	if err != nil {
-		return Instance{}, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
+		return nil, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
 	}
 
 	logger := params.Logger.With(slog.String("groupKind", params.GK.String()))
@@ -78,10 +82,12 @@ func NewController(ctx context.Context, params Params) (Instance, error) {
 
 	params.Handler = safe(params.Handler)
 
-	instance := Instance{
+	instance := &Instance{
 		ctx:    ctx,
 		events: make(chan Event),
 		Params: params,
+		mu:     new(sync.Mutex),
+		closed: false,
 	}
 
 	intf := params.Client.Meta.Resource(mapping.Resource)
@@ -94,9 +100,9 @@ func NewController(ctx context.Context, params Params) (Instance, error) {
 	return instance, nil
 }
 
-func (ctrl Instance) Run() error {
+func (ctrl *Instance) Run() error {
 	var (
-		activeMap   sync.Map
+		activeMap   xsync.Map[string, chan struct{}]
 		timers      sync.Map
 		concurrency = max(ctrl.Concurrency, 1)
 	)
@@ -131,13 +137,13 @@ func (ctrl Instance) Run() error {
 								select {
 								case <-ctrl.ctx.Done():
 									return
-								case <-done.(chan struct{}):
+								case <-done:
 									queue.Enqueue(event)
 								}
 							}()
 							return
 						}
-						defer close(done.(chan struct{}))
+						defer close(done)
 						defer activeMap.Delete(event.String())
 
 						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
@@ -201,7 +207,7 @@ func (ctrl Instance) Run() error {
 	return context.Cause(ctrl.ctx)
 }
 
-func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) (chan Event, error) {
+func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) (chan Event, error) {
 	events := make(chan Event)
 	cache := make(map[Event]*unstructured.Unstructured)
 
@@ -220,7 +226,10 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 	go func() {
 		defer func() {
 			Logger(ctx).Warn("watcher exited", "resource", mapping.Resource)
+			ctrl.mu.Lock()
 			close(events)
+			ctrl.closed = true
+			ctrl.mu.Unlock()
 		}()
 
 		kubeEvents := watcher.ResultChan()
@@ -278,7 +287,7 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 					if err == nil {
 						prev := cache[evt]
 						cache[evt] = current
-						if resourcesAreEqual(prev, current) {
+						if ResourcesAreEqual(prev, current) {
 							continue
 						}
 					}
@@ -290,6 +299,17 @@ func (ctrl Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.G
 	}()
 
 	return events, nil
+}
+
+func (ctrl *Instance) SendEvent(evt Event) {
+	ctrl.mu.Lock()
+	defer ctrl.mu.Unlock()
+
+	if ctrl.closed {
+		return
+	}
+
+	ctrl.events <- evt
 }
 
 func powInt(base int, up int) int {
@@ -335,7 +355,7 @@ func withJitter(duration time.Duration, percent float64) time.Duration {
 	return time.Duration(float64(duration) - offset + jitter).Round(time.Second)
 }
 
-func resourcesAreEqual(a, b *unstructured.Unstructured) bool {
+func ResourcesAreEqual(a, b *unstructured.Unstructured) bool {
 	if (a == nil) || (b == nil) {
 		return false
 	}

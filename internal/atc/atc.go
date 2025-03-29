@@ -32,6 +32,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
@@ -44,13 +45,21 @@ const (
 	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
 )
 
-func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, concurrency int) (ctrl.HandleFunc, func()) {
+type Controller struct {
+	*ctrl.Instance
+	Mode v1alpha1.AirwayMode
+}
+
+type ControllerCache = xsync.Map[string, Controller]
+
+func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		airway:      airway,
 		concurrency: concurrency,
 		service:     service,
 		cleanups:    map[string]func(){},
 		moduleCache: cache,
+		controllers: controllers,
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -59,6 +68,7 @@ type atc struct {
 	airway      schema.GroupKind
 	concurrency int
 
+	controllers *ControllerCache
 	service     ServiceDef
 	cleanups    map[string]func()
 	moduleCache *wasm.ModuleCache
@@ -159,7 +169,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 					return ctrl.Result{}, fmt.Errorf("failed to get CRD associated to airway: %v", err)
 				}
 				if attempt == 9 {
-					return ctrl.Result{}, fmt.Errorf("Termination is hung: crd is not being deleted: manual intervention may be needed.")
+					return ctrl.Result{}, fmt.Errorf("termination is hung: crd is not being deleted: manual intervention may be needed")
 				}
 				time.Sleep(time.Second)
 			}
@@ -402,9 +412,15 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
+	atc.controllers.Store(flightGK.String(), Controller{
+		Instance: flightController,
+		Mode:     typedAirway.Spec.Mode,
+	})
+
 	go func() {
 		defer cancel()
 		defer close(done)
+		defer atc.controllers.Delete(flightGK.String())
 
 		airwayStatus("Ready", "Flight-Controller launched")
 
@@ -582,7 +598,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		if params.Airway.Spec.FixDriftInterval > 0 {
+		if event.Drift || params.Airway.Spec.FixDriftInterval > 0 {
 			flightStatus("InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release:   release,

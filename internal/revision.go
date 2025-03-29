@@ -105,6 +105,25 @@ func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns string)
 	}
 }
 
+func GetOwner(resource *unstructured.Unstructured) string {
+	if resource == nil {
+		return ""
+	}
+
+	labels := resource.GetLabels()
+	if labels == nil {
+		return ""
+	}
+
+	release := labels[LabelYokeRelease]
+	namespace := labels[LabelYokeReleaseNS]
+	if release == "" || namespace == "" {
+		return ""
+	}
+
+	return namespace + "/" + release
+}
+
 func Canonical(resource *unstructured.Unstructured) string {
 	gvk := resource.GetObjectKind().GroupVersionKind()
 

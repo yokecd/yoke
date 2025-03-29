@@ -72,6 +72,7 @@ func run() (err error) {
 	}
 
 	moduleCache := new(wasm.ModuleCache)
+	controllers := new(atc.ControllerCache)
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -105,7 +106,7 @@ func run() (err error) {
 
 	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, moduleCache, cfg.Concurrency)
+	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, moduleCache, controllers, cfg.Concurrency)
 	defer teardown()
 
 	controller, err := ctrl.NewController(ctx, ctrl.Params{
@@ -130,7 +131,7 @@ func run() (err error) {
 		defer wg.Done()
 
 		svr := http.Server{
-			Handler: Handler(client, moduleCache, logger.With("component", "server")),
+			Handler: Handler(client, moduleCache, controllers, logger.With("component", "server")),
 			Addr:    fmt.Sprintf(":%d", cfg.Port),
 		}
 

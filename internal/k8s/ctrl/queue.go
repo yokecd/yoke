@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type Queue[T fmt.Stringer] struct {
-	barrier *sync.Map
+	barrier *xsync.Map[string, struct{}]
 	buffer  []T
 	lock    *sync.Mutex
 	pipe    chan T
@@ -52,7 +54,7 @@ func (queue *Queue[t]) tryUnshift() {
 // determined by fmt.Stringer.
 func QueueFromChannel[T fmt.Stringer](c chan T) (*Queue[T], func()) {
 	queue := Queue[T]{
-		barrier: &sync.Map{},
+		barrier: &xsync.Map[string, struct{}]{},
 		buffer:  []T{},
 		lock:    &sync.Mutex{},
 		pipe:    make(chan T, 1),

@@ -24,13 +24,14 @@ import (
 	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	commander := yoke.FromK8Client(client)
@@ -237,6 +238,105 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, logger *slog.Logger) h
 		if err := json.NewEncoder(w).Encode(&review); err != nil {
 			logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
+	})
+
+	mux.HandleFunc("POST /validations/resources", func(w http.ResponseWriter, r *http.Request) {
+		var review admissionv1.AdmissionReview
+		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		addRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
+
+		review.Response = &admissionv1.AdmissionResponse{
+			UID:     review.Request.UID,
+			Allowed: true,
+		}
+
+		var prev unstructured.Unstructured
+		if err := json.Unmarshal(review.Request.OldObject.Raw, &prev); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var next unstructured.Unstructured
+		if err := json.Unmarshal(review.Request.Object.Raw, &next); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		addRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(&next)))
+
+		if internal.GetOwner(&prev) != internal.GetOwner(&next) {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Message: "cannot modify yoke labels",
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonBadRequest,
+			}
+		}
+
+		defer func() {
+			review.Request = nil
+			json.NewEncoder(w).Encode(review)
+		}()
+
+		if !review.Response.Allowed {
+			return
+		}
+
+		if ctrl.ResourcesAreEqual(&prev, &next) {
+			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
+			return
+		}
+
+		owners := next.GetOwnerReferences()
+		if len(owners) == 0 {
+			addRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
+			return
+		}
+
+		owner := owners[0]
+
+		gv, err := schema.ParseGroupVersion(owner.APIVersion)
+		if err != nil {
+			addRequestAttrs(
+				r.Context(),
+				slog.String("skipReason", "failed to parse owner apiVersion"),
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+
+		ownerGroupKind := schema.GroupKind{Group: gv.Group, Kind: owner.Kind}.String()
+		controller, ok := controllers.Load(ownerGroupKind)
+
+		addRequestAttrs(
+			r.Context(),
+			slog.String("ownerGroupKind", ownerGroupKind),
+			slog.Bool("matchedController", ok),
+		)
+
+		if !ok {
+			return
+		}
+
+		evt := ctrl.Event{
+			Name: owner.Name,
+			// TODO: will this always be the same namespace as the flight?
+			// Ownership will always be in the same namespace...
+			// Perhaps support for cluster scope owners needs to be thought of?
+			// Also crossNamespace deployments?
+			//
+			// At best the current implementation is limited to Regular Namespaced Flights.
+			Namespace: next.GetNamespace(),
+			Drift:     true,
+		}
+
+		addRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
+
+		controller.SendEvent(evt)
 	})
 
 	mux.HandleFunc("POST /validations/airways.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
