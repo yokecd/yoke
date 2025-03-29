@@ -26,13 +26,12 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *xsync.Map[string, *ctrl.Instance], logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	commander := yoke.FromK8Client(client)
@@ -288,12 +287,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *xsync.Map
 		}
 
 		if ctrl.ResourcesAreEqual(&prev, &next) {
-			addRequestAttrs(r.Context(), slog.String("skippingEvent", "resources are equal"))
+			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
 			return
 		}
 
 		owners := next.GetOwnerReferences()
 		if len(owners) == 0 {
+			addRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
 			return
 		}
 
@@ -303,7 +303,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *xsync.Map
 		if err != nil {
 			addRequestAttrs(
 				r.Context(),
-				slog.String("warning", "failed to parse ApiVersion: skipping furth eval"),
+				slog.String("skipReason", "failed to parse owner apiVersion"),
 				slog.String("error", err.Error()),
 			)
 			return

@@ -22,7 +22,6 @@ import (
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
-	"github.com/yokecd/yoke/internal/xsync"
 )
 
 func main() {
@@ -73,7 +72,7 @@ func run() (err error) {
 	}
 
 	moduleCache := new(wasm.ModuleCache)
-	controllers := new(xsync.Map[string, *ctrl.Instance])
+	controllers := new(atc.ControllerCache)
 
 	var wg sync.WaitGroup
 	wg.Add(3)
