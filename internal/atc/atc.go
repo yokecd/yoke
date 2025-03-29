@@ -45,7 +45,14 @@ const (
 	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
 )
 
-func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, controllers *xsync.Map[string, *ctrl.Instance], concurrency int) (ctrl.HandleFunc, func()) {
+type Controller struct {
+	*ctrl.Instance
+	Mode v1alpha1.AirwayMode
+}
+
+type ControllerCache = xsync.Map[string, Controller]
+
+func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		airway:      airway,
 		concurrency: concurrency,
@@ -61,7 +68,7 @@ type atc struct {
 	airway      schema.GroupKind
 	concurrency int
 
-	controllers *xsync.Map[string, *ctrl.Instance]
+	controllers *ControllerCache
 	service     ServiceDef
 	cleanups    map[string]func()
 	moduleCache *wasm.ModuleCache
@@ -405,7 +412,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
-	atc.controllers.Store(flightGK.String(), flightController)
+	atc.controllers.Store(flightGK.String(), Controller{
+		Instance: flightController,
+		Mode:     typedAirway.Spec.Mode,
+	})
 
 	go func() {
 		defer cancel()

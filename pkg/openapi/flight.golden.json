@@ -23,6 +23,14 @@
         "insecure": {
           "type": "boolean"
         },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "static",
+            "dynamic"
+          ]
+        },
         "objectPath": {
           "type": "array",
           "items": {

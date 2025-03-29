@@ -24,6 +24,28 @@ type Airway struct {
 	Status            flight.Status `json:"status,omitzero"`
 }
 
+type AirwayMode string
+
+func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	return &apiextensionsv1.JSONSchemaProps{
+		Type: "string",
+		Enum: func() []apiextensionsv1.JSON {
+			var result []apiextensionsv1.JSON
+			for _, value := range []AirwayMode{AirwayModeNormal, AirwayModeStatic, AirwayModeDynamic} {
+				data, _ := json.Marshal(value)
+				result = append(result, apiextensionsv1.JSON{Raw: data})
+			}
+			return result
+		}(),
+	}
+}
+
+const (
+	AirwayModeNormal  AirwayMode = "normal"
+	AirwayModeStatic  AirwayMode = "static"
+	AirwayModeDynamic AirwayMode = "dynamic"
+)
+
 type AirwaySpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
 	WasmURLs WasmURLs `json:"wasmUrls"`
@@ -55,6 +77,20 @@ type AirwaySpec struct {
 	//
 	// Therefore multi-stage Airways are not generally recommended.
 	SkipAdmissionWebhook bool `json:"skipAdmissionWebhook,omitempty"`
+
+	// Mode sets different behaviors for how the child resources of flights are managed by the ATC.
+	//
+	// - "normal" is the same not specifying any mode. In "normal" mode, flights are evaluated once
+	// and child resources are applied, and no further evaluation is made should child resources be modified.
+	//
+	// - "static" mode checks any change to a child resource against desired state at admission time.
+	// If any fields conflict with the desired state the change is rejected at admission.
+	//
+	// - "dynamic" mode requeues the parent flight for evaluation any time a child resource is modified.
+	// This means that if a conflicting state is found it will be reverted in realtime.
+	// The advantage of this mode over static, is that combined with cluster-access we can dynamically
+	// build new desired state based on external changes to child resources.
+	Mode AirwayMode `json:"mode,omitempty"`
 
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
