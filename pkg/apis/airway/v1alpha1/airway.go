@@ -31,7 +31,7 @@ func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 		Type: "string",
 		Enum: func() []apiextensionsv1.JSON {
 			var result []apiextensionsv1.JSON
-			for _, value := range []AirwayMode{AirwayModeNormal, AirwayModeStatic, AirwayModeDynamic} {
+			for _, value := range []AirwayMode{AirwayModeStandard, AirwayModeStatic, AirwayModeDynamic} {
 				data, _ := json.Marshal(value)
 				result = append(result, apiextensionsv1.JSON{Raw: data})
 			}
@@ -41,9 +41,9 @@ func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 }
 
 const (
-	AirwayModeNormal  AirwayMode = "normal"
-	AirwayModeStatic  AirwayMode = "static"
-	AirwayModeDynamic AirwayMode = "dynamic"
+	AirwayModeStandard AirwayMode = "standard"
+	AirwayModeStatic   AirwayMode = "static"
+	AirwayModeDynamic  AirwayMode = "dynamic"
 )
 
 type AirwaySpec struct {
@@ -80,7 +80,7 @@ type AirwaySpec struct {
 
 	// Mode sets different behaviors for how the child resources of flights are managed by the ATC.
 	//
-	// - "normal" is the same not specifying any mode. In "normal" mode, flights are evaluated once
+	// - "standard" is the same not specifying any mode. In "standard" mode, flights are evaluated once
 	// and child resources are applied, and no further evaluation is made should child resources be modified.
 	//
 	// - "static" mode checks any change to a child resource against desired state at admission time.

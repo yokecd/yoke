@@ -322,21 +322,71 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		evt := ctrl.Event{
-			Name: owner.Name,
-			// TODO: will this always be the same namespace as the flight?
-			// Ownership will always be in the same namespace...
-			// Perhaps support for cluster scope owners needs to be thought of?
-			// Also crossNamespace deployments?
-			//
-			// At best the current implementation is limited to Regular Namespaced Flights.
-			Namespace: next.GetNamespace(),
-			Drift:     true,
+		mode := cmp.Or(controller.Mode, v1alpha1.AirwayModeStandard)
+
+		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
+
+		switch mode {
+		case v1alpha1.AirwayModeStatic:
+			release, err := client.GetRelease(
+				r.Context(),
+				next.GetLabels()[internal.LabelYokeRelease],
+				next.GetLabels()[internal.LabelYokeReleaseNS],
+			)
+			if err != nil {
+				// Handle?
+				return
+			}
+			if len(release.History) == 0 {
+				return
+			}
+
+			stages, err := client.GetRevisionResources(r.Context(), release.ActiveRevision())
+			if err != nil {
+				return
+			}
+
+			resources := stages.Flatten()
+
+			desired, ok := internal.Find(resources, func(resource *unstructured.Unstructured) bool {
+				return resource.GetKind() == next.GetKind() &&
+					resource.GetAPIVersion() == next.GetAPIVersion() &&
+					resource.GetName() == next.GetName()
+			})
+			if !ok {
+				return
+			}
+
+			internal.RemoveAdditions(desired, &next)
+
+			if !ctrl.ResourcesAreEqual(desired, &next) {
+				review.Response.Allowed = false
+				review.Response.Result = &metav1.Status{
+					Message: "cannot modify flight sub-resources",
+					Status:  metav1.StatusFailure,
+					Reason:  metav1.StatusReasonBadRequest,
+				}
+			}
+
+		case v1alpha1.AirwayModeDynamic:
+			evt := ctrl.Event{
+				Name: owner.Name,
+				// TODO: will this always be the same namespace as the flight?
+				// Ownership will always be in the same namespace...
+				// Perhaps support for cluster scope owners needs to be thought of?
+				// Also crossNamespace deployments?
+				//
+				// At best the current implementation is limited to Regular Namespaced Flights.
+				Namespace: next.GetNamespace(),
+				Drift:     true,
+			}
+
+			addRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
+
+			controller.SendEvent(evt)
+		default:
+			return
 		}
-
-		addRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
-
-		controller.SendEvent(evt)
 	})
 
 	mux.HandleFunc("POST /validations/airways.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
