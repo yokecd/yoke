@@ -183,7 +183,7 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 			return fmt.Errorf("failed to get in cluster state for resource %s: %w", internal.Canonical(resource), err)
 		}
 		if value != nil && params.ConflictsOnly {
-			value.Object = removeAdditions(resource.Object, value.Object)
+			value.Object = internal.RemoveAdditions(resource.Object, value.Object)
 		}
 		actual[name] = value
 	}
@@ -230,36 +230,6 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 
 	_, err = fmt.Fprint(internal.Stdout(ctx), diff)
 	return err
-}
-
-// removeAdditions compares removes fields from actual that are not in expected.
-// it removes the additional properties in place and returns "actual" back.
-// Values passed to removeAdditions are expected to be generic json compliant structures:
-// map[string]any, []any, or scalars.
-func removeAdditions[T any](expected, actual T) T {
-	// Check if we can access the types safely
-	if !reflect.ValueOf(expected).IsValid() || !reflect.ValueOf(actual).IsValid() || reflect.ValueOf(actual).Type() != reflect.ValueOf(expected).Type() {
-		return actual
-	}
-
-	switch a := any(actual).(type) {
-	case map[string]any:
-		e := any(expected).(map[string]any)
-		for key := range a {
-			if _, ok := e[key]; !ok {
-				delete(a, key)
-				continue
-			}
-			a[key] = removeAdditions(e[key], a[key])
-		}
-	case []any:
-		e := any(expected).([]any)
-		for i := range min(len(a), len(e)) {
-			a[i] = removeAdditions(e[i], a[i])
-		}
-	}
-
-	return actual
 }
 
 type StowParams struct {
