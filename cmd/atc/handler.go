@@ -326,13 +326,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
 
+		labels := next.GetLabels()
+		release := labels[internal.LabelYokeRelease]
+		namespace := labels[internal.LabelYokeReleaseNS]
+
 		switch mode {
 		case v1alpha1.AirwayModeStatic:
-			release, err := client.GetRelease(
-				r.Context(),
-				next.GetLabels()[internal.LabelYokeRelease],
-				next.GetLabels()[internal.LabelYokeReleaseNS],
-			)
+			release, err := client.GetRelease(r.Context(), release, namespace)
 			if err != nil {
 				// Handle?
 				return
@@ -375,9 +375,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				// Ownership will always be in the same namespace...
 				// Perhaps support for cluster scope owners needs to be thought of?
 				// Also crossNamespace deployments?
-				//
-				// At best the current implementation is limited to Regular Namespaced Flights.
-				Namespace: next.GetNamespace(),
+				Namespace: namespace,
 				Drift:     true,
 			}
 
