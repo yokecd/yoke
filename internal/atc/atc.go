@@ -2,6 +2,7 @@ package atc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -412,9 +413,20 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
+	modeOverride := func() v1alpha1.AirwayMode {
+		if len(typedAirway.Labels) == 0 {
+			return ""
+		}
+		override := v1alpha1.AirwayMode(typedAirway.Labels[flight.AnnotationOverrideMode])
+		if !slices.Contains(v1alpha1.Modes(), override) {
+			return ""
+		}
+		return override
+	}()
+
 	atc.controllers.Store(flightGK.String(), Controller{
 		Instance: flightController,
-		Mode:     typedAirway.Spec.Mode,
+		Mode:     cmp.Or(modeOverride, typedAirway.Spec.Mode, v1alpha1.AirwayModeStandard),
 	})
 
 	go func() {
