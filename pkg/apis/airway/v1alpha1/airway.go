@@ -31,7 +31,7 @@ func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 		Type: "string",
 		Enum: func() []apiextensionsv1.JSON {
 			var result []apiextensionsv1.JSON
-			for _, value := range []AirwayMode{AirwayModeStandard, AirwayModeStatic, AirwayModeDynamic} {
+			for _, value := range Modes() {
 				data, _ := json.Marshal(value)
 				result = append(result, apiextensionsv1.JSON{Raw: data})
 			}
@@ -45,6 +45,11 @@ const (
 	AirwayModeStatic   AirwayMode = "static"
 	AirwayModeDynamic  AirwayMode = "dynamic"
 )
+
+// Modes returns the list of known Airway modes.
+func Modes() []AirwayMode {
+	return []AirwayMode{AirwayModeStandard, AirwayModeStatic, AirwayModeDynamic}
+}
 
 type AirwaySpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.

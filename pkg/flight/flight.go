@@ -34,7 +34,10 @@ type Status struct {
 	Msg string `json:"msg,omitempty"`
 }
 
-const AnnotationOverrideFlight = "overrides.yoke.cd/flight"
+const (
+	AnnotationOverrideFlight = "overrides.yoke.cd/flight"
+	AnnotationOverrideMode   = "overrides.yoke.cd/mode"
+)
 
 // Resource is a best effort attempt at capturing the set of types that are kubernetes resources.
 // K8s resource embed the metav1.TypeMeta struct and thus expose this method; unstructured.Unstructured objects also expose it.
