@@ -972,6 +972,9 @@ func TestFixDriftInterval(t *testing.T) {
 		Wait: 30 * time.Second,
 		Poll: time.Second,
 	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "test", "default"))
+	}()
 
 	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
 
@@ -1174,32 +1177,32 @@ func TestAirwayModes(t *testing.T) {
 		Wait: 30 * time.Second,
 		Poll: time.Second,
 	}))
-	// defer func() {
-	// 	require.NoError(t, commander.Mayday(ctx, "modes-airway", ""))
-	//
-	// 	airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
-	// 		Group:    "yoke.cd",
-	// 		Version:  "v1alpha1",
-	// 		Resource: "airways",
-	// 	})
-	//
-	// 	testutils.EventuallyNoErrorf(
-	// 		t,
-	// 		func() error {
-	// 			_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
-	// 			if err == nil {
-	// 				return fmt.Errorf("backends.examples.com has not been removed")
-	// 			}
-	// 			if !kerrors.IsNotFound(err) {
-	// 				return err
-	// 			}
-	// 			return nil
-	// 		},
-	// 		time.Second,
-	// 		30*time.Second,
-	// 		"failed to test resources",
-	// 	)
-	// }()
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "modes-airway", ""))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("backends.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
 
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "test",
@@ -1217,6 +1220,9 @@ func TestAirwayModes(t *testing.T) {
 		Wait: 30 * time.Second,
 		Poll: time.Second,
 	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "test", "default"))
+	}()
 
 	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
 

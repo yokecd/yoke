@@ -1,6 +1,6 @@
 module github.com/yokecd/yoke
 
-go 1.24.2
+go 1.24.0
 
 require (
 	github.com/alecthomas/chroma/v2 v2.15.0
