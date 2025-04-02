@@ -32,6 +32,10 @@ brew install yoke
 
 Official documentation can be found [here](https://yokecd.github.io/docs)
 
+## Community
+
+Join yoke's [Discord Server](https://discord.com/invite/tHCRKg6s7Z) to discuss the yoke project, socialize, or share memes!
+
 ## Versioning
 
 This project is still pre version 1.0.0
