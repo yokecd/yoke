@@ -252,6 +252,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
+			Result: &metav1.Status{
+				Status:  metav1.StatusSuccess,
+				Message: "validation passed",
+			},
 		}
 
 		var prev unstructured.Unstructured
@@ -279,6 +283,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		defer func() {
 			review.Request = nil
+			addRequestAttrs(r.Context(), slog.Group(
+				"validation",
+				"allowed", review.Response.Allowed,
+				"details", review.Response.Result.Message,
+			))
 			json.NewEncoder(w).Encode(review)
 		}()
 
