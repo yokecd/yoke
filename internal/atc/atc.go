@@ -107,7 +107,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	airwayStatus := func(status string, msg any) {
 		var err error
-		airway, err = airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+		airway, err = airwayIntf.Get(ctx, event.Name, metav1.GetOptions{})
 		if err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", fmt.Errorf("failed to get airway: %v", err))
 			return
@@ -512,7 +512,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		flightStatus := func(status string, msg any) {
 			var err error
-			resource, err = resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+			resource, err = resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
 				return
@@ -524,7 +524,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				"status",
 			)
 
-			updated, err := resourceIntf.UpdateStatus(ctx, resource.DeepCopy(), metav1.UpdateOptions{FieldManager: fieldManager})
+			updated, err := resourceIntf.UpdateStatus(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
 				return
