@@ -109,6 +109,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		var err error
 		airway, err = airwayIntf.Get(ctx, event.Name, metav1.GetOptions{})
 		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return
+			}
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", fmt.Errorf("failed to get airway: %v", err))
 			return
 		}
@@ -121,6 +124,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		updated, err := airwayIntf.UpdateStatus(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return
+			}
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
 			return
 		}
@@ -514,6 +520,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			var err error
 			resource, err = resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return
+				}
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
 				return
 			}
@@ -526,6 +535,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 			updated, err := resourceIntf.UpdateStatus(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return
+				}
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
 				return
 			}
