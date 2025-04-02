@@ -48,7 +48,11 @@ const (
 
 type Controller struct {
 	*ctrl.Instance
-	Mode v1alpha1.AirwayMode
+	modes map[string]v1alpha1.AirwayMode
+}
+
+func (controller Controller) FlightMode(name, ns string) v1alpha1.AirwayMode {
+	return controller.modes[ctrl.Event{Name: name, Namespace: ns}.String()]
 }
 
 type ControllerCache = xsync.Map[string, Controller]
@@ -395,39 +399,31 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		Kind:  typedAirway.Spec.Template.Names.Kind,
 	}
 
-	flightController, err := ctrl.NewController(flightCtx, ctrl.Params{
-		GK: flightGK,
-		Handler: atc.FlightReconciler(FlightReconcilerParams{
-			GK:      flightGK,
-			Airway:  typedAirway,
-			Version: storageVersion,
-			Flight:  modules.Flight,
-		}),
-		Client:      ctrl.Client(ctx),
-		Logger:      ctrl.RootLogger(ctx),
-		Concurrency: atc.concurrency,
-	})
+	flightController, err := func() (Controller, error) {
+		modes := map[string]v1alpha1.AirwayMode{}
+
+		ctrl, err := ctrl.NewController(flightCtx, ctrl.Params{
+			GK: flightGK,
+			Handler: atc.FlightReconciler(FlightReconcilerParams{
+				GK:      flightGK,
+				Airway:  typedAirway,
+				Version: storageVersion,
+				Flight:  modules.Flight,
+				Modes:   modes,
+			}),
+			Client:      ctrl.Client(ctx),
+			Logger:      ctrl.RootLogger(ctx),
+			Concurrency: atc.concurrency,
+		})
+		return Controller{Instance: ctrl, modes: modes}, err
+	}()
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create flight controller: %w", err)
 	}
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
-	modeOverride := func() v1alpha1.AirwayMode {
-		if len(typedAirway.Labels) == 0 {
-			return ""
-		}
-		override := v1alpha1.AirwayMode(typedAirway.Labels[flight.AnnotationOverrideMode])
-		if !slices.Contains(v1alpha1.Modes(), override) {
-			return ""
-		}
-		return override
-	}()
-
-	atc.controllers.Store(flightGK.String(), Controller{
-		Instance: flightController,
-		Mode:     cmp.Or(modeOverride, typedAirway.Spec.Mode, v1alpha1.AirwayModeStandard),
-	})
+	atc.controllers.Store(flightGK.String(), flightController)
 
 	go func() {
 		defer cancel()
@@ -460,6 +456,7 @@ type FlightReconcilerParams struct {
 	Version string
 	Flight  *wasm.Module
 	Airway  v1alpha1.Airway
+	Modes   map[string]v1alpha1.AirwayMode
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -498,6 +495,20 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 			return ctrl.Result{}, nil
 		}
+
+		overrideMode := func() v1alpha1.AirwayMode {
+			labels := resource.GetLabels()
+			if labels == nil {
+				return ""
+			}
+			override := v1alpha1.AirwayMode(labels[flight.AnnotationOverrideMode])
+			if !slices.Contains(v1alpha1.Modes(), override) {
+				return ""
+			}
+			return override
+		}()
+
+		params.Modes[event.String()] = cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
 
 		flightStatus := func(status string, msg any) {
 			var err error
