@@ -360,7 +360,7 @@ func Run(cfg Config) (flight.Stages, error) {
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name:       "yoke-labeled",
-						Expression: fmt.Sprintf("%q in object.metadata.labels", internal.LabelYokeRelease),
+						Expression: fmt.Sprintf("%q in object.metadata.labels || %q in oldObject.metadata.labels", internal.LabelYokeRelease, internal.LabelYokeRelease),
 					},
 					{
 						Name: "not-atc-service-account",
