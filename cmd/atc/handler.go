@@ -322,13 +322,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		mode := cmp.Or(controller.Mode, v1alpha1.AirwayModeStandard)
-
-		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
-
 		labels := next.GetLabels()
 		release := labels[internal.LabelYokeRelease]
 		namespace := labels[internal.LabelYokeReleaseNS]
+
+		mode := controller.FlightMode(next.GetName(), namespace)
+
+		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
 
 		switch mode {
 		case v1alpha1.AirwayModeStatic:

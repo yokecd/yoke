@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	appsv1 "k8s.io/api/apps/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1125,4 +1126,206 @@ func TestStatusReadiness(t *testing.T) {
 	)
 
 	require.EqualValues(t, []string{"InProgress", "Ready"}, statuses)
+}
+
+func TestAirwayModes(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "modes-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/flight.v1.modes.wasm",
+					},
+					Mode:          v1alpha1.AirwayModeStatic,
+					ClusterAccess: true,
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "backends",
+							Singular: "backend",
+							Kind:     "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+	// defer func() {
+	// 	require.NoError(t, commander.Mayday(ctx, "modes-airway", ""))
+	//
+	// 	airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+	// 		Group:    "yoke.cd",
+	// 		Version:  "v1alpha1",
+	// 		Resource: "airways",
+	// 	})
+	//
+	// 	testutils.EventuallyNoErrorf(
+	// 		t,
+	// 		func() error {
+	// 			_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+	// 			if err == nil {
+	// 				return fmt.Errorf("backends.examples.com has not been removed")
+	// 			}
+	// 			if !kerrors.IsNotFound(err) {
+	// 				return err
+	// 			}
+	// 			return nil
+	// 		},
+	// 		time.Second,
+	// 		30*time.Second,
+	// 		"failed to test resources",
+	// 	)
+	// }()
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "test",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(backendv1.Backend{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: backendv1.BackendSpec{
+					Image:    "yokecd/c4ts:test",
+					Replicas: 2,
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+
+	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
+
+	var deployment *appsv1.Deployment
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() (err error) {
+			deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			return err
+		},
+		time.Second,
+		30*time.Second,
+		"failed to see deployment created",
+	)
+
+	deployment.Spec.Replicas = ptr.To[int32](5)
+
+	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
+	require.EqualError(t, err, `admission webhook "resources.yoke.cd" denied the request: cannot modify flight sub-resources`)
+
+	backendIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "backends",
+		}).
+		Namespace("default")
+
+	testBE, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	labels := testBE.GetLabels()
+	labels[flight.AnnotationOverrideMode] = string(v1alpha1.AirwayModeDynamic)
+
+	testBE.SetLabels(labels)
+
+	_, err = backendIntf.Update(ctx, testBE, metav1.UpdateOptions{FieldManager: "test"})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			be, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if status, _, _ := unstructured.NestedString(be.Object, "status", "status"); status != "Ready" {
+				return fmt.Errorf("expected status to be Ready but got: %s", status)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"backend failed to become ready",
+	)
+
+	deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	deployment.Spec.Replicas = ptr.To[int32](8)
+
+	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
+	require.NoError(t, err)
+	require.EqualValues(t, 8, *deployment.Spec.Replicas)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if actual := *deployment.Spec.Replicas; actual != 2 {
+				return fmt.Errorf("expected replicas to be 2 but got %d", actual)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"deployment failed to self-heal",
+	)
+
+	configmapIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	configmap, err := configmapIntf.Get(ctx, "test", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "", configmap.Data["replicas"])
+
+	// The flight.v1.modes flight lets us set the replicas via the intermediary of our configmap.
+	configmap.Data = map[string]string{"replicas": "7"}
+
+	_, err = configmapIntf.Update(ctx, configmap, metav1.UpdateOptions{FieldManager: "test"})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if actual := *deployment.Spec.Replicas; actual != 7 {
+				return fmt.Errorf("expected replicas to be 7 but got %d", actual)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"deployment failed to reach state as defined by configmap",
+	)
 }
