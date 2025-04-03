@@ -248,13 +248,13 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current intern
 
 				defer internal.DebugTimer(ctx, "delete resource "+name)()
 
-				resourceInterface, err := client.GetDynamicResourceInterface(resource)
+				intf, err := client.GetDynamicResourceInterface(resource)
 				if err != nil {
 					errs = append(errs, fmt.Errorf("failed to resolve resource %s: %w", name, err))
 					return
 				}
 
-				if err := resourceInterface.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}); err != nil {
+				if err := intf.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 					errs = append(errs, fmt.Errorf("failed to delete %s: %w", name, err))
 					return
 				}

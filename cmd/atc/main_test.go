@@ -1244,6 +1244,12 @@ func TestAirwayModes(t *testing.T) {
 	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
 	require.EqualError(t, err, `admission webhook "resources.yoke.cd" denied the request: cannot modify flight sub-resources`)
 
+	require.EqualError(
+		t,
+		deploymentIntf.Delete(ctx, "test", metav1.DeleteOptions{}),
+		`admission webhook "resources.yoke.cd" denied the request: cannot delete resources managed by Air-Traffic-Controller`,
+	)
+
 	backendIntf := client.Dynamic.
 		Resource(schema.GroupVersionResource{
 			Group:    "examples.com",
@@ -1303,7 +1309,26 @@ func TestAirwayModes(t *testing.T) {
 		},
 		time.Second,
 		30*time.Second,
-		"deployment failed to self-heal",
+		"deployment failed to self-heal from bad value",
+	)
+
+	require.NoError(t, deploymentIntf.Delete(ctx, "test", metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if actual := *deployment.Spec.Replicas; actual != 2 {
+				return fmt.Errorf("expected replicas to be 2 but got %d", actual)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"deployment failed to self-heal after deletion",
 	)
 
 	configmapIntf := client.Clientset.CoreV1().ConfigMaps("default")

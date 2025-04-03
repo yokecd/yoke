@@ -249,6 +249,18 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		addRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
 
+		prev, err := UnstructuredFromRawExt(review.Request.OldObject)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		next, err := UnstructuredFromRawExt(review.Request.Object)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
@@ -257,30 +269,6 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				Message: "validation passed",
 			},
 		}
-
-		var prev unstructured.Unstructured
-		if err := json.Unmarshal(review.Request.OldObject.Raw, &prev); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		var next unstructured.Unstructured
-		if err := json.Unmarshal(review.Request.Object.Raw, &next); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		addRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(&next)))
-
-		if internal.GetOwner(&prev) != internal.GetOwner(&next) {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
-				Message: "cannot modify yoke labels",
-				Status:  metav1.StatusFailure,
-				Reason:  metav1.StatusReasonBadRequest,
-			}
-		}
-
 		defer func() {
 			review.Request = nil
 			addRequestAttrs(r.Context(), slog.Group(
@@ -291,16 +279,24 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			json.NewEncoder(w).Encode(review)
 		}()
 
-		if !review.Response.Allowed {
+		addRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(prev)))
+
+		if next != nil && internal.GetOwner(prev) != internal.GetOwner(next) {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Message: "cannot modify yoke labels",
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonBadRequest,
+			}
 			return
 		}
 
-		if ctrl.ResourcesAreEqual(&prev, &next) {
+		if next != nil && ctrl.ResourcesAreEqual(prev, next) {
 			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
 			return
 		}
 
-		owners := next.GetOwnerReferences()
+		owners := prev.GetOwnerReferences()
 		if len(owners) == 0 {
 			addRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
 			return
@@ -328,30 +324,43 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		)
 
 		if !ok {
+			addRequestAttrs(r.Context(), slog.String("skipReason", "no registered flight controller"))
 			return
 		}
 
-		labels := next.GetLabels()
+		labels := prev.GetLabels()
 		release := labels[internal.LabelYokeRelease]
 		namespace := labels[internal.LabelYokeReleaseNS]
 
-		mode := controller.FlightMode(next.GetName(), namespace)
+		mode := controller.FlightMode(prev.GetName(), namespace)
 
 		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
 
 		switch mode {
 		case v1alpha1.AirwayModeStatic:
+			if next == nil || !next.GetDeletionTimestamp().IsZero() {
+				review.Response.Allowed = false
+				review.Response.Result = &metav1.Status{
+					Message: "cannot delete resources managed by Air-Traffic-Controller",
+					Status:  metav1.StatusFailure,
+					Reason:  metav1.StatusReasonBadRequest,
+				}
+				return
+			}
+
 			release, err := client.GetRelease(r.Context(), release, namespace)
 			if err != nil {
-				// Handle?
+				addRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release: %v", err)))
 				return
 			}
 			if len(release.History) == 0 {
+				addRequestAttrs(r.Context(), slog.String("skipReason", "no release history found"))
 				return
 			}
 
 			stages, err := client.GetRevisionResources(r.Context(), release.ActiveRevision())
 			if err != nil {
+				addRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release resources: %v", err)))
 				return
 			}
 
@@ -363,12 +372,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 					resource.GetName() == next.GetName()
 			})
 			if !ok {
+				addRequestAttrs(r.Context(), slog.String("skipReason", "could not find desired resource in release"))
 				return
 			}
 
-			internal.RemoveAdditions(desired, &next)
+			internal.RemoveAdditions(desired, next)
 
-			if !ctrl.ResourcesAreEqual(desired, &next) {
+			if !ctrl.ResourcesAreEqual(desired, next) {
 				review.Response.Allowed = false
 				review.Response.Result = &metav1.Status{
 					Message: "cannot modify flight sub-resources",
@@ -510,4 +520,17 @@ func addRequestAttrs(ctx context.Context, attrs ...slog.Attr) {
 		return
 	}
 	*reqAttrs = append(*reqAttrs, attrs...)
+}
+
+func UnstructuredFromRawExt(ext runtime.RawExtension) (*unstructured.Unstructured, error) {
+	if len(ext.Raw) == 0 {
+		return nil, nil
+	}
+
+	var resource unstructured.Unstructured
+	if err := json.Unmarshal(ext.Raw, &resource); err != nil {
+		return nil, err
+	}
+
+	return &resource, nil
 }
