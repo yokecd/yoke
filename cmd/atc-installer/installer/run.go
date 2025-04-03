@@ -375,6 +375,7 @@ func Run(cfg Config) (flight.Stages, error) {
 					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.Update,
+							admissionregistrationv1.Delete,
 						},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"*"},
