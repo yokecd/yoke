@@ -54,7 +54,7 @@ func main() {
 
 func run() error {
 	repo := flag.String("repo", "", "bitnami repo to turn into a flight function")
-	useSchema := flag.Bool("schema", false, "prefer schema over parsing values file")
+	useSchema := flag.Bool("schema", true, "prefer schema over parsing values file")
 	version := flag.String("version", "", "version of chart to download")
 	outDir := flag.String("outdir", "", "outdir for the flight package")
 
