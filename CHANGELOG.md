@@ -4,6 +4,33 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-04-05) atc/v0.10.2 - atc-installer/v0.10.2 - v0.11.3 - yokecd/v0.10.2 - yokecd-installer/v0.10.2
+
+<details>
+<summary>19 commits</summary>
+
+- yoke: make turbulence less senstive to metadata properties ([27f594f](https://github.com/yokecd/yoke/commit/27f594f147d868c256a4535817b186b84cc3a62f))
+- atc: fix mode override to be read from annotation instead of label ([a04f48d](https://github.com/yokecd/yoke/commit/a04f48dd1d278a058fcd64f90b212c9744084602))
+- atc: static and dynamic airway modes support resource deletions ([8acb761](https://github.com/yokecd/yoke/commit/8acb761af8377b1e0dd044df4b8f9c254add937c))
+- atc: resource validation triggers on yoke label removal ([c0258ee](https://github.com/yokecd/yoke/commit/c0258ee3b0b40309c56c270ee661c6149e343ff8))
+- atc: ignore update status errors if resource no longer exists ([b0cc0e1](https://github.com/yokecd/yoke/commit/b0cc0e1553159e74d7e6197d14108ce619a9a871))
+- atc: update status helpers to use event name ([3a80d07](https://github.com/yokecd/yoke/commit/3a80d076890d616f5a9c64500d700cfafbd9ffe1))
+- atc: test should remove yoke releases before exiting ([c05e456](https://github.com/yokecd/yoke/commit/c05e4568a5209b06d4904b01d03167dd23695730))
+- deps: update deps ([5d07c5c](https://github.com/yokecd/yoke/commit/5d07c5cb3931c09f22362b7a52501941838c6031))
+- atc: test static and dynamic flight modes ([b31fe29](https://github.com/yokecd/yoke/commit/b31fe2915775122523d7e9fd268e46dc77d3f30a))
+- atc: add mode override annotation ([0c9a17a](https://github.com/yokecd/yoke/commit/0c9a17a2d28670f6fcf75a7d9ff4c1ac1197a78f))
+- atc: use release namespace for dynamic airway mode ([5dca20a](https://github.com/yokecd/yoke/commit/5dca20a67b180691eb95d73ae6825ef5bbcdc43c))
+- atc: implement first draft static and dynamic airway modes ([baf1eaa](https://github.com/yokecd/yoke/commit/baf1eaa4d25f2d9f941680d677e9f27cf4d54a76))
+- v1alpha1/airways: add AirwayMode ([3f9f908](https://github.com/yokecd/yoke/commit/3f9f9085b4061d0fbf411b3c3e80904adf1d34aa))
+- atc: retrigger events on external changes to child resources ([12c7d0c](https://github.com/yokecd/yoke/commit/12c7d0c11716f66eb0697f8feb4a650a6cb7442d))
+- internal/xsync: add type-safe xsync.Map generic wrapper over sync.Map ([7078a04](https://github.com/yokecd/yoke/commit/7078a043da6c6903267391d50212fa36f4fc0d2c))
+- internal/k8s: refactor ownership logic to use internal.GetOwner ([7f9faf7](https://github.com/yokecd/yoke/commit/7f9faf7b8200a29db89ee1abb32632934868b0b0))
+- atc: deny yoke label modifications ([e5d49fc](https://github.com/yokecd/yoke/commit/e5d49fcfb82f49a68d500a156e5b21f0deeefa3c))
+- atc: add resources validation webhook to atc-installer and corresponding route to atc server handler ([7c7fdb5](https://github.com/yokecd/yoke/commit/7c7fdb534cf7885e129a8b66c092bddc5d0a42b8))
+- readme: add discord link ([cf99883](https://github.com/yokecd/yoke/commit/cf9988325fea68df977603659fd37a7fb13d0d92))
+
+</details>
+
 ## (2025-03-26) atc/v0.10.1 - atc-installer/v0.10.1 - v0.11.2 - yokecd/v0.10.1 - yokecd-installer/v0.10.1
 
 - internal/wasi: move all methods in internal/wasm that included references to api.Module to internal/wasi ([ddae54a](https://github.com/yokecd/yoke/commit/ddae54a2cdaa07d299ea77aba53fe811f9d057f0))
