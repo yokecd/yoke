@@ -37,6 +37,7 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 	params := TurbulenceParams{GlobalSettings: settings}
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff")
 	flagset.BoolVar(
 		&params.ConflictsOnly,
