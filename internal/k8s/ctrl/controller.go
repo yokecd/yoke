@@ -23,6 +23,7 @@ import (
 	kcache "k8s.io/client-go/tools/cache"
 	retryWatcher "k8s.io/client-go/tools/watch"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/xsync"
 )
@@ -287,7 +288,7 @@ func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.
 					if err == nil {
 						prev := cache[evt]
 						cache[evt] = current
-						if ResourcesAreEqual(prev, current) {
+						if internal.ResourcesAreEqual(prev, current) {
 							continue
 						}
 					}
@@ -353,26 +354,6 @@ func withJitter(duration time.Duration, percent float64) time.Duration {
 	offset := float64(duration) * percent
 	jitter := 2 * offset * rand.Float64()
 	return time.Duration(float64(duration) - offset + jitter).Round(time.Second)
-}
-
-func ResourcesAreEqual(a, b *unstructured.Unstructured) bool {
-	if (a == nil) || (b == nil) {
-		return false
-	}
-
-	dropKeys := [][]string{
-		{"metadata", "generation"},
-		{"metadata", "resourceVersion"},
-		{"metadata", "managedFields"},
-		{"status"},
-	}
-
-	for _, keys := range dropKeys {
-		unstructured.RemoveNestedField(a.Object, keys...)
-		unstructured.RemoveNestedField(b.Object, keys...)
-	}
-
-	return reflect.DeepEqual(a.Object, b.Object)
 }
 
 func safe(handler HandleFunc) HandleFunc {

@@ -291,7 +291,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		if next != nil && ctrl.ResourcesAreEqual(prev, next) {
+		if next != nil && internal.ResourcesAreEqual(prev, next) {
 			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
 			return
 		}
@@ -378,7 +378,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 			internal.RemoveAdditions(desired, next)
 
-			if !ctrl.ResourcesAreEqual(desired, next) {
+			if !internal.ResourcesAreEqual(desired, next) {
 				review.Response.Allowed = false
 				review.Response.Result = &metav1.Status{
 					Message: "cannot modify flight sub-resources",

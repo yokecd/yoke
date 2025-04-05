@@ -176,12 +176,22 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 
 	expected := internal.CanonicalMap(stages.Flatten())
 
+	ignoredProps := [][]string{
+		{"metadata", "generation"},
+		{"metadata", "resourceVersion"},
+		{"metadata", "managedFields"},
+		{"metadata", "creationTimestamp"},
+		{"status"},
+	}
+
 	actual := map[string]*unstructured.Unstructured{}
 	for name, resource := range expected {
+		expected[name] = internal.DropProperties(resource, ignoredProps)
 		value, err := commander.k8s.GetInClusterState(ctx, resource)
 		if err != nil {
 			return fmt.Errorf("failed to get in cluster state for resource %s: %w", internal.Canonical(resource), err)
 		}
+		value = internal.DropProperties(value, ignoredProps)
 		if value != nil && params.ConflictsOnly {
 			value.Object = internal.RemoveAdditions(resource.Object, value.Object)
 		}
