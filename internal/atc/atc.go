@@ -503,11 +503,11 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		overrideMode := func() v1alpha1.AirwayMode {
-			labels := resource.GetLabels()
-			if labels == nil {
+			annotations := resource.GetAnnotations()
+			if annotations == nil {
 				return ""
 			}
-			override := v1alpha1.AirwayMode(labels[flight.AnnotationOverrideMode])
+			override := v1alpha1.AirwayMode(annotations[flight.AnnotationOverrideMode])
 			if !slices.Contains(v1alpha1.Modes(), override) {
 				return ""
 			}

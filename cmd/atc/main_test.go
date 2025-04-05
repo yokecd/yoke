@@ -1261,10 +1261,13 @@ func TestAirwayModes(t *testing.T) {
 	testBE, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	labels := testBE.GetLabels()
-	labels[flight.AnnotationOverrideMode] = string(v1alpha1.AirwayModeDynamic)
+	annotations := testBE.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[flight.AnnotationOverrideMode] = string(v1alpha1.AirwayModeDynamic)
 
-	testBE.SetLabels(labels)
+	testBE.SetAnnotations(annotations)
 
 	_, err = backendIntf.Update(ctx, testBE, metav1.UpdateOptions{FieldManager: "test"})
 	require.NoError(t, err)
