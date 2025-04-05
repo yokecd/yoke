@@ -120,25 +120,26 @@ func run() error {
 	valuesFile := filepath.Join(os.TempDir(), "raw")
 
 	err = func() error {
-		if *useSchema {
-			if len(chart.Schema) > 0 {
-				debug("using charts builtin schema")
-				if err := os.WriteFile(schemaFile, chart.Schema, 0o644); err != nil {
-					return fmt.Errorf("failed to write schema to temp file: %w", err)
-				}
-				return nil
+		if *useSchema && len(chart.Schema) > 0 {
+			debug("using charts builtin schema")
+			if err := os.WriteFile(schemaFile, chart.Schema, 0o644); err != nil {
+				return fmt.Errorf("failed to write schema to temp file: %w", err)
 			}
-			debug("schema not found in chart")
-		}
+		} else {
+			if *useSchema && len(chart.Schema) == 0 {
+				debug("no schema found within chart")
+			}
 
-		debug("inferring schema from values file")
-		if err := os.WriteFile(valuesFile, chart.Values, 0o644); err != nil {
-			return fmt.Errorf("failed to write values to temp file: %w", err)
-		}
+			debug("inferring schema from values file")
 
-		genSchema := exec.CommandContext(ctx, "node", "./bin/index.js", "-v", valuesFile, "-s", schemaFile)
-		if err := x(genSchema, WithDir(schemaGenDir)); err != nil {
-			return fmt.Errorf("failed to generate jsonschema: %w", err)
+			if err := os.WriteFile(valuesFile, chart.Values, 0o644); err != nil {
+				return fmt.Errorf("failed to write values to temp file: %w", err)
+			}
+
+			genSchema := exec.CommandContext(ctx, "node", "./bin/index.js", "-v", valuesFile, "-s", schemaFile)
+			if err := x(genSchema, WithDir(schemaGenDir)); err != nil {
+				return fmt.Errorf("failed to generate jsonschema: %w", err)
+			}
 		}
 
 		genGoTypes := exec.CommandContext(ctx, "go-jsonschema", schemaFile, "-o", filepath.Join(*outDir, "values.go"), "-p", packageName, "--only-models")
