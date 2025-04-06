@@ -140,20 +140,28 @@ func (chart Chart) Render(release, namespace string, values any) ([]*unstructure
 	var results []*unstructured.Unstructured
 
 	for name, content := range rendered {
-		if ext := path.Ext(name); ext != ".yaml" {
+		if ext := path.Ext(name); ext != ".yaml" && ext != ".yml" {
 			continue
 		}
 		if strings.HasPrefix(name, "tests/") || strings.Contains(name, "/tests/") {
 			continue
 		}
-		var resource unstructured.Unstructured
-		if err := yaml.Unmarshal([]byte(content), &resource); err != nil {
-			return nil, fmt.Errorf("%s: %w\n%s", name, err, content)
+
+		decoder := yaml.NewYAMLToJSONDecoder(strings.NewReader(content))
+
+		for {
+			var resource unstructured.Unstructured
+			if err := decoder.Decode(&resource); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return nil, fmt.Errorf("%s: %w\n%s", name, err, content)
+			}
+			if resource.Object == nil {
+				continue
+			}
+			results = append(results, &resource)
 		}
-		if resource.Object == nil {
-			continue
-		}
-		results = append(results, &resource)
 	}
 
 	slices.SortFunc(results, func(a, b *unstructured.Unstructured) int {
