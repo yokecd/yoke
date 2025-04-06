@@ -70,8 +70,9 @@ func LoadChartFromZippedArchive(data []byte) (chart *Chart, err error) {
 
 	var values []byte
 	for _, f := range files {
-		if f.Name == "values.yaml" {
+		if name := f.Name; name == "values.yaml" || name == "values.yml" {
 			values = f.Data
+			break
 		}
 	}
 
@@ -96,8 +97,9 @@ func LoadChartFromFS(fs embed.FS) (*Chart, error) {
 
 	var values []byte
 	for _, f := range files {
-		if f.Name == "values.yaml" {
+		if name := f.Name; name == "values.yaml" || name == "values.yml" {
 			values = f.Data
+			break
 		}
 	}
 
@@ -201,7 +203,7 @@ func stripToChart(files []*loader.BufferedFile) {
 	idx := -1
 	for _, file := range files {
 		file.Name = path.Clean(file.Name)
-		if path.Base(file.Name) != "Chart.yaml" {
+		if base := path.Base(file.Name); base != "Chart.yaml" && base != "Chart.yml" {
 			continue
 		}
 		if length := len(strings.Split(file.Name, "/")); idx == -1 || length < idx {
