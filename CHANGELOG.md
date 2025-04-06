@@ -4,6 +4,14 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-04-05) atc/v0.10.3 - atc-installer/v0.10.3 - v0.11.4 - yokecd/v0.10.3 - yokecd-installer/v0.10.3
+
+- deps: update deps ([b86881c](https://github.com/yokecd/yoke/commit/b86881c1c75fb0ffb92e8ac15c7b400e9c5e3847))
+- pkg/helm: support charts that use .yml suffix ([149319d](https://github.com/yokecd/yoke/commit/149319de4e386977c52de4176d14142bf6f3de50))
+- pkg/helm: fix bug where multi doc files were not being handled properly ([714fedf](https://github.com/yokecd/yoke/commit/714fedf5e883a37f9c61c03e753c34af8b3dc01a))
+- helm2go: prefer chart json schema over parsing of values file by default ([0c9831d](https://github.com/yokecd/yoke/commit/0c9831d9d55a892a06b19ec0d581caf28bd2c84a))
+- helm2go: proper support for builtin helm schemas ([bad0d09](https://github.com/yokecd/yoke/commit/bad0d0989a822dcefbdb463e939237f4fbe23358))
+
 ## (2025-04-05) atc/v0.10.2 - atc-installer/v0.10.2 - v0.11.3 - yokecd/v0.10.2 - yokecd-installer/v0.10.2
 
 <details>
