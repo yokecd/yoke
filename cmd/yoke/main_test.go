@@ -568,7 +568,7 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params(false)),
-		`failed to apply resources: dry run: _/stable.example.com/v1/crontab/test: failed to resolve resource: no matches for kind "CronTab" in version "stable.example.com/v1"`,
+		`setting target namespace: _/stable.example.com/v1/crontab/test: failed to lookup resource mapping: no matches for kind "CronTab" in version "stable.example.com/v1"`,
 	)
 
 	require.NoError(t, TakeOff(background, params(true)))
