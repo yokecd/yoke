@@ -1239,10 +1239,28 @@ func TestAirwayModes(t *testing.T) {
 		"failed to see deployment created",
 	)
 
-	deployment.Spec.Replicas = ptr.To[int32](5)
-
-	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
-	require.EqualError(t, err, `admission webhook "resources.yoke.cd" denied the request: cannot modify flight sub-resources`)
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err = deploymentIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			deployment.Spec.Replicas = ptr.To[int32](5)
+			expectedErr := `admission webhook "resources.yoke.cd" denied the request: cannot modify flight sub-resources`
+			deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
+			if err == nil {
+				return fmt.Errorf("expected error but got none")
+			}
+			if err.Error() != expectedErr {
+				return fmt.Errorf("expected error %q but got %v", expectedErr, err)
+			}
+			return nil
+		},
+		time.Second,
+		3*time.Second,
+		"failed to have admission webhook deny change",
+	)
 
 	require.EqualError(
 		t,
