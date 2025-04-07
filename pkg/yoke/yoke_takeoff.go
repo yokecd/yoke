@@ -15,9 +15,12 @@ import (
 
 	"github.com/davidmdm/x/xerr"
 
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/internal"
@@ -128,34 +131,27 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		internal.AddYokeMetadata(stage, params.Release, targetNS)
 	}
 
-	if err := func() error {
-		defer internal.DebugTimer(ctx, "looking up resource mappings")()
-
-		var errs []error
-		for _, stage := range stages {
-			for _, resource := range stage {
-				mapping, err := commander.k8s.LookupResourceMapping(resource)
-				if err != nil {
-					if meta.IsNoMatchError(err) {
-						continue
-					}
-
-					return fmt.Errorf("failed to lookup resource mapping for %s: %w", internal.Canonical(resource), err)
+	if !params.CrossNamespace {
+		if err := func() error {
+			var errs []error
+			for _, resource := range stages.Flatten() {
+				if ns := resource.GetNamespace(); ns != "" && ns != targetNS {
+					errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
 				}
-				if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-					ns := resource.GetNamespace()
-					if ns == "" {
-						resource.SetNamespace(targetNS)
-					} else if !params.CrossNamespace && ns != targetNS {
-						errs = append(errs, fmt.Errorf("%s: namespace %q does not match target namespace %q", internal.Canonical(resource), ns, targetNS))
-					}
-				}
-				resource.SetOwnerReferences(params.OwnerReferences)
 			}
+			return xerr.MultiErrFrom("Multiple namespaces detected (if desired enable multinamespace releases)", errs...)
+		}(); err != nil {
+			return err
 		}
+	}
 
-		return xerr.MultiErrFrom("Multiple namespaces detected (if desired enable multinamespace releases)", errs...)
-	}(); err != nil {
+	if len(params.OwnerReferences) > 0 {
+		for _, resource := range stages.Flatten() {
+			resource.SetOwnerReferences(params.OwnerReferences)
+		}
+	}
+
+	if err := setTargetNS(commander.k8s, stages.Flatten(), targetNS); err != nil {
 		return err
 	}
 
@@ -346,4 +342,45 @@ func toUnstructuredNS(ns string) *unstructured.Unstructured {
 			"metadata":   map[string]any{"name": ns},
 		},
 	}
+}
+
+func setTargetNS(client *k8s.Client, resources []*unstructured.Unstructured, ns string) error {
+	// Using bool instead of struct{} to be able to use it conveniantly in an if statement below.
+	// Memory be damned!
+	crdScopes := map[schema.GroupKind]bool{}
+
+	for _, resource := range resources {
+		if resource.GetKind() != "CustomResourceDefinition" || resource.GetAPIVersion() != "apiextensions.k8s.io/v1" {
+			continue
+		}
+		var crd apiextv1.CustomResourceDefinition
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, &crd); err != nil {
+			return fmt.Errorf("%s: failed to convert unstructured resource to CRD: %w", internal.Canonical(resource), err)
+		}
+
+		crdScopes[schema.GroupKind{Group: crd.Spec.Group, Kind: crd.Spec.Names.Kind}] = crd.Spec.Scope == apiextv1.NamespaceScoped
+	}
+
+	var errs []error
+	for _, resource := range resources {
+		// We need to check if the resource is a custom resource whose definition is in the flight.
+		// Otherwise we will fail to lookup the mapping.
+		if namespacedScoped, ok := crdScopes[resource.GroupVersionKind().GroupKind()]; ok {
+			if resource.GetNamespace() == "" && namespacedScoped {
+				resource.SetNamespace(ns)
+			}
+			continue
+		}
+		mapping, err := client.LookupResourceMapping(resource)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: failed to lookup resource mapping: %w", internal.Canonical(resource), err))
+			continue
+		}
+		if mapping.Scope.Name() != meta.RESTScopeNameNamespace || resource.GetNamespace() != "" {
+			continue
+		}
+		resource.SetNamespace(ns)
+	}
+
+	return xerr.MultiErrFrom("setting target namespace", errs...)
 }
