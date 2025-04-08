@@ -4,6 +4,11 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-04-07) atc/v0.10.4 - v0.11.5 - yokecd/v0.10.4
+
+- atc/test: fix flaky test race condition after resource creation ([cb56c00](https://github.com/yokecd/yoke/commit/cb56c0062fa70babe11e309162751882c06c0d87))
+- yoke/takeoff: improve target namespacing by considering internally dependent crds ([73bb676](https://github.com/yokecd/yoke/commit/73bb676a39e4ec003b2f19f2528623803de2864b))
+
 ## (2025-04-05) atc/v0.10.3 - atc-installer/v0.10.3 - v0.11.4 - yokecd/v0.10.3 - yokecd-installer/v0.10.3
 
 - deps: update deps ([b86881c](https://github.com/yokecd/yoke/commit/b86881c1c75fb0ffb92e8ac15c7b400e9c5e3847))
