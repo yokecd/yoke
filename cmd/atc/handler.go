@@ -332,11 +332,31 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		release := labels[internal.LabelYokeRelease]
 		namespace := labels[internal.LabelYokeReleaseNS]
 
-		mode := controller.FlightMode(prev.GetName(), namespace)
+		flightState, ok := controller.FlightState(prev.GetName(), namespace)
+		if !ok {
+			addRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
+		}
 
-		addRequestAttrs(r.Context(), slog.String("airwayMode", string(mode)))
+		if flightState.ClusterAccess {
+			// We do not want to be sending resource update events to the controller if it is currently mutating state
+			// as we want to avoid race conditions on admission.
+			// Example:
+			// - Controller is reading cluster state and reads a secret Value
+			// - Secret is updated after having passed admission
+			// - Controller uses stale secret data and applies it.
+			//
+			// With this mutex, if the controller is reading and applying state, we wait, then grab a read lock.
+			//
+			// This makes sure the controller finishes its read/write operations before its subresources can get updated.
+			flightState.Mutex.RLock()
+			defer flightState.Mutex.RUnlock()
 
-		switch mode {
+			addRequestAttrs(r.Context(), slog.Bool("admissionLocked", true))
+		}
+
+		addRequestAttrs(r.Context(), slog.String("airwayMode", string(flightState.Mode)))
+
+		switch flightState.Mode {
 		case v1alpha1.AirwayModeStatic:
 			if next == nil || !next.GetDeletionTimestamp().IsZero() {
 				review.Response.Allowed = false
