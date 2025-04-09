@@ -599,6 +599,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				}
 			}
 
+			delete(params.States, event.String())
+
 			return ctrl.Result{}, nil
 		}
 
