@@ -46,13 +46,20 @@ const (
 	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
 )
 
-type Controller struct {
-	*ctrl.Instance
-	modes map[string]v1alpha1.AirwayMode
+type FlightState struct {
+	Mode          v1alpha1.AirwayMode
+	Mutex         *sync.RWMutex
+	ClusterAccess bool
 }
 
-func (controller Controller) FlightMode(name, ns string) v1alpha1.AirwayMode {
-	return controller.modes[ctrl.Event{Name: name, Namespace: ns}.String()]
+type Controller struct {
+	*ctrl.Instance
+	values map[string]FlightState
+}
+
+func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
+	state, ok := controller.values[ctrl.Event{Name: name, Namespace: ns}.String()]
+	return state, ok
 }
 
 type ControllerCache = xsync.Map[string, Controller]
@@ -406,7 +413,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	flightController, err := func() (Controller, error) {
-		modes := map[string]v1alpha1.AirwayMode{}
+		flightStates := map[string]FlightState{}
 
 		ctrl, err := ctrl.NewController(flightCtx, ctrl.Params{
 			GK: flightGK,
@@ -415,13 +422,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				Airway:  typedAirway,
 				Version: storageVersion,
 				Flight:  modules.Flight,
-				Modes:   modes,
+				States:  flightStates,
 			}),
 			Client:      ctrl.Client(ctx),
 			Logger:      ctrl.RootLogger(ctx),
 			Concurrency: atc.concurrency,
 		})
-		return Controller{Instance: ctrl, modes: modes}, err
+		return Controller{Instance: ctrl, values: flightStates}, err
 	}()
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create flight controller: %w", err)
@@ -462,7 +469,7 @@ type FlightReconcilerParams struct {
 	Version string
 	Flight  *wasm.Module
 	Airway  v1alpha1.Airway
-	Modes   map[string]v1alpha1.AirwayMode
+	States  map[string]FlightState
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -514,7 +521,22 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return override
 		}()
 
-		params.Modes[event.String()] = cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
+		mutex := func() *sync.RWMutex {
+			if mutex := params.States[event.String()].Mutex; mutex != nil {
+				return mutex
+			}
+			return new(sync.RWMutex)
+		}()
+
+		// This lock ensures that admission cannot update subresources while this control loop is running.
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		params.States[event.String()] = FlightState{
+			Mode:          cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard),
+			Mutex:         mutex,
+			ClusterAccess: params.Airway.Spec.ClusterAccess,
+		}
 
 		flightStatus := func(status string, msg any) {
 			var err error
