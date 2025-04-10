@@ -155,7 +155,7 @@ func run() (err error) {
 
 		logger.Info("shutting down ATC/Server")
 		if err := svr.Shutdown(ctx); err != nil {
-			e <- fmt.Errorf("error occured while shutting down server: %v", err)
+			e <- fmt.Errorf("error occurred while shutting down server: %v", err)
 		}
 
 		logger.Info("ATC/Server shutdown completed successfully")
