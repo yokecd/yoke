@@ -4,6 +4,15 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-04-10) atc/v0.10.6
+
+- yoke: fix typo in main error message ([d4af44e](https://github.com/yokecd/yoke/commit/d4af44eaef35ce4c61299c391daadba6a8d44bfc))
+
+## (2025-04-09) atc/v0.10.5 - v0.11.6
+
+- atc: remove instance flight state on flight deletion ([26cd1fa](https://github.com/yokecd/yoke/commit/26cd1fa2a499306361186a0ea1165f3111aa8d5c))
+- atc: synchronize subresource admission and reconciler loop to avoid RW race conditions ([20fc667](https://github.com/yokecd/yoke/commit/20fc6674576b778320213f282f2ed2ee2dad3709))
+
 ## (2025-04-07) atc/v0.10.4 - v0.11.5 - yokecd/v0.10.4
 
 - atc/test: fix flaky test race condition after resource creation ([cb56c00](https://github.com/yokecd/yoke/commit/cb56c0062fa70babe11e309162751882c06c0d87))
