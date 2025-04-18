@@ -2,17 +2,17 @@
 
 ## Overview
 
-yoke is a Helm-inspired infrastructure-as-code (IaC) package deployer.
+Yoke is a Helm-inspired infrastructure-as-code (IaC) package deployer designed to provide a more powerful, safe, and programmatic way to define and deploy packages. While Helm relies heavily on static YAML templates, Yoke takes IaC to the next level by allowing you to leverage general-purpose programming languages for defining packages, making it safer and more powerful than its predecessors.
 
-The philosophy behind yoke is that Kubernetes packages should be described via code. Programming environments have control flow, test frameworks, static typing, documentation, error management, and versioning. They are ideal for building contracts and enforcing them.
+Kubernetes packages should be described via code. Programming environments have control flow, test frameworks, static typing, documentation, error management, and versioning. They are ideal for building contracts and enforcing them.
 
-yoke deploys "flights" to Kubernetes (think helm charts or packages). A flight is a wasm executable that outputs the Kubernetes resources making up the package as JSON/YAML to stdout.
+Yoke deploys "flights" to Kubernetes (think helm charts or packages). A flight is a wasm executable that outputs the Kubernetes resources making up the package (as JSON or YAML) to stdout.
 
-yoke embeds a pure-Go wasm runtime (wazero) and deploys your flight to Kubernetes. It keeps track of the different revisions for any given release and provides capabilities such as rollbacks and inspection.
+Yoke embeds a pure-Go wasm runtime (wazero) and deploys your flight to Kubernetes. It tracks revisions for each release and supports capabilities like rollbacks and inspection.
 
 ## Theme
 
-Every Kubernetes related project needs a theme. Although K8 has historically inspired nautical themes, yoke is a slight departure from the norm as it tries to move away from the YAML centric world-view of Kubernetes. Therefore yoke has an aviation related theme. Core commands, for example, are named `takeoff`, `descent`, `blackbox` and `mayday`. However their less whimsical aliases exist as well: `up / apply`, and `down / rollback`.
+Yoke has an aviation related theme. Core commands, for example, are named `takeoff`, `descent`, `blackbox` and `mayday`. However their less whimsical aliases exist as well: `up / apply`, and `down / rollback`.
 
 ## Installation
 
