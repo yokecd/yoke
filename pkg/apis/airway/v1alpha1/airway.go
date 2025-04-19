@@ -9,7 +9,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/flight"
-	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 const (
@@ -64,7 +63,7 @@ type AirwaySpec struct {
 	// The ATC will attempt to reapply the resource. In most cases this will result in a noop. If however a user
 	// changed any of the underlying resource's configuration, this will be set back via this mechanism. It allows
 	// you to enforce the desired state of your resource against external manipulation.
-	FixDriftInterval openapi.Duration `json:"fixDriftInterval,omitempty"`
+	FixDriftInterval metav1.Duration `json:"fixDriftInterval,omitzero"`
 
 	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
 	ClusterAccess bool `json:"clusterAccess,omitempty"`
