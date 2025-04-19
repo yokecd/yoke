@@ -903,7 +903,7 @@ func TestFixDriftInterval(t *testing.T) {
 					WasmURLs: v1alpha1.WasmURLs{
 						Flight: "http://wasmcache/flight.v1.wasm",
 					},
-					FixDriftInterval: openapi.Duration(time.Second / 2),
+					FixDriftInterval: metav1.Duration{Duration: time.Second / 2},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
 						Names: apiextv1.CustomResourceDefinitionNames{

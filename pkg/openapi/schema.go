@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/utils/ptr"
@@ -40,6 +39,10 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 
 	if value, ok := reflect.New(typ).Elem().Interface().(OpenAPISchemer); ok {
 		return value.OpenAPISchema()
+	}
+
+	if typ.PkgPath() == "k8s.io/apimachinery/pkg/apis/meta/v1" && typ.Name() == "Duration" {
+		return &apiext.JSONSchemaProps{Type: "string"}
 	}
 
 	switch typ.Kind() {
@@ -227,30 +230,3 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 
 	panic("unreachable: " + typ.Kind().String())
 }
-
-type Duration time.Duration
-
-func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Duration(d).String())
-}
-
-func (d *Duration) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-
-	value, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
-	*d = Duration(value)
-
-	return nil
-}
-
-func (Duration) OpenAPISchema() *apiext.JSONSchemaProps {
-	return &apiext.JSONSchemaProps{Type: "string"}
-}
-
-func (d Duration) Duration() time.Duration { return time.Duration(d) }
