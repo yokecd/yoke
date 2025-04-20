@@ -296,6 +296,47 @@ func TestReleaseOwnership(t *testing.T) {
 	)
 }
 
+func TestForceOwnership(t *testing.T) {
+	makeParams := func(name string, forceOwnership bool) TakeoffParams {
+		return TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:        name,
+				ForceOwnership: forceOwnership,
+				Flight: yoke.FlightParams{
+					Input: createBasicDeployment(t, "sample-app", "default"),
+				},
+			},
+		}
+	}
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
+
+	var resource appsv1.Deployment
+	require.NoError(t, json.NewDecoder(createBasicDeployment(t, "sample-app", "default")).Decode(&resource))
+
+	_, err = deploymentIntf.Create(context.Background(), &resource, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	require.EqualError(
+		t,
+		TakeOff(background, makeParams("foo", false)),
+		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "default/foo" but resource is already owned by ""`,
+	)
+
+	require.NoError(t, TakeOff(background, makeParams("foo", true)))
+	defer func() {
+		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", GlobalSettings: settings}))
+	}()
+
+	deployment, err := deploymentIntf.Get(background, "sample-app", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "foo", deployment.GetLabels()[internal.LabelYokeRelease])
+}
+
 func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
