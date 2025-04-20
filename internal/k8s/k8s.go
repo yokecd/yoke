@@ -91,26 +91,23 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 }
 
 type ApplyResourcesOpts struct {
-	DryRunOnly     bool
-	SkipDryRun     bool
-	ForceConflicts bool
+	SkipDryRun bool
+	ApplyOpts
 }
 
 func (client Client) ApplyResources(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyResourcesOpts) error {
 	defer internal.DebugTimer(ctx, "apply resources")()
 
-	applyOpts := ApplyOpts{
-		ForceConflicts: opts.ForceConflicts,
-	}
+	applyOpts := opts.ApplyOpts
 
-	if opts.DryRunOnly || !opts.SkipDryRun {
+	if opts.DryRun || !opts.SkipDryRun {
 		applyOpts := applyOpts
 		applyOpts.DryRun = true
 
 		if err := xerr.MultiErrOrderedFrom("dry run", client.applyMany(ctx, resources, applyOpts)...); err != nil {
 			return err
 		}
-		if opts.DryRunOnly {
+		if opts.DryRun {
 			return nil
 		}
 	}
@@ -148,6 +145,7 @@ func (client Client) applyMany(ctx context.Context, resources []*unstructured.Un
 type ApplyOpts struct {
 	DryRun         bool
 	ForceConflicts bool
+	ForceOwnership bool
 }
 
 func (client Client) ApplyResource(ctx context.Context, resource *unstructured.Unstructured, opts ApplyOpts) error {
@@ -171,7 +169,7 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 		return fmt.Errorf("failed to resolve resource: %w", err)
 	}
 
-	if err := client.checkOwnership(ctx, resource); err != nil {
+	if err := client.checkOwnership(ctx, resource, opts); err != nil {
 		return fmt.Errorf("failed to validate resource release: %w", err)
 	}
 
@@ -201,7 +199,7 @@ func (client Client) ApplyResource(ctx context.Context, resource *unstructured.U
 	return err
 }
 
-func (client Client) checkOwnership(ctx context.Context, resource *unstructured.Unstructured) error {
+func (client Client) checkOwnership(ctx context.Context, resource *unstructured.Unstructured, opts ApplyOpts) error {
 	intf, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
 		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
@@ -219,6 +217,9 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 	svrOwner := internal.GetOwner(svrResource)
 
 	if localOwner != svrOwner {
+		if svrOwner == "" && opts.ForceOwnership {
+			return nil
+		}
 		return fmt.Errorf("expected release %q but resource is already owned by %q", localOwner, svrOwner)
 	}
 
