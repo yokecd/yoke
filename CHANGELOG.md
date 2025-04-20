@@ -4,6 +4,15 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-04-19) atc/v0.11.0 - atc-installer/v0.11.0 - latest - v0.12.0 - yokecd/v0.11.0 - yokecd-installer/v0.11.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- deps: update deps ([d4281b0](https://github.com/yokecd/yoke/commit/d4281b098763669987c5923532951b7a1a2c963e))
+- pkg/openapi: breaking change: remove duration type and support metav1.Duration instead ([9f64ab0](https://github.com/yokecd/yoke/commit/9f64ab073b7990f8d6a6b9b785fbfb8b335f3b2c))
+- readme: simplify readme ([b23560b](https://github.com/yokecd/yoke/commit/b23560bdc016b432ea53b83f6d710f1b5d023d3e))
+
 ## (2025-04-10) atc/v0.10.6
 
 - yoke: fix typo in main error message ([d4af44e](https://github.com/yokecd/yoke/commit/d4af44eaef35ce4c61299c391daadba6a8d44bfc))
@@ -82,7 +91,7 @@
 
 - yoke: support flag -kube-context ([fcec417](https://github.com/yokecd/yoke/commit/fcec4173500f3e943c212a55f3ecc9e97b17864e))
 
-## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - latest - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
+## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
 
 - internal/releaser: update stow command to use proper tag flag ([2db9ba4](https://github.com/yokecd/yoke/commit/2db9ba4e6bf77077a3f546e85c981dc21bbaf03b))
 - deps: update dependencies ([be06643](https://github.com/yokecd/yoke/commit/be0664365a9104dacda032904804df18655cde40))
