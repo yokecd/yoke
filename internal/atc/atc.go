@@ -581,6 +581,22 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return ctrl.Result{}, nil
 		}
 
+		if _, ok := internal.Find(resource.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
+			return ref.Kind == v1alpha1.KindAirway && ref.APIVersion == v1alpha1.APIVersion && ref.Name == params.Airway.Name
+		}); !ok {
+			resource.SetOwnerReferences(append(resource.GetOwnerReferences(), metav1.OwnerReference{
+				Kind:               v1alpha1.KindAirway,
+				APIVersion:         v1alpha1.APIVersion,
+				Name:               params.Airway.Name,
+				UID:                params.Airway.UID,
+				BlockOwnerDeletion: ptr.To(true),
+			}))
+			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to add airway as owner reference: %w", err)
+			}
+			return ctrl.Result{}, nil
+		}
+
 		if !resource.GetDeletionTimestamp().IsZero() {
 			flightStatus("Terminating", "Mayday: Flight is being removed")
 
