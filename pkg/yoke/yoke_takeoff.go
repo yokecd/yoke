@@ -150,7 +150,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if len(params.OwnerReferences) > 0 {
 		for _, resource := range stages.Flatten() {
-			resource.SetOwnerReferences(params.OwnerReferences)
+			resource.SetOwnerReferences(append(resource.GetOwnerReferences(), params.OwnerReferences...))
 		}
 	}
 
