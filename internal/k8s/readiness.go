@@ -7,6 +7,9 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
 // isReady checks for readiness of workload resources, namespaces, and CRDs
@@ -65,6 +68,14 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 			status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
 			return status == "Ready", nil
 		}
+	}
+
+	// if the resource is owned by an airway, it is an instance of that airway and so uses standard flight status.
+	if _, ok := internal.Find(resource.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
+		return ref.APIVersion == v1alpha1.APIVersion && ref.Kind == v1alpha1.KindAirway
+	}); ok {
+		status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
+		return status == "Ready", nil
 	}
 
 	return true, nil
