@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gopkg.in/yaml.v3"
@@ -116,12 +117,24 @@ func Blackbox(ctx context.Context, params BlackboxParams) error {
 		tbl := table.NewWriter()
 		tbl.SetStyle(table.StyleRounded)
 
-		history := release.History
-		slices.Reverse(history)
+		slices.Reverse(release.History)
 
-		tbl.AppendHeader(table.Row{"id", "resources", "flight", "sha", "created at"})
-		for i, version := range history {
-			tbl.AppendRow(table.Row{len(history) - i, version.Resources, version.Source.Ref, version.Source.Checksum, version.CreatedAt})
+		activeIndex := release.ActiveIndex()
+
+		tbl.AppendHeader(table.Row{"id", "resources", "flight", "sha", "active at", "created at"})
+		for i, version := range release.History {
+			id := strconv.Itoa(len(release.History) - i)
+			if i == activeIndex {
+				id += " (current)"
+			}
+			tbl.AppendRow(table.Row{
+				id,
+				version.Resources,
+				version.Source.Ref,
+				version.Source.Checksum,
+				version.ActiveAt.Format(time.DateTime),
+				version.CreatedAt.Format(time.DateTime),
+			})
 		}
 
 		_, err = io.WriteString(os.Stdout, tbl.Render()+"\n")

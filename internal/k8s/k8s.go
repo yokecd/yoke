@@ -268,8 +268,8 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current intern
 	return removedResources, xerr.MultiErrOrderedFrom("", errs...)
 }
 
-func (client Client) GetRelease(ctx context.Context, release, ns string) (*internal.Release, error) {
-	defer internal.DebugTimer(ctx, "get revisions for "+release)
+func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal.Release, error) {
+	defer internal.DebugTimer(ctx, "get revisions for "+name)
 
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
@@ -277,7 +277,7 @@ func (client Client) GetRelease(ctx context.Context, release, ns string) (*inter
 	}
 
 	var labelSelector metav1.LabelSelector
-	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, release)
+	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, name)
 
 	list, err := client.Meta.Resource(mapping.Resource).Namespace(ns).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
@@ -286,9 +286,10 @@ func (client Client) GetRelease(ctx context.Context, release, ns string) (*inter
 		return nil, fmt.Errorf("failed to list revision items: %w", err)
 	}
 
-	revisions := internal.Release{Name: release, Namespace: ns}
+	release := internal.Release{Name: name, Namespace: ns}
+
 	for _, item := range list.Items {
-		revisions.Add(internal.Revision{
+		release.Add(internal.Revision{
 			Name:      item.Name,
 			Namespace: ns,
 			Source: internal.Source{
@@ -301,7 +302,12 @@ func (client Client) GetRelease(ctx context.Context, release, ns string) (*inter
 		})
 	}
 
-	return &revisions, nil
+	// The kubernetes API lists object in roughly creation order as per etcd but does not guarantee it.
+	slices.SortStableFunc(release.History, func(a, b internal.Revision) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+
+	return &release, nil
 }
 
 func (client Client) DeleteRevisions(ctx context.Context, revisions internal.Release) error {
