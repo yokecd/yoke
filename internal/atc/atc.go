@@ -640,6 +640,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
+			HistoryCapSize: cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
 			ClusterAccess:  params.Airway.Spec.ClusterAccess,
 			CrossNamespace: params.Airway.Spec.CrossNamespace,
 			OwnerReferences: []metav1.OwnerReference{

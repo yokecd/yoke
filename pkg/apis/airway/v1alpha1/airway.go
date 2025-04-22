@@ -96,6 +96,11 @@ type AirwaySpec struct {
 	// build new desired state based on external changes to child resources.
 	Mode AirwayMode `json:"mode,omitempty"`
 
+	// HistoryCapSize controls how many revisions of an instance (custom resource) of this airway is kept in history.
+	// To make it uncapped set this value to any negative integer.
+	// By default 2.
+	HistoryCapSize int `json:"historyCapSize,omitempty"`
+
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
