@@ -99,6 +99,9 @@ type TakeoffParams struct {
 
 	// ClusterAccess grants the flight access to the kubernetes cluster. Users will be able to use the host k8s_lookup function.
 	ClusterAccess bool
+
+	// HistoryCapSize limits the number of revisions kept in the release's history by the size. If Cap is less than 1 history is uncapped.
+	HistoryCapSize int
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -286,6 +289,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if _, err := commander.k8s.RemoveOrphans(ctx, previous, stages); err != nil {
 		return fmt.Errorf("failed to remove orhpans: %w", err)
+	}
+
+	if params.HistoryCapSize > 0 {
+		if err := commander.k8s.CapReleaseHistory(ctx, params.Release, targetNS, params.HistoryCapSize); err != nil {
+			return internal.Warning(fmt.Sprintf("failed to cap release history after successful takeoff of %s: %v", params.Release, err))
+		}
 	}
 
 	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)

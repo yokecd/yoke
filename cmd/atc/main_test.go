@@ -20,11 +20,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
 	backendv1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
 	backendv2 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v2"
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/testutils"
@@ -144,7 +146,6 @@ func TestAirTrafficController(t *testing.T) {
 			Release: "backend-airway",
 			Flight: yoke.FlightParams{
 				Input: testutils.JsonReader(v1alpha1.Airway{
-					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "backends.examples.com",
 					},
@@ -882,6 +883,248 @@ func TestCrossNamespace(t *testing.T) {
 			}).
 			Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}),
 	)
+}
+
+func TestHistoryCap(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), func(value bool) *bool { return &value }(true))
+
+	commander := yoke.FromK8Client(client)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			// In CI validation webhook get connection refused...
+			// TODO: investigate if we can avoid this without retry logic.
+			return commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "backend-airway",
+				Flight: yoke.FlightParams{
+					Input: testutils.JsonReader(v1alpha1.Airway{
+						TypeMeta: metav1.TypeMeta{},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "backends.examples.com",
+						},
+						Spec: v1alpha1.AirwaySpec{
+							WasmURLs: v1alpha1.WasmURLs{
+								Flight: "http://wasmcache/flight.v1.wasm",
+							},
+							Template: apiextv1.CustomResourceDefinitionSpec{
+								Group: "examples.com",
+								Names: apiextv1.CustomResourceDefinitionNames{
+									Plural:     "backends",
+									Singular:   "backend",
+									ShortNames: []string{"be"},
+									Kind:       "Backend",
+								},
+								Scope: apiextv1.NamespaceScoped,
+								Versions: []apiextv1.CustomResourceDefinitionVersion{
+									{
+										Name:    "v1",
+										Served:  true,
+										Storage: true,
+										Schema: &apiextv1.CustomResourceValidation{
+											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+										},
+									},
+								},
+							},
+						},
+					}),
+				},
+				Wait: 30 * time.Second,
+				Poll: time.Second,
+			})
+		},
+		time.Second,
+		10*time.Second,
+		"failed to create airway",
+	)
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "backend-airway", ""))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("tests.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to cleanup crossnamepace test resources",
+		)
+	}()
+
+	backendIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "backends",
+		}).
+		Namespace("default")
+
+	backend, err := internal.ToUnstructured(backendv1.Backend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Spec: backendv1.BackendSpec{
+			Image:    "yokecd/c4ts:test",
+			Replicas: 1,
+			Labels:   map[string]string{},
+		},
+	})
+	require.NoError(t, err)
+
+	backend, err = backendIntf.Create(ctx, backend, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	for i := range 3 {
+		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			backend, err = backendIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			unstructured.SetNestedMap(backend.Object, map[string]any{"test": strconv.Itoa(i + 1)}, "spec", "labels")
+			backend, err = backendIntf.Update(ctx, backend, metav1.UpdateOptions{})
+			return err
+		})
+		require.NoError(t, err)
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				deployment, err := client.Clientset.AppsV1().Deployments("default").Get(ctx, "test", metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get deployment: %w", err)
+				}
+				if len(deployment.Labels) == 0 {
+					return fmt.Errorf("deployment does not have labels")
+				}
+				if label := deployment.Labels["test"]; label != strconv.Itoa(i+1) {
+					return fmt.Errorf("did not see updated label got %q but expected %q", label, strconv.Itoa(i+1))
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected to see updated label",
+		)
+
+	}
+
+	release, err := client.GetRelease(ctx, atc.ReleaseName(backend), "default")
+	require.NoError(t, err)
+	require.Len(t, release.History, 2)
+
+	slices.SortStableFunc(release.History, func(a, b internal.Revision) int {
+		return b.ActiveAt.Compare(a.ActiveAt)
+	})
+
+	for i, label := range []string{"3", "2"} {
+		resources, err := client.GetRevisionResources(ctx, release.History[i])
+		require.NoError(t, err)
+
+		dep, _ := internal.Find(resources.Flatten(), func(elem *unstructured.Unstructured) bool { return elem.GetKind() == "Deployment" })
+		require.Equal(t, label, dep.GetLabels()["test"])
+	}
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			// In CI validation webhook get connection refused...
+			// TODO: investigate if we can avoid this without retry logic.
+			return commander.Takeoff(ctx, yoke.TakeoffParams{
+				Release: "backend-airway",
+				Flight: yoke.FlightParams{
+					Input: testutils.JsonReader(v1alpha1.Airway{
+						TypeMeta: metav1.TypeMeta{},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "backends.examples.com",
+						},
+						Spec: v1alpha1.AirwaySpec{
+							WasmURLs: v1alpha1.WasmURLs{
+								Flight: "http://wasmcache/flight.v1.wasm",
+							},
+							HistoryCapSize: 3,
+							Template: apiextv1.CustomResourceDefinitionSpec{
+								Group: "examples.com",
+								Names: apiextv1.CustomResourceDefinitionNames{
+									Plural:     "backends",
+									Singular:   "backend",
+									ShortNames: []string{"be"},
+									Kind:       "Backend",
+								},
+								Scope: apiextv1.NamespaceScoped,
+								Versions: []apiextv1.CustomResourceDefinitionVersion{
+									{
+										Name:    "v1",
+										Served:  true,
+										Storage: true,
+										Schema: &apiextv1.CustomResourceValidation{
+											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+										},
+									},
+								},
+							},
+						},
+					}),
+				},
+				Wait: 30 * time.Second,
+				Poll: time.Second,
+			})
+		},
+		time.Second,
+		10*time.Second,
+		"failed to update airway",
+	)
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		backend, err = backendIntf.Get(ctx, "test", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		unstructured.SetNestedMap(backend.Object, map[string]any{"test": "test"}, "spec", "labels")
+		backend, err = backendIntf.Update(ctx, backend, metav1.UpdateOptions{})
+		return err
+	})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			deployment, err := client.Clientset.AppsV1().Deployments("default").Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get deployment: %w", err)
+			}
+			if len(deployment.Labels) == 0 {
+				return fmt.Errorf("deployment does not have labels")
+			}
+			if label := deployment.Labels["test"]; label != "test" {
+				return fmt.Errorf("did not see updated label got %q but expected %q", label, "test")
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected to see updated label",
+	)
+
+	release, err = client.GetRelease(ctx, atc.ReleaseName(backend), "default")
+	require.NoError(t, err)
+	require.Len(t, release.History, 3)
 }
 
 func TestFixDriftInterval(t *testing.T) {

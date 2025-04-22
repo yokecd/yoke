@@ -456,6 +456,35 @@ func (client Client) UpdateRevisionActiveState(ctx context.Context, revision int
 	return err
 }
 
+func (client Client) CapReleaseHistory(ctx context.Context, name, ns string, size int) error {
+	release, err := client.GetRelease(ctx, name, ns)
+	if err != nil {
+		return fmt.Errorf("failed to load release: %w", err)
+	}
+	slices.SortStableFunc(release.History, func(a, b internal.Revision) int {
+		return b.ActiveAt.Compare(a.ActiveAt)
+	})
+
+	// Nothing to delete
+	if size >= len(release.History) {
+		return nil
+	}
+
+	secretIntf := client.Clientset.CoreV1().Secrets(ns)
+
+	var errs []error
+	for _, revision := range release.History[size:] {
+		if err := secretIntf.Delete(ctx, revision.Name, metav1.DeleteOptions{}); err != nil {
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("%s: %w", revision.Name, err))
+		}
+	}
+
+	return xerr.MultiErrFrom("deleting release history", errs...)
+}
+
 func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) (internal.Stages, error) {
 	secret, err := client.Clientset.CoreV1().Secrets(revision.Namespace).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {

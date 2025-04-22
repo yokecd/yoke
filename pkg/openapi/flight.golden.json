@@ -20,6 +20,9 @@
         "fixDriftInterval": {
           "type": "string"
         },
+        "historyCapSize": {
+          "type": "integer"
+        },
         "insecure": {
           "type": "boolean"
         },
