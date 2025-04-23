@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -240,15 +242,15 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		for _, value := range []struct {
 			URL string
-			Mod *wasi.Module
+			Mod *wasm.Module
 		}{
 			{
 				URL: typedAirway.Spec.WasmURLs.Flight,
-				Mod: modules.Flight.Module,
+				Mod: modules.Flight,
 			},
 			{
 				URL: typedAirway.Spec.WasmURLs.Converter,
-				Mod: modules.Converter.Module,
+				Mod: modules.Converter,
 			},
 		} {
 			if value.URL == "" {
@@ -265,7 +267,16 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
 			}
-			*value.Mod = mod
+
+			*value.Mod.Instance = mod
+			value.Mod.SourceMetadata = yoke.ModuleSourcetadata{
+				Ref: value.URL,
+				Checksum: func() string {
+					hash := sha1.New()
+					hash.Write(data)
+					return hex.EncodeToString(hash.Sum(nil))
+				}(),
+			}
 
 			// Compiling a module creates a lot of heap usage that we don't need to hang onto
 			// and that Go is loathe to release for no reason. Given that compiling is rare, it

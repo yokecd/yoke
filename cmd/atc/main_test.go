@@ -1029,6 +1029,11 @@ func TestHistoryCap(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, release.History, 2)
 
+	for _, revision := range release.History {
+		require.Equal(t, "http://wasmcache/flight.v1.wasm", revision.Source.Ref)
+		require.NotEmpty(t, revision.Source.Checksum)
+	}
+
 	slices.SortStableFunc(release.History, func(a, b internal.Revision) int {
 		return b.ActiveAt.Compare(a.ActiveAt)
 	})
