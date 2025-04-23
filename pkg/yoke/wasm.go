@@ -102,13 +102,13 @@ func gzipReader(r io.Reader) io.Reader {
 }
 
 func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight FlightParams) ([]byte, []byte, error) {
-	if flight.Input != nil && flight.Path == "" && flight.Module == nil {
+	if flight.Input != nil && flight.Path == "" && flight.Module.Instance == nil {
 		output, err := io.ReadAll(flight.Input)
 		return output, nil, err
 	}
 
 	wasm, err := func() ([]byte, error) {
-		if flight.Module != nil {
+		if flight.Module.Instance != nil {
 			return nil, nil
 		}
 		return LoadWasm(ctx, flight.Path, flight.Insecure)
@@ -119,7 +119,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
 		Wasm:    wasm,
-		Module:  flight.Module,
+		Module:  flight.Module.Instance,
 		Release: release,
 		Stdin:   flight.Input,
 		Stderr:  flight.Stderr,

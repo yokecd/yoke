@@ -53,7 +53,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		converter.RLock()
 		defer converter.RUnlock()
 
-		if converter.CompiledModule == nil {
+		if converter.Instance.CompiledModule == nil {
 			http.Error(w, "converter module not ready or validations not managed by this server", http.StatusNotFound)
 			return
 		}
@@ -80,7 +80,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			Module:  converter.Module,
+			Module:  converter.Instance,
 			Stdin:   bytes.NewReader(data),
 			Release: "converter",
 		})
@@ -215,7 +215,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			flightMod.RLock()
 			defer flightMod.RUnlock()
 
-			if flightMod.CompiledModule == nil {
+			if flightMod.Instance.CompiledModule == nil {
 				http.Error(w, "flight not ready or not registered for custom resource", http.StatusNotFound)
 				return
 			}

@@ -29,10 +29,17 @@ import (
 	"github.com/yokecd/yoke/internal/wasi"
 )
 
+type ModuleSourcetadata = internal.Source
+
+type Module struct {
+	Instance       *wasi.Module
+	SourceMetadata ModuleSourcetadata
+}
+
 type FlightParams struct {
 	Path                string
 	Insecure            bool
-	Module              *wasi.Module
+	Module              Module
 	Args                []string
 	Namespace           string
 	CompilationCacheDir string
@@ -277,7 +284,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		params.Release,
 		targetNS,
 		internal.Revision{
-			Source:    internal.SourceFrom(params.Flight.Path, wasm),
+			Source: func() internal.Source {
+				if params.Flight.Path == "" {
+					return params.Flight.Module.SourceMetadata
+				}
+				return internal.SourceFrom(params.Flight.Path, wasm)
+			}(),
 			CreatedAt: now,
 			ActiveAt:  now,
 			Resources: len(stages.Flatten()),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/xsync"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 type Type interface {
@@ -35,10 +36,14 @@ type ModuleCache struct {
 func (cache *ModuleCache) Get(name string) *Modules {
 	modules, _ := cache.modules.LoadOrStore(name, &Modules{
 		Flight: &Module{
-			Module: new(wasi.Module),
+			Module: yoke.Module{
+				Instance: &wasi.Module{},
+			},
 		},
 		Converter: &Module{
-			Module: new(wasi.Module),
+			Module: yoke.Module{
+				Instance: &wasi.Module{},
+			},
 		},
 	})
 	return modules
@@ -69,13 +74,16 @@ func (modules *Modules) UnlockAll() {
 }
 
 type Module struct {
-	*wasi.Module
+	yoke.Module
 	sync.RWMutex
 }
 
 func (mod *Module) Close() {
-	if mod.Module != nil {
-		_ = mod.Module.Close(context.TODO())
+	if mod == nil {
+		return
 	}
-	mod.Module = new(wasi.Module)
+	if mod.Instance != nil {
+		_ = mod.Instance.Close(context.TODO())
+	}
+	mod.Instance = new(wasi.Module)
 }
