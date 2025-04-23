@@ -4,7 +4,20 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-04-19) atc/v0.11.0 - atc-installer/v0.11.0 - latest - v0.12.0 - yokecd/v0.11.0 - yokecd-installer/v0.11.0
+## (2025-04-23) atc/v0.11.2 - atc-installer/v0.11.1 - latest - v0.12.2 - yokecd/v0.11.2
+
+- atc: add checksum and url to metadata of flights created ([ad72f69](https://github.com/yokecd/yoke/commit/ad72f69e829742da00f44705a5b2afeca5a00c49))
+- internal/k8s: enforce non guaranteed ordering when listing revision history ([197ed6d](https://github.com/yokecd/yoke/commit/197ed6de50c82381a0bb8b34cf10cdea0efca959))
+- yoke: add history-cap flag to yoke takeoff with default value of 10 ([9d1418d](https://github.com/yokecd/yoke/commit/9d1418d092262960b483deb9ae3394b37901e196))
+- atc: add default historyCapSize of 2 for takeoff ([ea3dff5](https://github.com/yokecd/yoke/commit/ea3dff5cf3f92b30dc52b6a1d7e8feefc8368b54))
+- internal/k8s: support airway owned flight resource readiness ([cf7121c](https://github.com/yokecd/yoke/commit/cf7121c6807604d41de3fc4c767552505a5a026a))
+- atc: add airway as an owner reference to cr instances ([7532599](https://github.com/yokecd/yoke/commit/7532599cec75b487e27cd37f90b5d920f52ed6b4))
+
+## (2025-04-20) atc/v0.11.1 - v0.12.1 - yokecd/v0.11.1
+
+- yoke/takeoff: add force-ownership flag to allow releases to own previously existing unowned resources ([375758d](https://github.com/yokecd/yoke/commit/375758d5b24ea3fc6dad1df3c70c9e56ef8c06d9))
+
+## (2025-04-19) atc/v0.11.0 - atc-installer/v0.11.0 - v0.12.0 - yokecd/v0.11.0 - yokecd-installer/v0.11.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
