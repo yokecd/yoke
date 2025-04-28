@@ -94,6 +94,47 @@ func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
 	return bytes.NewReader(data)
 }
 
+func TestCreateEmptyDeployment(t *testing.T) {
+
+	params := TakeoffParams{
+		GlobalSettings: settings,
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: bytes.NewReader(nil),
+			},
+		},
+	}
+
+	restcfg, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+	require.NoError(t, err)
+
+	clientset, err := kubernetes.NewForConfig(restcfg)
+	require.NoError(t, err)
+
+	client, err := k8s.NewClient(restcfg)
+	require.NoError(t, err)
+
+	revisions, err := client.GetReleases(background)
+	require.NoError(t, err)
+	require.Len(t, revisions, 0)
+
+	defaultDeployments := clientset.AppsV1().Deployments("default")
+
+	deployments, err := defaultDeployments.List(background, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Len(t, deployments.Items, 0)
+
+	require.Error(t, TakeOff(background, params))
+
+	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Len(t, deployments.Items, 0)
+
+}
+
 func TestCreateDeleteCycle(t *testing.T) {
 	params := TakeoffParams{
 		GlobalSettings: settings,
