@@ -129,6 +129,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}
 
+	if len(output) == 0 {
+		return fmt.Errorf("failed to takeoff: resource provided is either empty or invalid")
+	}
+
 	if params.SendToStdout {
 		_, err = internal.Stdout(ctx).Write(output)
 		return err
@@ -223,10 +227,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	if reflect.DeepEqual(previous, stages) {
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
-	}
-
-	if len(stages) == 0 {
-		return fmt.Errorf("failed to takeoff: resource provided is either empty or invalid")
 	}
 
 	if params.CreateNamespace {
