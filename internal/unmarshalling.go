@@ -30,25 +30,26 @@ type (
 )
 
 func (stages *Stages) UnmarshalJSON(data []byte) error {
+	var err error
 	var resource unstructured.Unstructured
-	if err := json.Unmarshal(data, &resource); err == nil {
+	if err = json.Unmarshal(data, &resource); err == nil {
 		*stages = Stages{Stage{&resource}}
 		return nil
 	}
 
-	var resources []*unstructured.Unstructured
-	if err := json.Unmarshal(data, &resources); err == nil {
+	var resources Stage
+	if err = json.Unmarshal(data, &resources); err == nil {
 		*stages = Stages{resources}
 		return nil
 	}
 
 	var multiStageResources []Stage
-	if err := json.Unmarshal(data, &multiStageResources); err != nil {
-		return err
+	if err := json.Unmarshal(data, &multiStageResources); err == nil {
+		*stages = Stages(multiStageResources)
+		return nil
 	}
 
-	*stages = Stages(multiStageResources)
-	return nil
+	return err
 }
 
 func (stages Stages) Flatten() []*unstructured.Unstructured {

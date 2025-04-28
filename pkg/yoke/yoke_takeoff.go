@@ -225,6 +225,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return internal.Warning("resources are the same as previous revision: skipping takeoff")
 	}
 
+	if len(stages) == 0 {
+		return fmt.Errorf("failed to takeoff: resource provided is either empty or invalid")
+	}
+
 	if params.CreateNamespace {
 		if err := commander.k8s.EnsureNamespace(ctx, targetNS); err != nil {
 			return fmt.Errorf("failed to ensure namespace: %w", err)
