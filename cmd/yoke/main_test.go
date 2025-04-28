@@ -126,13 +126,76 @@ func TestCreateEmptyDeployment(t *testing.T) {
 
 	require.Len(t, deployments.Items, 0)
 
-	require.Error(t, TakeOff(background, params))
+	require.EqualError(t, TakeOff(background, params), "failed to takeoff: resource provided is either empty or invalid")
 
 	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
 	require.NoError(t, err)
 
 	require.Len(t, deployments.Items, 0)
+	// Test cleanup in case a foo release already exists (best-effort)
+	Mayday(background, MaydayParams{
+		GlobalSettings: settings,
+		Release:        "foo",
+	})
+}
 
+func TestCreateThenEmptyCycle(t *testing.T) {
+	params := TakeoffParams{
+		GlobalSettings: settings,
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: createBasicDeployment(t, "sample-app", "default"),
+			},
+		},
+	}
+
+	restcfg, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+	require.NoError(t, err)
+
+	clientset, err := kubernetes.NewForConfig(restcfg)
+	require.NoError(t, err)
+
+	client, err := k8s.NewClient(restcfg)
+	require.NoError(t, err)
+
+	revisions, err := client.GetReleases(background)
+	require.NoError(t, err)
+	require.Len(t, revisions, 0)
+
+	defaultDeployments := clientset.AppsV1().Deployments("default")
+
+	deployments, err := defaultDeployments.List(background, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Len(t, deployments.Items, 0)
+
+	require.NoError(t, TakeOff(background, params))
+
+	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Len(t, deployments.Items, 1)
+
+	require.EqualError(t, TakeOff(background, TakeoffParams{
+		GlobalSettings: settings,
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: bytes.NewReader(nil),
+			},
+		},
+	}), "failed to takeoff: resource provided is either empty or invalid")
+
+	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
+	require.NoError(t, err)
+
+	require.Len(t, deployments.Items, 1)
+	// Test cleanup in case a foo release already exists (best-effort)
+	Mayday(background, MaydayParams{
+		GlobalSettings: settings,
+		Release:        "foo",
+	})
 }
 
 func TestCreateDeleteCycle(t *testing.T) {
