@@ -38,8 +38,8 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	must(x.X("kind delete clusters --all"))
-	must(x.X("kind create cluster --name=tests"))
+	must(x.X("kind delete cluster --name=yoke-cli-tests"))
+	must(x.X("kind create cluster --name=yoke-cli-tests"))
 
 	os.Exit(m.Run())
 }
@@ -95,7 +95,6 @@ func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
 }
 
 func TestCreateEmptyDeployment(t *testing.T) {
-
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
