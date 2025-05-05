@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -25,11 +25,12 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 		case "Pod":
 			return meetsConditions(resource, "Available"), nil
 		case "Service":
-			endpoints, err := client.Clientset.CoreV1().Endpoints(resource.GetNamespace()).Get(ctx, resource.GetName(), metav1.GetOptions{})
-			if kerrors.IsNotFound(err) {
-				err = nil
-			}
-			return endpoints != nil && len(endpoints.Subsets) > 0, err
+			endpoints, err := client.Clientset.DiscoveryV1().EndpointSlices(resource.GetNamespace()).List(ctx, metav1.ListOptions{
+				LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
+					MatchLabels: map[string]string{discoveryv1.LabelServiceName: resource.GetName()},
+				}),
+			})
+			return endpoints != nil && len(endpoints.Items) > 0, err
 		}
 	case "apps":
 		switch gvk.Kind {
