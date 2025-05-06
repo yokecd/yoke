@@ -4,7 +4,19 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-04-23) atc/v0.11.2 - atc-installer/v0.11.1 - latest - v0.12.2 - yokecd/v0.11.2
+## (2025-05-05) atc/v0.11.4 - atc-installer/v0.11.3 - latest - v0.12.4 - yokecd/v0.11.4 - yokecd-installer/v0.11.2
+
+- yoke/takeoff: use discoveryv1.EndpointSlice for service readiness instead of deprecated corev1.Endpoints ([538b65d](https://github.com/yokecd/yoke/commit/538b65d2880e96d3aec7415c2a6557300b44cb9a))
+- deps: update deps ([0a5f9a6](https://github.com/yokecd/yoke/commit/0a5f9a69017441c4a28f0b7f6d0758e22964fccd))
+- yoke/testing: only recreate yoke-cli-testing cluster and not all kind clusters ([2584adc](https://github.com/yokecd/yoke/commit/2584adc6cf1906ada48ef198ed784434e03ac67f))
+
+## (2025-04-28) atc/v0.11.3 - atc-installer/v0.11.2 - v0.12.3 - yokecd/v0.11.3 - yokecd-installer/v0.11.1
+
+- yoke: guard logic on EvalFlight output rather than stages ([f6a7b8a](https://github.com/yokecd/yoke/commit/f6a7b8ab514014ec938af4677772e48eaa4f23f7))
+- yoke: add `TestCreateEmptyDeployment` to testsuite ([9a27107](https://github.com/yokecd/yoke/commit/9a271078ce50bc2c196e4fa2ec38413097609f5b))
+- yoke: ensure the stages are not empty when `yoke takeoff` ([bd22fe2](https://github.com/yokecd/yoke/commit/bd22fe2be8d5f10435aad623218cb395f9ad59c6))
+
+## (2025-04-23) atc/v0.11.2 - atc-installer/v0.11.1 - v0.12.2 - yokecd/v0.11.2
 
 - atc: add checksum and url to metadata of flights created ([ad72f69](https://github.com/yokecd/yoke/commit/ad72f69e829742da00f44705a5b2afeca5a00c49))
 - internal/k8s: enforce non guaranteed ordering when listing revision history ([197ed6d](https://github.com/yokecd/yoke/commit/197ed6de50c82381a0bb8b34cf10cdea0efca959))
