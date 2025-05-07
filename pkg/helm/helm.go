@@ -61,33 +61,18 @@ func LoadChartFromZippedArchive(data []byte) (chart *Chart, err error) {
 		})
 	}
 
-	stripToChart(files)
-
-	underlyingChart, err := loader.LoadFiles(files)
-	if err != nil {
-		return nil, err
-	}
-
-	var values []byte
-	for _, f := range files {
-		if name := f.Name; name == "values.yaml" || name == "values.yml" {
-			values = f.Data
-			break
-		}
-	}
-
-	return &Chart{
-		Chart:  underlyingChart,
-		Values: values,
-	}, nil
+	return newChart(files)
 }
 
 func LoadChartFromFS(fs embed.FS) (*Chart, error) {
 	files, err := getAllFilesFromDir(fs, ".")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get files from FS: %w", err)
+		return nil, err
 	}
+	return newChart(files)
+}
 
+func newChart(files []*loader.BufferedFile) (*Chart, error) {
 	stripToChart(files)
 
 	underlyingChart, err := loader.LoadFiles(files)
@@ -95,29 +80,47 @@ func LoadChartFromFS(fs embed.FS) (*Chart, error) {
 		return nil, err
 	}
 
-	var values []byte
-	for _, f := range files {
-		if name := f.Name; name == "values.yaml" || name == "values.yml" {
-			values = f.Data
-			break
-		}
-	}
-
-	return &Chart{
-		Chart:  underlyingChart,
-		Values: values,
-	}, nil
+	return &Chart{Chart: underlyingChart}, nil
 }
 
 type Chart struct {
 	*chart.Chart
-	Values []byte
 }
 
-func (chart Chart) Render(release, namespace string, values any) ([]*unstructured.Unstructured, error) {
-	opts := chartutil.ReleaseOptions{
+func (chart Chart) ValuesFile() []byte {
+	for _, f := range chart.Files {
+		if name := f.Name; name == "values.yaml" || name == "values.yml" {
+			return f.Data
+		}
+	}
+	return nil
+}
+
+type renderOpts struct {
+	IsInstall bool
+}
+
+type RenderOption func(*renderOpts)
+
+var IsInstall RenderOption = func(ro *renderOpts) {
+	ro.IsInstall = true
+}
+
+func (chart Chart) Render(release, namespace string, values any, opts ...RenderOption) ([]*unstructured.Unstructured, error) {
+	var options renderOpts
+	for _, apply := range opts {
+		apply(&options)
+	}
+
+	releaseOptions := chartutil.ReleaseOptions{
 		Name:      release,
 		Namespace: namespace,
+	}
+
+	if options.IsInstall {
+		releaseOptions.IsInstall = true
+	} else {
+		releaseOptions.IsUpgrade = true
 	}
 
 	capabilities := chartutil.DefaultCapabilities.Copy()
@@ -129,12 +132,12 @@ func (chart Chart) Render(release, namespace string, values any) ([]*unstructure
 
 	chartutil.ProcessDependencies(chart.Chart, valueMap)
 
-	valueMap, err = chartutil.ToRenderValues(chart.Chart, valueMap, opts, capabilities)
+	valueMap, err = chartutil.ToRenderValues(chart.Chart, valueMap, releaseOptions, capabilities)
 	if err != nil {
 		return nil, err
 	}
 
-	rendered, err := engine.Engine{}.Render(chart.Chart, valueMap)
+	rendered, err := engine.Render(chart.Chart, valueMap)
 	if err != nil {
 		return nil, err
 	}

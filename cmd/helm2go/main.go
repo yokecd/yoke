@@ -132,7 +132,7 @@ func run() error {
 
 			debug("inferring schema from values file")
 
-			if err := os.WriteFile(valuesFile, chart.Values, 0o644); err != nil {
+			if err := os.WriteFile(valuesFile, chart.ValuesFile(), 0o644); err != nil {
 				return fmt.Errorf("failed to write values to temp file: %w", err)
 			}
 
