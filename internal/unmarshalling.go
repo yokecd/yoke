@@ -1,9 +1,12 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type List[T any] []T
@@ -29,26 +32,33 @@ type (
 	Stages []Stage
 )
 
-func (stages *Stages) UnmarshalJSON(data []byte) error {
-	var resource unstructured.Unstructured
-	if err := json.Unmarshal(data, &resource); err == nil {
-		*stages = Stages{Stage{&resource}}
-		return nil
+func ParseStages(data []byte) (Stages, error) {
+	decoder := yaml.NewYAMLToJSONDecoder(bytes.NewReader(data))
+
+	var singleStage Stage
+	for {
+		var resource unstructured.Unstructured
+		if err := decoder.Decode(&resource); err != nil {
+			break
+		}
+		singleStage = append(singleStage, &resource)
+	}
+
+	if len(singleStage) > 0 {
+		return Stages{singleStage}, nil
 	}
 
 	var resources Stage
-	if err := json.Unmarshal(data, &resources); err == nil {
-		*stages = Stages{resources}
-		return nil
+	if err := yaml.Unmarshal(data, &resources); err == nil {
+		return Stages{resources}, nil
 	}
 
 	var multiStageResources []Stage
-	if err := json.Unmarshal(data, &multiStageResources); err != nil {
-		return err
+	if err := yaml.Unmarshal(data, &multiStageResources); err != nil {
+		return nil, fmt.Errorf("input must be resource, list of resources, or list of list of resources")
 	}
 
-	*stages = Stages(multiStageResources)
-	return nil
+	return Stages(multiStageResources), nil
 }
 
 func (stages Stages) Flatten() []*unstructured.Unstructured {
