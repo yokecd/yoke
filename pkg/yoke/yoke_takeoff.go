@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -138,9 +137,9 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return err
 	}
 
-	var stages internal.Stages
-	if err := kyaml.Unmarshal(output, &stages); err != nil {
-		return fmt.Errorf("failed to unmarshal raw resources: %w", err)
+	stages, err := internal.ParseStages(output)
+	if err != nil {
+		return fmt.Errorf("failed to parse output into valid flight output: %w", err)
 	}
 
 	targetNS := cmp.Or(params.Flight.Namespace, "default")
