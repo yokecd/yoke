@@ -4,7 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-05-05) atc/v0.11.4 - atc-installer/v0.11.3 - latest - v0.12.4 - yokecd/v0.11.4 - yokecd-installer/v0.11.2
+## (2025-05-10) atc/v0.11.5 - atc-installer/v0.11.4 - latest - v0.12.5 - yokecd/v0.11.5 - yokecd-installer/v0.11.4
+
+- deps: update deps ([a0c8bdb](https://github.com/yokecd/yoke/commit/a0c8bdbcae945d402117b2f21b1f06a930798667))
+- yoke: support multi-doc yaml outputs as a single stage for better ecosystem compat ([4d10928](https://github.com/yokecd/yoke/commit/4d10928e6792d5653154651cd9d8b97da364e859))
+
+## (2025-05-07) yokecd-installer/v0.11.3
+
+- pkg/helm: add IsInstall render option ([d649b54](https://github.com/yokecd/yoke/commit/d649b546db0f2e804eb3d6d09c495dd46e7feabb))
+
+## (2025-05-05) atc/v0.11.4 - atc-installer/v0.11.3 - v0.12.4 - yokecd/v0.11.4 - yokecd-installer/v0.11.2
 
 - yoke/takeoff: use discoveryv1.EndpointSlice for service readiness instead of deprecated corev1.Endpoints ([538b65d](https://github.com/yokecd/yoke/commit/538b65d2880e96d3aec7415c2a6557300b44cb9a))
 - deps: update deps ([0a5f9a6](https://github.com/yokecd/yoke/commit/0a5f9a69017441c4a28f0b7f6d0758e22964fccd))
