@@ -4,7 +4,12 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-05-10) atc/v0.11.5 - atc-installer/v0.11.4 - latest - v0.12.5 - yokecd/v0.11.5 - yokecd-installer/v0.11.4
+## (2025-05-12) atc/v0.11.6 - atc-installer/v0.11.5 - latest - v0.12.6 - yokecd/v0.11.6 - yokecd-installer/v0.11.5
+
+- internal/unmarshalling: parsing of stages creates pre-stages for namespaces and crds ([494c01f](https://github.com/yokecd/yoke/commit/494c01f52f1622d5f023085b64585fcf6cf61bbf))
+- deps: update davidmdm/xerr ([465b107](https://github.com/yokecd/yoke/commit/465b107bec245620fd3ca15ace633bc0a1b28085))
+
+## (2025-05-10) atc/v0.11.5 - atc-installer/v0.11.4 - v0.12.5 - yokecd/v0.11.5 - yokecd-installer/v0.11.4
 
 - deps: update deps ([a0c8bdb](https://github.com/yokecd/yoke/commit/a0c8bdbcae945d402117b2f21b1f06a930798667))
 - yoke: support multi-doc yaml outputs as a single stage for better ecosystem compat ([4d10928](https://github.com/yokecd/yoke/commit/4d10928e6792d5653154651cd9d8b97da364e859))
