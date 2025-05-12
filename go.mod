@@ -10,7 +10,7 @@ require (
 	github.com/davidmdm/ansi v0.0.6
 	github.com/davidmdm/conf v0.0.8
 	github.com/davidmdm/x/xcontext v0.0.3
-	github.com/davidmdm/x/xerr v0.0.3
+	github.com/davidmdm/x/xerr v0.0.4
 	github.com/davidmdm/x/xruntime v0.0.5
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/google/go-containerregistry v0.20.3
