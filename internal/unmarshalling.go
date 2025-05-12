@@ -32,7 +32,34 @@ type (
 	Stages []Stage
 )
 
-func ParseStages(data []byte) (Stages, error) {
+const (
+	gkNamespace = "Namespace"
+	gkCRD       = "CustomResourceDefinition.apiextensions.k8s.io"
+)
+
+func ParseStages(data []byte) (stages Stages, err error) {
+	defer func() {
+		var withPreStages []Stage
+		for _, stage := range stages {
+			var preStage Stage
+			var regular Stage
+			for _, resource := range stage {
+				if gk := resource.GroupVersionKind().GroupKind().String(); gk == gkNamespace || gk == gkCRD {
+					preStage = append(preStage, resource)
+				} else {
+					regular = append(regular, resource)
+				}
+			}
+			if len(preStage) > 0 {
+				withPreStages = append(withPreStages, preStage)
+			}
+			if len(regular) > 0 {
+				withPreStages = append(withPreStages, regular)
+			}
+		}
+		stages = Stages(withPreStages)
+	}()
+
 	decoder := yaml.NewYAMLToJSONDecoder(bytes.NewReader(data))
 
 	var singleStage Stage

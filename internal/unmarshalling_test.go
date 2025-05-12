@@ -80,6 +80,50 @@ func TestParseStaging(t *testing.T) {
 			Input: "hello",
 			Err:   "input must be resource, list of resources, or list of list of resources",
 		},
+		{
+			Name: "namespace and crd in stage with resource",
+			Input: `[
+				{
+					kind: Namespace,
+					apiVersion: v1,
+				},
+				{
+					kind: CustomResourceDefinition,
+					apiVersion: apiextensions.k8s.io/v1,
+				},
+				{
+					kind: Deployment,
+			  },
+			]`,
+			Output: Stages{
+				{
+					&unstructured.Unstructured{Object: map[string]any{"kind": "Namespace", "apiVersion": "v1"}},
+					&unstructured.Unstructured{Object: map[string]any{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}},
+				},
+				{
+					&unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}},
+				},
+			},
+		},
+		{
+			Name: "only namespace and crd in stage",
+			Input: `[
+				{
+					kind: Namespace,
+					apiVersion: v1,
+				},
+				{
+					kind: CustomResourceDefinition,
+					apiVersion: apiextensions.k8s.io/v1,
+				},
+			]`,
+			Output: Stages{
+				{
+					&unstructured.Unstructured{Object: map[string]any{"kind": "Namespace", "apiVersion": "v1"}},
+					&unstructured.Unstructured{Object: map[string]any{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
