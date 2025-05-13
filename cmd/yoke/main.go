@@ -106,7 +106,7 @@ func run() error {
 			}
 			return Blackbox(ctx, *params)
 		}
-	case "turbulence", "drift":
+	case "turbulence", "drift", "diff":
 		{
 			params, err := GetTurbulenceParams(settings, subcmdArgs)
 			if err != nil {
