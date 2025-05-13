@@ -48,7 +48,7 @@ func run() error {
 	RegisterGlobalFlags(flag.CommandLine, &settings)
 
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
+		_,_ = fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr)
 	}

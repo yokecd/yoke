@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -12,7 +13,7 @@ import (
 )
 
 func main() {
-	json.NewEncoder(os.Stdout).Encode(flight.Resources{
+	if err := json.NewEncoder(os.Stdout).Encode(flight.Resources{
 		&batchv1.Job{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: batchv1.SchemeGroupVersion.Identifier(),
@@ -37,5 +38,7 @@ func main() {
 				},
 			},
 		},
-	})
+	}); err != nil {
+		log.Fatalf("error: %v\n", err)
+	}
 }

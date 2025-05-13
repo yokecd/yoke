@@ -40,7 +40,7 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 	flagset := flag.NewFlagSet("blackbox", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), blackboxHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), blackboxHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -49,7 +49,9 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
 	flagset.StringVar(&params.Namespace, "namespace", "", "namespace of release to inspect")
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.Release = flagset.Arg(0)
 

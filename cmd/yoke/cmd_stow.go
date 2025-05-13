@@ -21,7 +21,7 @@ func GetStowParams(args []string) (*yoke.StowParams, error) {
 	flagset := flag.NewFlagSet("stow", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), stowHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), stowHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -32,7 +32,9 @@ func GetStowParams(args []string) (*yoke.StowParams, error) {
 		params.Tags = append(params.Tags, strings.Split(s, ",")...)
 		return nil
 	})
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.WasmFile = flagset.Arg(0)
 	params.URL = flagset.Arg(1)

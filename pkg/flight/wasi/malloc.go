@@ -2,9 +2,9 @@
 // It exports a "malloc" func to let hosts allocate memory within the wasm module.
 package wasi
 
-import "github.com/yokecd/yoke/internal/wasm"
+// import "github.com/yokecd/yoke/internal/wasm"
 
 //go:wasmexport malloc
-func malloc(size uint32) wasm.Buffer {
-	return wasm.FromSlice(make([]byte, size))
-}
+// func malloc(size uint32) wasm.Buffer {
+// 	return wasm.FromSlice(make([]byte, size))
+// }
