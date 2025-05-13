@@ -105,7 +105,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				continue
 			}
 
-			unstructured.SetNestedField(raw, originalStatus, "status")
+			if err := unstructured.SetNestedField(raw, originalStatus, "status"); err != nil {
+				continue
+			}
 
 			data, err := json.Marshal(raw)
 			if err != nil {
@@ -165,7 +167,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 			addRequestAttrs(r.Context(), slog.Bool("skipped", true))
 
-			json.NewEncoder(w).Encode(&review)
+			if err := json.NewEncoder(w).Encode(&review); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			return
 		}
 
@@ -276,7 +282,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				"allowed", review.Response.Allowed,
 				"details", review.Response.Result.Message,
 			))
-			json.NewEncoder(w).Encode(review)
+			if err := json.NewEncoder(w).Encode(review); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		}()
 
 		addRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(prev)))

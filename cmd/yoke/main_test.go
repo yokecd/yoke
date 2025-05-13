@@ -132,10 +132,11 @@ func TestCreateEmptyDeployment(t *testing.T) {
 
 	require.Len(t, deployments.Items, 0)
 	// Test cleanup in case a foo release already exists (best-effort)
-	Mayday(background, MaydayParams{
+	err = Mayday(background, MaydayParams{
 		GlobalSettings: settings,
 		Release:        "foo",
 	})
+	require.NoError(t, err)
 }
 
 func TestCreateThenEmptyCycle(t *testing.T) {
@@ -191,10 +192,11 @@ func TestCreateThenEmptyCycle(t *testing.T) {
 
 	require.Len(t, deployments.Items, 1)
 	// Test cleanup in case a foo release already exists (best-effort)
-	Mayday(background, MaydayParams{
+	err = Mayday(background, MaydayParams{
 		GlobalSettings: settings,
 		Release:        "foo",
 	})
+	require.NoError(t, err)
 }
 
 func TestCreateDeleteCycle(t *testing.T) {
