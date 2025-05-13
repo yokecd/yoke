@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-05-13) v0.12.7
+
+- yoke/turbulence: support diff alias to turbulence command ([16303ef](https://github.com/yokecd/yoke/commit/16303ef5ec0ef6f0b8757cfb5b730f95ba2f33b1))
+
 ## (2025-05-12) atc/v0.11.6 - atc-installer/v0.11.5 - latest - v0.12.6 - yokecd/v0.11.6 - yokecd-installer/v0.11.5
 
 - internal/unmarshalling: parsing of stages creates pre-stages for namespaces and crds ([494c01f](https://github.com/yokecd/yoke/commit/494c01f52f1622d5f023085b64585fcf6cf61bbf))
