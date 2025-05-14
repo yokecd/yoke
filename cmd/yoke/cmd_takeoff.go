@@ -39,7 +39,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset := flag.NewFlagSet("takeoff", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), takeoffHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), takeoffHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -77,7 +77,9 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 
 	args, params.Flight.Args = internal.CutArgs(args)
 
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.Release = flagset.Arg(0)
 	params.Flight.Path = flagset.Arg(1)
