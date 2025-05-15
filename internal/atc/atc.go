@@ -261,8 +261,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm:   data,
-				Client: ctrl.Client(ctx),
+				Wasm:           data,
+				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx), nil),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)

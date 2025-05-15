@@ -124,6 +124,10 @@ func GetOwner(resource *unstructured.Unstructured) string {
 	return namespace + "/" + release
 }
 
+func OwnerFrom(release, ns string) string {
+	return ns + "/" + release
+}
+
 func Canonical(resource *unstructured.Unstructured) string {
 	gvk := resource.GetObjectKind().GroupVersionKind()
 
