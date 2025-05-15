@@ -129,8 +129,8 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 			"YOKE_NAMESPACE": flight.Namespace,
 			"NAMESPACE":      flight.Namespace,
 		},
-		CacheDir: flight.CompilationCacheDir,
-		Client:   client,
+		CacheDir:       flight.CompilationCacheDir,
+		LookupResource: wasi.HostLookupResource(client, nil),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)

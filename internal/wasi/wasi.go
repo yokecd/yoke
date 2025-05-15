@@ -5,8 +5,10 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
+	"path"
 	"reflect"
 
 	"github.com/tetratelabs/wazero"
@@ -15,6 +17,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
@@ -28,15 +31,15 @@ import (
 )
 
 type ExecParams struct {
-	Wasm     []byte
-	Module   *Module
-	Release  string
-	Stdin    io.Reader
-	Stderr   io.Writer
-	Args     []string
-	Env      map[string]string
-	CacheDir string
-	Client   *k8s.Client
+	Wasm           []byte
+	Module         *Module
+	Release        string
+	Stdin          io.Reader
+	Stderr         io.Writer
+	Args           []string
+	Env            map[string]string
+	CacheDir       string
+	LookupResource HostLookupResourceFunc
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
@@ -47,9 +50,9 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		}
 
 		mod, err := Compile(ctx, CompileParams{
-			Wasm:     params.Wasm,
-			CacheDir: params.CacheDir,
-			Client:   params.Client,
+			Wasm:           params.Wasm,
+			CacheDir:       params.CacheDir,
+			LookupResource: params.LookupResource,
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
@@ -78,6 +81,14 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 
 	moduleCfg := wazero.
 		NewModuleConfig().
+		WithName(func() string {
+			var args []string
+			if ns := params.Env["YOKE_NAMESPACE"]; ns != "" {
+				args = append(args, ns)
+			}
+			args = append(args, params.Release)
+			return path.Join(args...)
+		}()).
 		WithStdout(&stdout).
 		WithStderr(func() io.Writer {
 			if params.Stderr != nil {
@@ -116,9 +127,9 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 }
 
 type CompileParams struct {
-	Wasm     []byte
-	CacheDir string
-	Client   *k8s.Client
+	Wasm           []byte
+	CacheDir       string
+	LookupResource HostLookupResourceFunc
 }
 
 type Module struct {
@@ -177,29 +188,18 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 
 	for name, fn := range map[string]any{
 		"k8s_lookup": func(ctx context.Context, module api.Module, stateRef wasm.Ptr, name, namespace, kind, apiVersion wasm.String) wasm.Buffer {
-			if params.Client == nil {
+			if params.LookupResource == nil {
 				return Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
 			}
 
-			gv, err := schema.ParseGroupVersion(LoadString(module, apiVersion))
-			if err != nil {
-				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
-			}
-
-			mapping, err := params.Client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: LoadString(module, kind)}, gv.Version)
-			if err != nil {
-				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
-			}
-
-			intf := func() dynamic.ResourceInterface {
-				intf := params.Client.Dynamic.Resource(mapping.Resource)
-				if mapping.Scope == meta.RESTScopeNamespace {
-					return intf.Namespace(cmp.Or(LoadString(module, namespace), "default"))
-				}
-				return intf
-			}()
-
-			resource, err := intf.Get(ctx, LoadString(module, name), metav1.GetOptions{})
+			resource, err := params.LookupResource(
+				ctx,
+				module,
+				LoadString(module, name),
+				LoadString(module, namespace),
+				LoadString(module, kind),
+				LoadString(module, apiVersion),
+			)
 			if err != nil {
 				errState := func() wasm.State {
 					switch {
@@ -280,4 +280,48 @@ func LoadBytes(module api.Module, value wasm.Buffer) []byte {
 		panic("memory read out of bounds")
 	}
 	return data
+}
+
+type HostLookupResourceFunc func(ctx context.Context, mod api.Module, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error)
+
+func HostLookupResource(client *k8s.Client, matchers []string) HostLookupResourceFunc {
+	if client == nil {
+		return nil
+	}
+	return func(ctx context.Context, mod api.Module, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error) {
+		gv, err := schema.ParseGroupVersion(apiVersion)
+		if err != nil {
+			return nil, err
+		}
+
+		mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: kind}, gv.Version)
+		if err != nil {
+			return nil, err
+		}
+
+		intf := func() dynamic.ResourceInterface {
+			intf := client.Dynamic.Resource(mapping.Resource)
+			if mapping.Scope == meta.RESTScopeNamespace {
+				return intf.Namespace(cmp.Or(namespace, "default"))
+			}
+			return intf
+		}()
+
+		resource, err := intf.Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, matcher := range matchers {
+			if internal.MatchResource(resource, matcher) {
+				return resource, nil
+			}
+		}
+
+		if internal.GetOwner(resource) != mod.Name() {
+			return nil, kerrors.NewForbidden(schema.GroupResource{}, "", errors.New("cannot access resource outside of target release ownership"))
+		}
+
+		return resource, nil
+	}
 }
