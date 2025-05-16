@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-05-15) atc/v0.11.7 - atc-installer/v0.11.6 - v0.12.8 - yokecd/v0.11.7 - yokecd-installer/v0.11.6
+
+- yoke/wasi: move resource ownership check out of guest onto the host ([d5b9b81](https://github.com/yokecd/yoke/commit/d5b9b81a0bc1edcfc725d31614b53b99e9d12989))
+
 ## (2025-05-13) v0.12.7
 
 - yoke/turbulence: support diff alias to turbulence command ([16303ef](https://github.com/yokecd/yoke/commit/16303ef5ec0ef6f0b8757cfb5b730f95ba2f33b1))
