@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,51 +21,35 @@ func TestMatchResource(t *testing.T) {
 		},
 	}
 
-	cases := []struct {
-		Matcher  string
-		Expected bool
-	}{
-		{
-			Matcher:  "*",
-			Expected: true,
+	cases := map[bool][]string{
+		true: {
+			"*",
+			"foo/Deployment.apps:test",
+			"Deployment.apps:test",
+			"Deployment.apps",
+			"*/*",
+			"*/Deployment.apps",
+			"foo/Deployment.apps:*",
+			"*/Deployment.apps:*",
 		},
-		{
-			Matcher:  "",
-			Expected: false,
-		},
-		{
-			Matcher:  "foo/Deployment.apps:test",
-			Expected: true,
-		},
-		{
-			Matcher:  "Deployment.apps:test",
-			Expected: true,
-		},
-		{
-			Matcher:  "Deployment.apps",
-			Expected: true,
-		},
-		{
-			Matcher:  "Deployment",
-			Expected: false,
-		},
-		{
-			Matcher:  "bar/Deployment.apps",
-			Expected: false,
-		},
-		{
-			Matcher:  "Deployment.custom:test",
-			Expected: false,
-		},
-		{
-			Matcher:  "Deployment.apps:other",
-			Expected: false,
+		false: {
+			"",
+			"/",
+			"Deployment",
+			"bar/Deployment.apps",
+			"Deployment.custom:test",
+			"Deployment.apps:other",
+			"bar/*",
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Matcher, func(t *testing.T) {
-			require.Equal(t, tc.Expected, MatchResource(&resource, tc.Matcher))
+	for ok, matchers := range cases {
+		t.Run(strconv.FormatBool(ok), func(t *testing.T) {
+			for _, matcher := range matchers {
+				t.Run(matcher, func(t *testing.T) {
+					require.Equal(t, ok, MatchResource(&resource, matcher))
+				})
+			}
 		})
 	}
 }
