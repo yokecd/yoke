@@ -40,6 +40,12 @@
             "type": "string"
           }
         },
+        "resourceAccessMatchers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "skipAdmissionWebhook": {
           "type": "boolean"
         },

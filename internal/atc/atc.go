@@ -262,7 +262,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
 				Wasm:           data,
-				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx), nil),
+				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx), typedAirway.Spec.ResourceAccessMatchers),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
@@ -651,9 +651,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
-			HistoryCapSize: cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
-			ClusterAccess:  params.Airway.Spec.ClusterAccess,
-			CrossNamespace: params.Airway.Spec.CrossNamespace,
+			HistoryCapSize:        cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
+			ClusterAccess:         params.Airway.Spec.ClusterAccess,
+			ClusterResourceAccess: params.Airway.Spec.ResourceAccessMatchers,
+			CrossNamespace:        params.Airway.Spec.CrossNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: resource.GetAPIVersion(),

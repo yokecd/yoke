@@ -188,9 +188,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		params := yoke.TakeoffParams{
-			Release:        atc.ReleaseName(&cr),
-			CrossNamespace: airway.Spec.CrossNamespace,
-			ClusterAccess:  airway.Spec.ClusterAccess,
+			Release:               atc.ReleaseName(&cr),
+			CrossNamespace:        airway.Spec.CrossNamespace,
+			ClusterAccess:         airway.Spec.ClusterAccess,
+			ClusterResourceAccess: airway.Spec.ResourceAccessMatchers,
 			Flight: yoke.FlightParams{
 				Input:     bytes.NewReader(data),
 				Namespace: cr.GetNamespace(),

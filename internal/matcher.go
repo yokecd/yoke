@@ -18,22 +18,25 @@ func MatchResource(resource *unstructured.Unstructured, matcher string) bool {
 		ns, gkn, ok := strings.Cut(matcher, "/")
 		if !ok {
 			gkn = ns
-			ns = ""
+			ns = "*"
 		}
-		gk, name, _ := strings.Cut(gkn, ":")
+		gk, name, ok := strings.Cut(gkn, ":")
+		if !ok {
+			name = "*"
+		}
 
 		return ns, gk, name
 	}()
 
-	if namespace != "" && resource.GetNamespace() != namespace {
+	if namespace != "*" && resource.GetNamespace() != namespace {
 		return false
 	}
 
-	if resource.GroupVersionKind().GroupKind().String() != gk {
+	if gk != "*" && resource.GroupVersionKind().GroupKind().String() != gk {
 		return false
 	}
 
-	if name != "" && resource.GetName() != name {
+	if name != "*" && resource.GetName() != name {
 		return false
 	}
 
