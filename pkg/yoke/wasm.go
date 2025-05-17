@@ -101,7 +101,7 @@ func gzipReader(r io.Reader) io.Reader {
 	return pr
 }
 
-func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight FlightParams) ([]byte, []byte, error) {
+func EvalFlight(ctx context.Context, client *k8s.Client, release string, matchers []string, flight FlightParams) ([]byte, []byte, error) {
 	if flight.Input != nil && flight.Path == "" && flight.Module.Instance == nil {
 		output, err := io.ReadAll(flight.Input)
 		return output, nil, err
@@ -130,7 +130,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, flight 
 			"NAMESPACE":      flight.Namespace,
 		},
 		CacheDir:       flight.CompilationCacheDir,
-		LookupResource: wasi.HostLookupResource(client, nil),
+		LookupResource: wasi.HostLookupResource(client, matchers),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
