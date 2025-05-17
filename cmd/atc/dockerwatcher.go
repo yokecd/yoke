@@ -58,7 +58,7 @@ func WatchDockerConfig(ctx context.Context, params WatchDockerConfigParams) erro
 		params.Logger.Info("init: successfully setup docker credentials from secret", "secretName", params.SecretName)
 	}
 
-	watcher, err := retryWatcher.NewRetryWatcher(cmp.Or(secrets.ResourceVersion, "1"), &kcache.ListWatch{
+	watcher, err := retryWatcher.NewRetryWatcherWithContext(ctx, cmp.Or(secrets.ResourceVersion, "1"), &kcache.ListWatch{
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return secretIntf.Watch(ctx, opts)

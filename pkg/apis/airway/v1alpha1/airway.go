@@ -68,6 +68,21 @@ type AirwaySpec struct {
 	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
 	ClusterAccess bool `json:"clusterAccess,omitempty"`
 
+	// ResourceAccessMatchers combined with ClusterAccess allow you to lookup any resource in your cluster. By default without any matchers
+	// the only resources that you can lookup are resources that are directly owned by the release. If you wish to access resources external
+	// to the release you can provide a set of matcher patterns. If any pattern matches, the resource is allowed to by accessed.
+	//
+	// The pattern goes like this: $namespace/$Kind.Group:$name
+	// Where namespace and name are optional. If they are omitted it is the same as setting them to '*'.
+	//
+	// Examples Matchers:
+	// 	- Deployment.apps 							# matches all deployments in your cluster
+	// 	- foo/Deployment.apps 					# matches all deployments in namespace foo
+	// 	- foo/Deployment.apps:example 	# matches a deployment named example in namespace foo.
+	// 	- * 														# matches all resources in the cluster.
+	// 	- foo/* 												# matches all resources in namespace foo.
+	ResourceAccessMatchers []string `json:"resourceAccessMatchers,omitempty"`
+
 	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
 	CrossNamespace bool `json:"crossNamespace,omitempty"`
 

@@ -75,6 +75,15 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 
 	flagset.StringVar(&params.Flight.CompilationCacheDir, "compilation-cache", "", "location to cache wasm compilations")
 
+	flagset.Func(
+		"resource-access",
+		"allows flights with cluster-access to read resources outside of the release that match pattern. This flag can be set many times and matchers can be comma separated.",
+		func(s string) error {
+			params.ClusterResourceAccess = append(params.ClusterResourceAccess, strings.Split(s, ",")...)
+			return nil
+		},
+	)
+
 	args, params.Flight.Args = internal.CutArgs(args)
 
 	flagset.Parse(args)
@@ -99,7 +108,7 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 	}
 
 	// We want the CLI to stream stderr back to the user instead of buffering.
-	params.TakeoffParams.Flight.Stderr = internal.Stderr(ctx)
+	params.Flight.Stderr = internal.Stderr(ctx)
 
 	return commander.Takeoff(ctx, params.TakeoffParams)
 }
