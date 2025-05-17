@@ -106,6 +106,9 @@ type TakeoffParams struct {
 	// ClusterAccess grants the flight access to the kubernetes cluster. Users will be able to use the host k8s_lookup function.
 	ClusterAccess bool
 
+	// ClusterResourceAccess
+	ClusterResourceAccess []string
+
 	// HistoryCapSize limits the number of revisions kept in the release's history by the size. If Cap is less than 1 history is uncapped.
 	HistoryCapSize int
 }
@@ -122,6 +125,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 			return commander.k8s
 		}(),
 		params.Release,
+		params.ClusterResourceAccess,
 		params.Flight,
 	)
 	if err != nil {

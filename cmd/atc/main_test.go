@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,11 @@ import (
 	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
+
+type EmptyCRD struct {
+	metav1.TypeMeta
+	metav1.ObjectMeta `json:"metadata"`
+}
 
 func TestMain(m *testing.M) {
 	must := func(err error) {
@@ -744,11 +750,6 @@ func TestCrossNamespace(t *testing.T) {
 
 	commander := yoke.FromK8Client(client)
 
-	type EmptyCRD struct {
-		metav1.TypeMeta
-		metav1.ObjectMeta `json:"metadata"`
-	}
-
 	airwayWithCrossNamespace := func(crossNamespace bool) v1alpha1.Airway {
 		return v1alpha1.Airway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1276,11 +1277,6 @@ func TestStatusReadiness(t *testing.T) {
 
 	commander := yoke.FromK8Client(client)
 
-	type EmptyCRD struct {
-		metav1.TypeMeta
-		metav1.ObjectMeta `json:"metadata"`
-	}
-
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
@@ -1377,6 +1373,219 @@ func TestStatusReadiness(t *testing.T) {
 	)
 
 	require.EqualValues(t, []string{"InProgress", "Ready"}, statuses)
+}
+
+func TestResourceAccessMatchers(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	_, err = client.Clientset.CoreV1().Secrets("default").Create(
+		ctx,
+		&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "one",
+				Namespace: "default",
+			},
+			StringData: map[string]string{"key": "secret one"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Secrets("default").Delete(ctx, "one", metav1.DeleteOptions{}))
+	}()
+
+	require.NoError(t, client.EnsureNamespace(ctx, "custom"))
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(ctx, "custom", metav1.DeleteOptions{}))
+	}()
+
+	_, err = client.Clientset.CoreV1().Secrets("custom").Create(
+		ctx,
+		&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "two",
+				Namespace: "custom",
+			},
+			StringData: map[string]string{"key": "secret two"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Secrets("custom").Delete(ctx, "two", metav1.DeleteOptions{}))
+	}()
+
+	cases := []struct {
+		Name     string
+		Matchers []string
+		Err      string
+	}{
+		{
+			Name:     "no matchers",
+			Matchers: nil,
+			Err:      "failed to lookup secret one: forbidden: cannot access resource outside of target release ownership",
+		},
+		{
+			Name:     "matchers that do not match",
+			Matchers: []string{"bar/Secret:example"},
+			Err:      "failed to lookup secret one: forbidden: cannot access resource outside of target release ownership",
+		},
+		{
+			Name:     "match only first secret",
+			Matchers: []string{"default/*"},
+			Err:      "failed to lookup secret two: forbidden: cannot access resource outside of target release ownership",
+		},
+		// {
+		// 	Name:     "match both separately",
+		// 	Matchers: []string{"default/*", "custom/Secret"},
+		// },
+		{
+			Name:     "match all secrets",
+			Matchers: []string{"Secret"},
+		},
+		{
+			Name:     "match all resources",
+			Matchers: []string{"*"},
+		},
+	}
+
+	params := func(matchers []string) yoke.TakeoffParams {
+		return yoke.TakeoffParams{
+			Release: "resourceaccessmatchers-airway",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(v1alpha1.Airway{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "backends.examples.com",
+					},
+					Spec: v1alpha1.AirwaySpec{
+						WasmURLs: v1alpha1.WasmURLs{
+							Flight: "http://wasmcache/resourceaccessmatchers.wasm",
+						},
+						ClusterAccess:          true,
+						ResourceAccessMatchers: matchers,
+						Template: apiextv1.CustomResourceDefinitionSpec{
+							Group: "examples.com",
+							Names: apiextv1.CustomResourceDefinitionNames{
+								Plural:   "backends",
+								Singular: "backend",
+								Kind:     "Backend",
+							},
+							Scope: apiextv1.NamespaceScoped,
+							Versions: []apiextv1.CustomResourceDefinitionVersion{
+								{
+									Name:    "v1",
+									Served:  true,
+									Storage: true,
+									Schema: &apiextv1.CustomResourceValidation{
+										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+									},
+								},
+							},
+						},
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}
+	}
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "resourceaccessmatchers-airway", ""))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				list, err := airwayIntf.List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				if count := len(list.Items); count != 0 {
+					return fmt.Errorf("expected no error but got %d", count)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to remove airway",
+		)
+	}()
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			require.NoError(t, commander.Takeoff(ctx, params(tc.Matchers)))
+
+			// TODO: remove when we can fix the readiness of Airways? Likely to do with ObservedGeneration being
+			// missing from the status impementation of Airways. If this isn't here we likely call the webhook before
+			// the airway has fully had time to switch over to the new matchers.
+			time.Sleep(3 * time.Second)
+
+			backendIntf := client.Dynamic.
+				Resource(schema.GroupVersionResource{
+					Group:    "examples.com",
+					Version:  "v1",
+					Resource: "backends",
+				}).
+				Namespace("default")
+
+			be := &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "examples.com/v1",
+					"kind":       "Backend",
+					"metadata": map[string]any{
+						"name":      "test",
+						"namespace": "default",
+					},
+				},
+			}
+
+			_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+			if tc.Err != "" {
+				require.ErrorContains(t, err, tc.Err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.NoError(t, client.WaitForReady(ctx, be, k8s.WaitOptions{Timeout: 30 * time.Second}))
+
+			require.NoError(t, backendIntf.Delete(ctx, be.GetName(), metav1.DeleteOptions{}))
+
+			testutils.EventuallyNoErrorf(
+				t,
+				func() error {
+					list, err := backendIntf.List(ctx, metav1.ListOptions{})
+					if err != nil {
+						return err
+					}
+					if count := len(list.Items); count > 0 {
+						return fmt.Errorf("listed %d backends instead of none", count)
+					}
+					return nil
+				},
+				time.Second,
+				30*time.Second,
+				"backend count did not go to zero",
+			)
+		})
+	}
 }
 
 func TestAirwayModes(t *testing.T) {

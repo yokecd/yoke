@@ -1030,6 +1030,50 @@ func TestLookupResource(t *testing.T) {
 	)
 
 	require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
+
+	require.ErrorContains(
+		t,
+		TakeOff(ctx, TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:               "foo",
+				CreateNamespace:       true,
+				ClusterAccess:         true,
+				ClusterResourceAccess: []string{"default/Configmap"},
+				Flight: yoke.FlightParams{
+					Path:      "./test_output/flight.wasm",
+					Namespace: "foo",
+					Input:     strings.NewReader(`{"Namespace": "default"}`),
+				},
+				Wait: 10 * time.Second,
+				Poll: time.Second,
+			},
+		}),
+		"exit_code(1)",
+	)
+
+	require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
+
+	require.NoError(
+		t,
+		TakeOff(ctx, TakeoffParams{
+			GlobalSettings: settings,
+			TakeoffParams: yoke.TakeoffParams{
+				Release:               "foo",
+				CreateNamespace:       true,
+				ClusterAccess:         true,
+				ClusterResourceAccess: []string{"default/*", "foo/*"},
+				Flight: yoke.FlightParams{
+					Path:      "./test_output/flight.wasm",
+					Namespace: "foo",
+					Input:     strings.NewReader(`{"Namespace": "default"}`),
+				},
+				Wait: 10 * time.Second,
+				Poll: time.Second,
+			},
+		}),
+		"exit_code(1)",
+	)
 }
 
 func TestOciFlight(t *testing.T) {
