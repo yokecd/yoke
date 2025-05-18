@@ -567,6 +567,9 @@
         "msg": {
           "type": "string"
         },
+        "observedGeneration": {
+          "type": "integer"
+        },
         "status": {
           "type": "string"
         }

@@ -30,8 +30,13 @@ func Namespace() string {
 type Status struct {
 	// Status represents the state of the resource. Typical values are: InProgress, Ready, Error, Terminating.
 	Status string `json:"status,omitempty"`
+
 	// Msg is a human readable message describing the status or error if any.
 	Msg string `json:"msg,omitempty"`
+
+	// ObservedGeneration is the observed generation of the resource at the time the status is written.
+	// This field allows us to know when the status is stale after an update to its parent resource.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 const (
