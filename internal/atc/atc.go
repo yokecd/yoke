@@ -127,7 +127,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		_ = unstructured.SetNestedMap(
 			airway.Object,
-			internal.MustUnstructuredObject(flight.Status{Status: status, Msg: fmt.Sprintf("%v", msg)}),
+			internal.MustUnstructuredObject(flight.Status{
+				Status:             status,
+				Msg:                fmt.Sprintf("%v", msg),
+				ObservedGeneration: airway.GetGeneration(),
+			}),
 			"status",
 		)
 
@@ -562,7 +566,11 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 			_ = unstructured.SetNestedMap(
 				resource.Object,
-				internal.MustUnstructuredObject(flight.Status{Status: status, Msg: fmt.Sprintf("%v", msg)}),
+				internal.MustUnstructuredObject(flight.Status{
+					Status:             status,
+					Msg:                fmt.Sprintf("%v", msg),
+					ObservedGeneration: resource.GetGeneration(),
+				}),
 				"status",
 			)
 

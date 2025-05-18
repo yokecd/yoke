@@ -1533,11 +1533,6 @@ func TestResourceAccessMatchers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			require.NoError(t, commander.Takeoff(ctx, params(tc.Matchers)))
 
-			// TODO: remove when we can fix the readiness of Airways? Likely to do with ObservedGeneration being
-			// missing from the status impementation of Airways. If this isn't here we likely call the webhook before
-			// the airway has fully had time to switch over to the new matchers.
-			time.Sleep(3 * time.Second)
-
 			backendIntf := client.Dynamic.
 				Resource(schema.GroupVersionResource{
 					Group:    "examples.com",
