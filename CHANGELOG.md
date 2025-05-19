@@ -4,6 +4,12 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-05-19) atc/v0.11.8 - atc-installer/v0.11.7 - latest - v0.12.9 - yokecd/v0.11.8 - yokecd-installer/v0.11.7
+
+- pkg/flight: add observed generation to flight status ([cc4c979](https://github.com/yokecd/yoke/commit/cc4c9795031ff2d9fd9e89ef996ab536de04f8e2))
+- yoke&atc: add resource matcher flags or properties for extended cluster access ([102528b](https://github.com/yokecd/yoke/commit/102528b2dd7192ffdd28f3419fe558103c0e28c7))
+- internal/matcher: add new test cases to matcher format ([ce1afa4](https://github.com/yokecd/yoke/commit/ce1afa4cf82cb28d8689fa6febbd5e2796440b1c))
+
 ## (2025-05-15) atc/v0.11.7 - atc-installer/v0.11.6 - v0.12.8 - yokecd/v0.11.7 - yokecd-installer/v0.11.6
 
 - yoke/wasi: move resource ownership check out of guest onto the host ([d5b9b81](https://github.com/yokecd/yoke/commit/d5b9b81a0bc1edcfc725d31614b53b99e9d12989))
@@ -12,7 +18,7 @@
 
 - yoke/turbulence: support diff alias to turbulence command ([16303ef](https://github.com/yokecd/yoke/commit/16303ef5ec0ef6f0b8757cfb5b730f95ba2f33b1))
 
-## (2025-05-12) atc/v0.11.6 - atc-installer/v0.11.5 - latest - v0.12.6 - yokecd/v0.11.6 - yokecd-installer/v0.11.5
+## (2025-05-12) atc/v0.11.6 - atc-installer/v0.11.5 - v0.12.6 - yokecd/v0.11.6 - yokecd-installer/v0.11.5
 
 - internal/unmarshalling: parsing of stages creates pre-stages for namespaces and crds ([494c01f](https://github.com/yokecd/yoke/commit/494c01f52f1622d5f023085b64585fcf6cf61bbf))
 - deps: update davidmdm/xerr ([465b107](https://github.com/yokecd/yoke/commit/465b107bec245620fd3ca15ace633bc0a1b28085))
