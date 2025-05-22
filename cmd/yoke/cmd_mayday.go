@@ -28,7 +28,7 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 	flagset := flag.NewFlagSet("mayday", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), maydayHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), maydayHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -38,7 +38,9 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 
 	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release to remove")
 
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.Release = flagset.Arg(0)
 	if params.Release == "" {

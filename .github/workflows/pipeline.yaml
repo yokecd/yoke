@@ -31,6 +31,12 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
           cache: true
+          
+      - name: Linting
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
 
       - name: Run tests
         shell: bash

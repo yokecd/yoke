@@ -29,7 +29,7 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 	flagset := flag.NewFlagSet("descent", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), descentHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), descentHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -43,7 +43,9 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
 	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
 
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.Release = flagset.Arg(0)
 	if params.Release == "" {
