@@ -4,7 +4,13 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-05-19) atc/v0.11.8 - atc-installer/v0.11.7 - latest - v0.12.9 - yokecd/v0.11.8 - yokecd-installer/v0.11.7
+## (2025-05-26) atc-installer/v0.11.8 - latest
+
+- atc/installer: log useful TLS cert generation messages ([fa15b19](https://github.com/yokecd/yoke/commit/fa15b19dd1509e5e1574106f745f34f7b8b477e7))
+- atc/testing: refactors c4ts server ([34f0aca](https://github.com/yokecd/yoke/commit/34f0acaa59c537a05ae67aef154b81e669915957))
+- atc/testing: remove pdf from c4ts server ([ad44959](https://github.com/yokecd/yoke/commit/ad44959ac8aeebba52c09feee74a193d6f475d21))
+
+## (2025-05-19) atc/v0.11.8 - atc-installer/v0.11.7 - v0.12.9 - yokecd/v0.11.8 - yokecd-installer/v0.11.7
 
 - pkg/flight: add observed generation to flight status ([cc4c979](https://github.com/yokecd/yoke/commit/cc4c9795031ff2d9fd9e89ef996ab536de04f8e2))
 - yoke&atc: add resource matcher flags or properties for extended cluster access ([102528b](https://github.com/yokecd/yoke/commit/102528b2dd7192ffdd28f3419fe558103c0e28c7))
