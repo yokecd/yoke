@@ -6,8 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
@@ -31,9 +33,13 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 			ToRows: func(airways []v1alpha1.Airway) []table.Row {
 				rows := make([]table.Row, len(airways))
 				for i, airway := range airways {
-					rows[i] = table.Row{airway.Name, airway.Status.Status, airway.Status.Msg}
+					readyConditon, _ := internal.Find(airway.Status.Conditions, func(cond metav1.Condition) bool {
+						return cond.Type == "Ready"
+					})
 
-					switch airway.Status.Status {
+					rows[i] = table.Row{airway.Name, readyConditon.Reason, readyConditon.Message}
+
+					switch readyConditon.Reason {
 					case "Error":
 						styleRow(lipgloss.NewStyle().Foreground(lipgloss.Color("#900")), rows[i])
 					case "InProgress":

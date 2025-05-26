@@ -41,7 +41,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 		return value.OpenAPISchema()
 	}
 
-	if typ.PkgPath() == "k8s.io/apimachinery/pkg/apis/meta/v1" && typ.Name() == "Duration" {
+	if typ.PkgPath() == "k8s.io/apimachinery/pkg/apis/meta/v1" && slices.Contains([]string{"Duration", "Time"}, typ.Name()) {
 		return &apiext.JSONSchemaProps{Type: "string"}
 	}
 

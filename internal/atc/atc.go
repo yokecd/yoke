@@ -114,26 +114,51 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, err
 	}
 
-	airwayStatus := func(status string, msg any) {
-		var err error
-		airway, err = airwayIntf.Get(ctx, event.Name, metav1.GetOptions{})
+	airwayStatus := func(status metav1.ConditionStatus, reason string, msg any) {
+		readyCondition := metav1.Condition{
+			Type:               "Ready",
+			Status:             status,
+			ObservedGeneration: typedAirway.Generation,
+			Reason:             reason,
+			Message:            fmt.Sprintf("%v", msg),
+		}
+
+		conditions := typedAirway.Status.Conditions
+
+		i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
+			return condition.Type == "Ready"
+		})
+
+		readyCondition.LastTransitionTime = func() metav1.Time {
+			if i < 0 || conditions[i].Status != status {
+				return metav1.Now()
+			}
+			return conditions[i].LastTransitionTime
+		}()
+
+		if i < 0 {
+			conditions = append(conditions, readyCondition)
+		} else {
+			conditions[i] = readyCondition
+		}
+
+		current, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return
 			}
-			ctrl.Logger(ctx).Error("failed to update airway status", "error", fmt.Errorf("failed to get airway: %v", err))
+			ctrl.Logger(ctx).Error("failed to update status", "error", err)
 			return
 		}
 
-		_ = unstructured.SetNestedMap(
-			airway.Object,
-			internal.MustUnstructuredObject(flight.Status{
-				Status:             status,
-				Msg:                fmt.Sprintf("%v", msg),
-				ObservedGeneration: airway.GetGeneration(),
-			}),
-			"status",
-		)
+		if current.GetGeneration() != airway.GetGeneration() {
+			// Don't update status if current generation has changed.
+			return
+		}
+
+		airway = current
+
+		_ = unstructured.SetNestedField(airway.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
 
 		updated, err := airwayIntf.UpdateStatus(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
@@ -146,7 +171,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 		airway = updated
 
-		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
+		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(updated.Object, &typedAirway); err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
 			return
 		}
@@ -164,7 +189,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	modules := atc.moduleCache.Get(typedAirway.Name)
 
 	if typedAirway.DeletionTimestamp != nil {
-		airwayStatus("Terminating", "cleaning up resources")
+		airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 
 		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
 			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
@@ -217,7 +242,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
-		airwayStatus("InProgress", "Cleaning up previous flight controller")
+		airwayStatus(metav1.ConditionFalse, "InProgress", "Cleaning up previous flight controller")
 		cleanup()
 
 		// cleanup will cause status changes to the airway. Refresh the airway before proceeding.
@@ -230,11 +255,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
-	airwayStatus("InProgress", "Initializing flight controller")
+	airwayStatus(metav1.ConditionFalse, "InProgress", "Initializing flight controller")
 
 	defer func() {
 		if err != nil {
-			airwayStatus("Error", err)
+			airwayStatus(metav1.ConditionFalse, "Error", err)
 		}
 	}()
 
@@ -458,10 +483,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		defer close(done)
 		defer atc.controllers.Delete(flightGK.String())
 
-		airwayStatus("Ready", "Flight-Controller launched")
+		airwayStatus(metav1.ConditionTrue, "Ready", "Flight-Controller launched")
 
 		if err := flightController.Run(); err != nil {
-			airwayStatus("Error", fmt.Sprintf("Flight-Controller: %v", err))
+			airwayStatus(metav1.ConditionFalse, "Error", fmt.Sprintf("Flight-Controller: %v", err))
 			if errors.Is(err, context.Canceled) {
 				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
 				return
@@ -553,26 +578,59 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			ClusterAccess: params.Airway.Spec.ClusterAccess,
 		}
 
-		flightStatus := func(status string, msg any) {
-			var err error
-			resource, err = resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
+		flightStatus := func(status metav1.ConditionStatus, reason string, msg any) {
+			readyCondition := metav1.Condition{
+				Type:               "Ready",
+				Status:             status,
+				ObservedGeneration: resource.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             reason,
+				Message:            fmt.Sprintf("%v", msg),
+			}
+
+			conditions := func() []metav1.Condition {
+				rawConditions, _, _ := unstructured.NestedFieldNoCopy(resource.Object, "status", "conditions")
+				data, _ := json.Marshal(rawConditions)
+
+				var conditions []metav1.Condition
+				json.Unmarshal(data, &conditions)
+				return conditions
+			}()
+
+			i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
+				return condition.Type == "Ready"
+			})
+
+			readyCondition.LastTransitionTime = func() metav1.Time {
+				if i < 0 || conditions[i].Status != status {
+					return metav1.Now()
+				}
+				return conditions[i].LastTransitionTime
+			}()
+
+			if i < 0 {
+				conditions = append(conditions, readyCondition)
+			} else {
+				conditions[i] = readyCondition
+			}
+
+			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					return
 				}
-				ctrl.Logger(ctx).Error("failed to update flight status", "error", fmt.Errorf("failed to get flight: %v", err))
+				ctrl.Logger(ctx).Error("failed to update status", "error", err)
 				return
 			}
 
-			_ = unstructured.SetNestedMap(
-				resource.Object,
-				internal.MustUnstructuredObject(flight.Status{
-					Status:             status,
-					Msg:                fmt.Sprintf("%v", msg),
-					ObservedGeneration: resource.GetGeneration(),
-				}),
-				"status",
-			)
+			if current.GetGeneration() != resource.GetGeneration() {
+				// Don't update status if current generation has changed.
+				return
+			}
+
+			resource = current
+
+			_ = unstructured.SetNestedField(resource.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
 
 			updated, err := resourceIntf.UpdateStatus(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
 			if err != nil {
@@ -588,7 +646,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		defer func() {
 			if err != nil {
-				flightStatus("Error", err.Error())
+				flightStatus(metav1.ConditionFalse, "Error", err.Error())
 			}
 		}()
 
@@ -617,7 +675,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		if !resource.GetDeletionTimestamp().IsZero() {
-			flightStatus("Terminating", "Mayday: Flight is being removed")
+			flightStatus(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
 
 			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, ReleaseName(resource), event.Namespace); err != nil {
 				if !internal.IsWarning(err) {
@@ -685,7 +743,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			takeoffParams.Flight.Module = params.Flight.Module
 		}
 
-		flightStatus("InProgress", "Flight is taking off")
+		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
 			if !internal.IsWarning(err) {
@@ -695,7 +753,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		if event.Drift || params.Airway.Spec.FixDriftInterval.Duration > 0 {
-			flightStatus("InProgress", "Fixing drift / turbulence")
+			flightStatus(metav1.ConditionFalse, "InProgress", "Fixing drift / turbulence")
 			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
 				Release:   release,
 				Namespace: event.Namespace,
@@ -760,14 +818,15 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 						return
 					case <-ticker.C:
 						flightStatus(
+							metav1.ConditionFalse,
 							"InProgress",
 							fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
 						)
 					case err := <-e:
 						if err != nil {
-							flightStatus("Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
+							flightStatus(metav1.ConditionFalse, "Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
 						} else {
-							flightStatus("Ready", "Successfully deployed")
+							flightStatus(metav1.ConditionTrue, "Ready", "Successfully deployed")
 						}
 						return
 					}

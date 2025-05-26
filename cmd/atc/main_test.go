@@ -242,8 +242,8 @@ func TestAirTrafficController(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if status, _, _ := unstructured.NestedString(resource.Object, "status", "status"); status != "Ready" {
-				return fmt.Errorf("expected airway to be Ready but got: %s", status)
+			if !k8s.FlightIsReady(resource) {
+				return fmt.Errorf("expected airway to be Ready but was not.")
 			}
 			return nil
 		},
@@ -1357,15 +1357,21 @@ func TestStatusReadiness(t *testing.T) {
 				return fmt.Errorf("failed to get test resource: %v", err)
 			}
 
-			status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
-			if status != "" && !slices.Contains(statuses, status) {
-				statuses = append(statuses, status)
+			condition := internal.GetFlightReadyCondition(resource)
+			if condition == nil {
+				return fmt.Errorf("ready condition not found")
 			}
-			if status == "Ready" {
+
+			reason := condition.Reason
+
+			if reason != "" && !slices.Contains(statuses, reason) {
+				statuses = append(statuses, reason)
+			}
+			if reason == "Ready" {
 				return nil
 			}
 
-			return fmt.Errorf("not ready: %s", status)
+			return fmt.Errorf("not ready: %s", reason)
 		},
 		time.Second,
 		15*time.Second,
@@ -1749,9 +1755,13 @@ func TestAirwayModes(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if status, _, _ := unstructured.NestedString(be.Object, "status", "status"); status != "Ready" {
-				return fmt.Errorf("expected status to be Ready but got: %s", status)
+
+			condition := internal.GetFlightReadyCondition(be)
+
+			if reason := condition.Reason; reason != "Ready" {
+				return fmt.Errorf("expected status to be Ready but got: %s", reason)
 			}
+
 			return nil
 		},
 		time.Second,
