@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +25,8 @@ type TLS struct {
 const org = "yoke.cd"
 
 func NewTLS(svc *corev1.Service) (*TLS, error) {
+	fmt.Fprintln(os.Stderr, "Generating TLS certificates, this may take a second...")
+
 	rootTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(1991),
 		Subject: pkix.Name{
@@ -94,6 +97,8 @@ func NewTLS(svc *corev1.Service) (*TLS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode server key to PEM: %w", err)
 	}
+
+	fmt.Fprintln(os.Stderr, "Finished generating TLS certificates.")
 
 	return &TLS{
 		RootCA:     rootCa,
