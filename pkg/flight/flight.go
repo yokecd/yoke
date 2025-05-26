@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -25,13 +24,6 @@ func Release() string {
 // This will generally be the -namespace flag passed to "yoke takeoff"
 func Namespace() string {
 	return cmp.Or(os.Getenv("YOKE_NAMESPACE"), os.Getenv("NAMESPACE"))
-}
-
-// Status is a basic status representation used for Flights by the ATC as well as for Airways.
-type Status struct {
-	// Conditions are the conditions that are met for this flight. Only the Ready condition is set by yoke
-	// but you may set your own conditions.
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 const (

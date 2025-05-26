@@ -104,6 +104,10 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 
 			jTag := f.Tag.Get("json")
 
+			if jTag == "-" {
+				continue
+			}
+
 			key, _, _ := strings.Cut(jTag, ",")
 			if key == "" {
 				key = f.Name
