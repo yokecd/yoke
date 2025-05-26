@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -164,8 +165,14 @@ func Run(cfg Config) (flight.Stages, error) {
 			Kind:       "Secret",
 			ApiVersion: "v1",
 		})
-		if err != nil && !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
-			return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
+		if err != nil {
+			if !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
+				return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
+			}
+
+			if errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
+				fmt.Fprintln(os.Stderr, `Cluter-access not granted: enable cluster-access to allow flights to reuse existing TLS certificates.`)
+			}
 		}
 		if secret != nil {
 			return &TLS{
