@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"math/big"
 	"time"
 
@@ -24,6 +25,8 @@ type TLS struct {
 const org = "yoke.cd"
 
 func NewTLS(svc *corev1.Service) (*TLS, error) {
+	log.Println("Generating TLS certificates, this may take a second...")
+
 	rootTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(1991),
 		Subject: pkix.Name{
@@ -94,6 +97,8 @@ func NewTLS(svc *corev1.Service) (*TLS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode server key to PEM: %w", err)
 	}
+
+	log.Println("Finished generating TLS certificates.")
 
 	return &TLS{
 		RootCA:     rootCa,

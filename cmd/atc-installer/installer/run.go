@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"reflect"
 	"slices"
@@ -164,8 +165,15 @@ func Run(cfg Config) (flight.Stages, error) {
 			Kind:       "Secret",
 			ApiVersion: "v1",
 		})
-		if err != nil && !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
-			return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
+		if err != nil {
+			if !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
+				return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
+			}
+
+			if errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
+				log.Println(`yoke was not granted cluster access, so it has to generate a new certificate.
+If yoke is allowed cluster access, it can reuse existing TLS certificates.`)
+			}
 		}
 		if secret != nil {
 			return &TLS{
