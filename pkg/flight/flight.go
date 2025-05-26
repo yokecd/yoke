@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -28,15 +29,9 @@ func Namespace() string {
 
 // Status is a basic status representation used for Flights by the ATC as well as for Airways.
 type Status struct {
-	// Status represents the state of the resource. Typical values are: InProgress, Ready, Error, Terminating.
-	Status string `json:"status,omitempty"`
-
-	// Msg is a human readable message describing the status or error if any.
-	Msg string `json:"msg,omitempty"`
-
-	// ObservedGeneration is the observed generation of the resource at the time the status is written.
-	// This field allows us to know when the status is stale after an update to its parent resource.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// Conditions are the conditions that are met for this flight. Only the Ready condition is set by yoke
+	// but you may set your own conditions.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 const (

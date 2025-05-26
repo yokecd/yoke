@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
 )
 
@@ -28,11 +29,15 @@ func MakeFlightListView(title string, refresh *RefreshConfig, dim tea.WindowSize
 			ToRows: func(resources []unstructured.Unstructured) []table.Row {
 				rows := make([]table.Row, len(resources))
 				for i, resource := range resources {
+					readyCondition := internal.GetFlightReadyCondition(&resource)
+					if readyCondition == nil {
+						continue
+					}
 					rows[i] = table.Row{
 						resource.GetName(),
 						resource.GetNamespace(),
-						field(&resource, "status", "status"),
-						field(&resource, "status", "msg"),
+						readyCondition.Reason,
+						readyCondition.Message,
 					}
 				}
 				return rows
