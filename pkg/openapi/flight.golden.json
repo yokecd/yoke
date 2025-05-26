@@ -260,18 +260,7 @@
                             }
                           },
                           "default": {
-                            "type": "object",
-                            "required": [
-                              "-"
-                            ],
-                            "properties": {
-                              "-": {
-                                "type": "array",
-                                "items": {
-                                  "type": "integer"
-                                }
-                              }
-                            }
+                            "type": "object"
                           },
                           "definitions": {
                             "type": "object",
@@ -597,7 +586,8 @@
             }
           }
         }
-      }
+      },
+      "x-kubernetes-preserve-unknown-fields": true
     }
   }
 }
