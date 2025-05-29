@@ -111,7 +111,7 @@ func TestMain(m *testing.M) {
 			Namespace: "atc",
 		},
 		CreateNamespace: true,
-		Wait:            30 * time.Second,
+		Wait:            120 * time.Second,
 		Poll:            time.Second,
 	}))
 
@@ -1841,5 +1841,371 @@ func TestAirwayModes(t *testing.T) {
 		time.Second,
 		30*time.Second,
 		"deployment failed to reach state as defined by configmap",
+	)
+}
+
+func TestStatusUpdates(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	type CR struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+		Spec              flight.Status `json:"spec"`
+		Status            flight.Status `json:"status,omitzero"`
+	}
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "status-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/status.wasm",
+					},
+					Mode:          v1alpha1.AirwayModeStatic,
+					ClusterAccess: true,
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "backends",
+							Singular: "backend",
+							Kind:     "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CR]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "status-airway", ""))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("backends.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
+
+	backendIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "backends",
+		}).
+		Namespace("default")
+
+	cases := []struct {
+		Name        string
+		Spec        flight.Status
+		Expectation func(t *testing.T)
+	}{
+		{
+			Name: "top level property",
+			Spec: flight.Status{
+				Props: map[string]any{"potato": "peels"},
+			},
+			Expectation: func(t *testing.T) {
+				testutils.EventuallyNoErrorf(
+					t,
+					func() error {
+						be, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
+						if err != nil {
+							return err
+						}
+						readyCondition := internal.GetFlightReadyCondition(be)
+						if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
+							return fmt.Errorf("ready condition not met")
+						}
+						if value, _, _ := unstructured.NestedString(be.Object, "status", "potato"); value != "peels" {
+							return fmt.Errorf("expected potato to have peels: but got: %q", value)
+						}
+						return nil
+					},
+					time.Second,
+					30*time.Second,
+					"did not get expected status",
+				)
+			},
+		},
+		{
+			Name: "ready set to false",
+			Spec: flight.Status{
+				Conditions: flight.Conditions{
+					{
+						Type:               "Ready",
+						Status:             metav1.ConditionFalse,
+						Reason:             "Custom",
+						LastTransitionTime: metav1.Now(),
+						Message:            "not feeling it.",
+					},
+				},
+			},
+			Expectation: func(t *testing.T) {
+				testutils.EventuallyNoErrorf(
+					t,
+					func() error {
+						be, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
+						if err != nil {
+							return err
+						}
+						readyCondition := internal.GetFlightReadyCondition(be)
+						if readyCondition == nil {
+							return fmt.Errorf("no ready condition set")
+						}
+						if msg := readyCondition.Message; msg != "not feeling it." {
+							return fmt.Errorf("expected ready condition message to be %q but got %q", "not feeling it.", msg)
+						}
+						return nil
+					},
+					time.Second,
+					30*time.Second,
+					"did not get expected status",
+				)
+			},
+		},
+		{
+			Name: "with custom condition",
+			Spec: flight.Status{
+				Conditions: flight.Conditions{
+					{
+						Type:               "Custom",
+						Status:             metav1.StatusSuccess,
+						Reason:             "Test",
+						Message:            "ok",
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+			Expectation: func(t *testing.T) {
+				testutils.EventuallyNoErrorf(
+					t,
+					func() error {
+						be, err := backendIntf.Get(ctx, "test", metav1.GetOptions{})
+						if err != nil {
+							return err
+						}
+
+						conditions := internal.GetFlightConditions(be)
+						if count := len(conditions); count != 2 {
+							return fmt.Errorf("expected two conditions but %d", count)
+						}
+						if !slices.ContainsFunc(conditions, func(cond metav1.Condition) bool { return cond.Type == "Ready" }) {
+							return fmt.Errorf("no Ready condition found")
+						}
+						if !slices.ContainsFunc(conditions, func(cond metav1.Condition) bool { return cond.Type == "Custom" }) {
+							return fmt.Errorf("no Custom condition found")
+						}
+
+						return nil
+					},
+					time.Second,
+					30*time.Second,
+					"did not get expected status",
+				)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			backendIntf.Delete(ctx, "test", metav1.DeleteOptions{})
+
+			testutils.EventuallyNoErrorf(
+				t,
+				func() error {
+					list, err := backendIntf.List(ctx, metav1.ListOptions{})
+					if err != nil {
+						return err
+					}
+					if len(list.Items) != 0 {
+						return fmt.Errorf("does not have 0 existing test resources: state unclean")
+					}
+					return nil
+				},
+				time.Second,
+				10*time.Second,
+				"previous test still exists",
+			)
+
+			be, err := internal.ToUnstructured(CR{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "examples.com/v1",
+					Kind:       "Backend",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: tc.Spec,
+			})
+			require.NoError(t, err)
+
+			_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			tc.Expectation(t)
+		})
+	}
+}
+
+func TestDeploymentStatus(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	type CR struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+		Image             string        `json:"image"`
+		Status            flight.Status `json:"status,omitzero"`
+	}
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "deploymentstatus-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/deploymentstatus.wasm",
+					},
+					Mode:          v1alpha1.AirwayModeDynamic,
+					ClusterAccess: true,
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "backends",
+							Singular: "backend",
+							Kind:     "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CR]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, "deploymentstatus-airway", ""))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("backends.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
+
+	backendIntf := client.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "backends",
+		}).
+		Namespace("default")
+
+	be, err := internal.ToUnstructured(CR{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "examples.com/v1",
+			Kind:       "Backend",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Image: "yokecd/c4ts:test",
+	})
+	require.NoError(t, err)
+
+	_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			be, err := backendIntf.Get(ctx, be.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			ap, _, _ := unstructured.NestedString(be.Object, "status", "availablePods")
+			if ap != "1" {
+				return fmt.Errorf("expected one available pod but got: %q", ap)
+			}
+			if ready := internal.GetFlightReadyCondition(be); ready == nil || ready.Status != metav1.ConditionTrue {
+				return fmt.Errorf("expected ready condition to be true")
+			}
+			return nil
+		},
+		time.Second,
+		10*time.Second,
+		"failed to get available pods",
 	)
 }

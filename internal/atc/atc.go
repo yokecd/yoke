@@ -115,6 +115,22 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	airwayStatus := func(status metav1.ConditionStatus, reason string, msg any) {
+		current, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return
+			}
+			ctrl.Logger(ctx).Error("failed to update status", "error", err)
+			return
+		}
+
+		if current.GetGeneration() != airway.GetGeneration() {
+			// Don't update status if current generation has changed.
+			return
+		}
+
+		airway = current
+
 		readyCondition := metav1.Condition{
 			Type:               "Ready",
 			Status:             status,
@@ -141,22 +157,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		} else {
 			conditions[i] = readyCondition
 		}
-
-		current, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return
-			}
-			ctrl.Logger(ctx).Error("failed to update status", "error", err)
-			return
-		}
-
-		if current.GetGeneration() != airway.GetGeneration() {
-			// Don't update status if current generation has changed.
-			return
-		}
-
-		airway = current
 
 		_ = unstructured.SetNestedField(airway.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
 
@@ -579,6 +579,22 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		}
 
 		flightStatus := func(status metav1.ConditionStatus, reason string, msg any) {
+			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return
+				}
+				ctrl.Logger(ctx).Error("failed to update status", "error", err)
+				return
+			}
+
+			if current.GetGeneration() != resource.GetGeneration() {
+				// Don't update status if current generation has changed.
+				return
+			}
+
+			resource = current
+
 			readyCondition := metav1.Condition{
 				Type:               "Ready",
 				Status:             status,
@@ -588,14 +604,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Message:            fmt.Sprintf("%v", msg),
 			}
 
-			conditions := func() []metav1.Condition {
-				rawConditions, _, _ := unstructured.NestedFieldNoCopy(resource.Object, "status", "conditions")
-				data, _ := json.Marshal(rawConditions)
-
-				var conditions []metav1.Condition
-				json.Unmarshal(data, &conditions)
-				return conditions
-			}()
+			conditions := internal.GetFlightConditions(resource)
 
 			i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
 				return condition.Type == "Ready"
@@ -614,22 +623,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				conditions[i] = readyCondition
 			}
 
-			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
-			if err != nil {
-				if kerrors.IsNotFound(err) {
-					return
-				}
-				ctrl.Logger(ctx).Error("failed to update status", "error", err)
-				return
-			}
-
-			if current.GetGeneration() != resource.GetGeneration() {
-				// Don't update status if current generation has changed.
-				return
-			}
-
-			resource = current
-
 			_ = unstructured.SetNestedField(resource.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
 
 			updated, err := resourceIntf.UpdateStatus(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
@@ -642,6 +635,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			}
 
 			resource = updated
+		}
+
+		if cleanup := pollerCleanups[event.String()]; cleanup != nil {
+			cleanup()
 		}
 
 		defer func() {
@@ -711,6 +708,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		release := ReleaseName(resource)
 
+		var identity *unstructured.Unstructured
+
 		takeoffParams := yoke.TakeoffParams{
 			Release: release,
 			Flight: yoke.FlightParams{
@@ -728,6 +727,14 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 					Name:       resource.GetName(),
 					UID:        resource.GetUID(),
 				},
+			},
+			IdentityFunc: func(item *unstructured.Unstructured) (ok bool) {
+				defer func() {
+					if ok {
+						identity = item.DeepCopy()
+					}
+				}()
+				return item.GroupVersionKind().GroupKind() == params.GK && item.GetName() == event.Name && item.GetNamespace() == event.Namespace
 			},
 		}
 
@@ -764,7 +771,43 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			}
 		}
 
+		if identity != nil && identity.Object["status"] != nil {
+
+			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to fetch current state of CR: %w", err)
+			}
+			if current.GetGeneration() != resource.GetGeneration() {
+				return ctrl.Result{}, fmt.Errorf("skipping status update: generation has changed")
+			}
+
+			resource = current
+
+			// We don't want to change the identity itself as it is used later to check if we need to
+			// spawn a readiness process.
+			value := identity.DeepCopy()
+
+			resource.Object["status"] = func() any {
+				if readyCond := internal.GetFlightReadyCondition(resource); readyCond != nil && internal.GetFlightReadyCondition(identity) == nil {
+					_ = unstructured.SetNestedField(
+						value.Object,
+						internal.MustUnstructuredObject[any](append(internal.GetFlightConditions(identity), *readyCond)),
+						"status", "conditions",
+					)
+				}
+				return value.Object["status"]
+			}()
+
+			if _, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to set custom status: %w", err)
+			}
+		}
+
 		if err := func() (err error) {
+			if internal.GetFlightReadyCondition(identity) != nil {
+				return nil
+			}
+
 			release, err := ctrl.Client(ctx).GetRelease(ctx, release, event.Namespace)
 			if err != nil {
 				return err
@@ -776,10 +819,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			resources, err := ctrl.Client(ctx).GetRevisionResources(ctx, release.ActiveRevision())
 			if err != nil {
 				return fmt.Errorf("failed to get release resources: %w", err)
-			}
-
-			if cleanup := pollerCleanups[event.String()]; cleanup != nil {
-				cleanup()
 			}
 
 			var wg sync.WaitGroup

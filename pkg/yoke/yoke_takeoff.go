@@ -111,6 +111,10 @@ type TakeoffParams struct {
 
 	// HistoryCapSize limits the number of revisions kept in the release's history by the size. If Cap is less than 1 history is uncapped.
 	HistoryCapSize int
+
+	// IdentityFunc is provided in contexts such as the AirTrafficController where the flight may return resources that reference itself.
+	// If the IdentityFunc is passed any resources that match the predicate should be removed from the stages.
+	IdentityFunc func(*unstructured.Unstructured) bool
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -144,6 +148,20 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	stages, err := internal.ParseStages(output)
 	if err != nil {
 		return fmt.Errorf("failed to parse output into valid flight output: %w", err)
+	}
+
+	if params.IdentityFunc != nil {
+		for i, stage := range stages {
+			stages[i] = func() internal.Stage {
+				result := make(internal.Stage, 0, len(stage))
+				for _, resource := range stage {
+					if !params.IdentityFunc(resource) {
+						result = append(result, resource)
+					}
+				}
+				return result
+			}()
+		}
 	}
 
 	targetNS := cmp.Or(params.Flight.Namespace, "default")
