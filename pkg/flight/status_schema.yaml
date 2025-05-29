@@ -22,5 +22,8 @@ properties:
       - message
       type: object
     type: array
+    x-kubernetes-list-map-keys:
+    - type
+    x-kubernetes-list-type: map
 type: object
 x-kubernetes-preserve-unknown-fields: true

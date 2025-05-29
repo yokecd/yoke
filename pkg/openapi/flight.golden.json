@@ -584,7 +584,11 @@
                 "type": "string"
               }
             }
-          }
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
         }
       },
       "x-kubernetes-preserve-unknown-fields": true

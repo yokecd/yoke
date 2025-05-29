@@ -15,7 +15,7 @@ import (
 type Status struct {
 	// Conditions are the conditions that are met for this flight. Only the Ready condition is set by yoke
 	// but you may set your own conditions.
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions Conditions `json:"conditions,omitempty"`
 
 	// Props are the top level fields other than conditions found in the status.
 	// Since status can be extended by users in any way they see fit, we cannot statically
@@ -58,5 +58,14 @@ func (status Status) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type StatusAlt Status
 	schema := openapi.SchemaFrom(reflect.TypeFor[StatusAlt]())
 	schema.XPreserveUnknownFields = ptr.To(true)
+	return schema
+}
+
+type Conditions []metav1.Condition
+
+func (conditions Conditions) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	schema := openapi.SchemaFrom(reflect.TypeFor[[]metav1.Condition]())
+	schema.XListType = ptr.To("map")
+	schema.XListMapKeys = []string{"type"}
 	return schema
 }

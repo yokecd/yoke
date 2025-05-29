@@ -50,6 +50,23 @@ func ResourcesAreEqual(a, b *unstructured.Unstructured) bool {
 	)
 }
 
+func ResourcesAreEqualWithStatus(a, b *unstructured.Unstructured) bool {
+	if (a == nil) || (b == nil) {
+		return false
+	}
+
+	dropKeys := [][]string{
+		{"metadata", "generation"},
+		{"metadata", "resourceVersion"},
+		{"metadata", "managedFields"},
+	}
+
+	return reflect.DeepEqual(
+		DropProperties(a, dropKeys).Object,
+		DropProperties(b, dropKeys).Object,
+	)
+}
+
 func DropProperties(resource *unstructured.Unstructured, props [][]string) *unstructured.Unstructured {
 	if resource == nil {
 		return nil
@@ -94,7 +111,7 @@ func RemoveAdditions[T any](expected, actual T) T {
 	return actual
 }
 
-func GetFlightReadyCondition(resource *unstructured.Unstructured) *metav1.Condition {
+func GetFlightConditions(resource *unstructured.Unstructured) []metav1.Condition {
 	if resource == nil {
 		return nil
 	}
@@ -106,7 +123,11 @@ func GetFlightReadyCondition(resource *unstructured.Unstructured) *metav1.Condit
 	var conditions []metav1.Condition
 	json.Unmarshal(data, &conditions)
 
-	cond, ok := Find(conditions, func(cond metav1.Condition) bool {
+	return conditions
+}
+
+func GetFlightReadyCondition(resource *unstructured.Unstructured) *metav1.Condition {
+	cond, ok := Find(GetFlightConditions(resource), func(cond metav1.Condition) bool {
 		return cond.Type == "Ready"
 	})
 	if !ok {

@@ -387,7 +387,7 @@ func Run(cfg Config) (flight.Stages, error) {
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"*"},
 							APIVersions: []string{"*"},
-							Resources:   []string{"*"},
+							Resources:   []string{"*/*"},
 							Scope:       ptr.To(admissionregistrationv1.AllScopes),
 						},
 					},
