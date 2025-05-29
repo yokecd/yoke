@@ -56,6 +56,9 @@ func run() error {
 
 func RandomString() string {
 	buf := make([]byte, 6)
-	rand.Read(buf)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return ""
+	}
 	return fmt.Sprintf("%x", buf)
 }
