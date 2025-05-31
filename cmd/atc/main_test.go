@@ -1852,11 +1852,16 @@ func TestStatusUpdates(t *testing.T) {
 
 	commander := yoke.FromK8Client(client)
 
+	type CRStatus struct {
+		Potato     string            `json:"potato"`
+		Conditions flight.Conditions `json:"conditions,omitempty"`
+	}
+
 	type CR struct {
 		metav1.TypeMeta
 		metav1.ObjectMeta `json:"metadata"`
-		Spec              flight.Status `json:"spec"`
-		Status            flight.Status `json:"status,omitzero"`
+		Spec              CRStatus `json:"spec"`
+		Status            CRStatus `json:"status,omitzero"`
 	}
 
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
@@ -1934,14 +1939,12 @@ func TestStatusUpdates(t *testing.T) {
 
 	cases := []struct {
 		Name        string
-		Spec        flight.Status
+		Spec        CRStatus
 		Expectation func(t *testing.T)
 	}{
 		{
 			Name: "top level property",
-			Spec: flight.Status{
-				Props: map[string]any{"potato": "peels"},
-			},
+			Spec: CRStatus{Potato: "peels"},
 			Expectation: func(t *testing.T) {
 				testutils.EventuallyNoErrorf(
 					t,
@@ -1967,7 +1970,7 @@ func TestStatusUpdates(t *testing.T) {
 		},
 		{
 			Name: "ready set to false",
-			Spec: flight.Status{
+			Spec: CRStatus{
 				Conditions: flight.Conditions{
 					{
 						Type:               "Ready",
@@ -2003,7 +2006,7 @@ func TestStatusUpdates(t *testing.T) {
 		},
 		{
 			Name: "with custom condition",
-			Spec: flight.Status{
+			Spec: CRStatus{
 				Conditions: flight.Conditions{
 					{
 						Type:               "Custom",
@@ -2093,11 +2096,16 @@ func TestDeploymentStatus(t *testing.T) {
 
 	commander := yoke.FromK8Client(client)
 
+	type CRStatus struct {
+		Conditions    flight.Conditions `json:"conditions,omitempty"`
+		AvailablePods string            `json:"availablePods,omitempty"`
+	}
+
 	type CR struct {
 		metav1.TypeMeta
 		metav1.ObjectMeta `json:"metadata"`
-		Image             string        `json:"image"`
-		Status            flight.Status `json:"status,omitzero"`
+		Image             string   `json:"image"`
+		Status            CRStatus `json:"status,omitzero"`
 	}
 
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{

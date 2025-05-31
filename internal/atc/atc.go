@@ -338,7 +338,29 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		if version.Schema.OpenAPIV3Schema.Properties == nil {
 			version.Schema.OpenAPIV3Schema.Properties = map[string]apiextv1.JSONSchemaProps{}
 		}
-		version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[flight.Status]())
+		statusSchema, ok := version.Schema.OpenAPIV3Schema.Properties["status"]
+		if !ok {
+			version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[struct {
+				Conditions flight.Conditions `json:"conditions,omitempty"`
+			}]())
+		} else {
+			if statusSchema.Type != "object" {
+				return ctrl.Result{}, fmt.Errorf("invalid airway: status must be an object but got type: %q", statusSchema.Type)
+			}
+			if statusSchema.Properties == nil {
+				statusSchema.Properties = map[string]apiextv1.JSONSchemaProps{}
+			}
+			if _, ok := statusSchema.Properties["conditions"]; !ok {
+				statusSchema.Properties["conditions"] = *openapi.SchemaFrom(reflect.TypeFor[flight.Conditions]())
+			}
+			if err := openapi.Satisfies(statusSchema.Properties["conditions"], *openapi.SchemaFrom(reflect.TypeFor[flight.Conditions]())); err != nil {
+				return ctrl.Result{}, fmt.Errorf("invalid airway: invalid status: conditions does not have expected schema: %v", err)
+			}
+
+			if idx := slices.Index(version.Schema.OpenAPIV3Schema.Required, "status"); idx >= 0 {
+				version.Schema.OpenAPIV3Schema.Required = slices.Delete(version.Schema.OpenAPIV3Schema.Required, idx, idx+1)
+			}
+		}
 	}
 
 	if typedAirway.Spec.WasmURLs.Converter != "" {
