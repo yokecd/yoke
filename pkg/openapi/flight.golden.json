@@ -590,8 +590,7 @@
           ],
           "x-kubernetes-list-type": "map"
         }
-      },
-      "x-kubernetes-preserve-unknown-fields": true
+      }
     }
   }
 }

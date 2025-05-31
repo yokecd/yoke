@@ -6,12 +6,13 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/yokecd/yoke/pkg/flight"
-	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 )
 
 func main() {
@@ -24,8 +25,13 @@ func main() {
 type CR struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta `json:"metadata"`
-	Image             string        `json:"image"`
-	Status            flight.Status `json:"status,omitzero"`
+	Image             string   `json:"image"`
+	Status            CRStatus `json:"status,omitzero"`
+}
+
+type CRStatus struct {
+	Conditions    flight.Conditions `json:"conditions,omitempty"`
+	AvailablePods string            `json:"availablePods,omitempty"`
 }
 
 func run() error {
@@ -67,24 +73,22 @@ func run() error {
 		},
 	}
 
-	cr.Status = flight.Status{
-		Props: map[string]any{
-			"availablePods": func() string {
-				dep, err := k8s.Lookup[appsv1.Deployment](k8s.ResourceIdentifier{
-					Name:       deployment.Name,
-					Namespace:  flight.Namespace(),
-					Kind:       deployment.Kind,
-					ApiVersion: deployment.APIVersion,
-				})
-				if err != nil && !k8s.IsErrNotFound(err) {
-					panic(err)
-				}
-				if dep == nil {
-					return "unknown"
-				}
-				return strconv.Itoa(int(dep.Status.AvailableReplicas))
-			}(),
-		},
+	cr.Status = CRStatus{
+		AvailablePods: func() string {
+			dep, err := k8s.Lookup[appsv1.Deployment](k8s.ResourceIdentifier{
+				Name:       deployment.Name,
+				Namespace:  flight.Namespace(),
+				Kind:       deployment.Kind,
+				ApiVersion: deployment.APIVersion,
+			})
+			if err != nil && !k8s.IsErrNotFound(err) {
+				panic(err)
+			}
+			if dep == nil {
+				return "unknown"
+			}
+			return strconv.Itoa(int(dep.Status.AvailableReplicas))
+		}(),
 	}
 
 	return json.NewEncoder(os.Stdout).Encode(flight.Resources{

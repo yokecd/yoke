@@ -234,3 +234,35 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 
 	panic("unreachable: " + typ.Kind().String())
 }
+
+// Satisfies checks that "a" satisfies "b" structurally
+// Does not validate all possible apiextensionsv1 json schema extensions.
+// Only does a loose property evaluation.
+func Satisfies(a, b apiext.JSONSchemaProps) bool {
+	if a.Type != b.Type {
+		return false
+	}
+	switch a.Type {
+	case "object":
+		for _, value := range b.Required {
+			if !slices.Contains(a.Required, value) {
+				return false
+			}
+		}
+		if len(a.Properties) < len(b.Properties) {
+			return false
+		}
+		for key := range a.Properties {
+			if !Satisfies(a.Properties[key], b.Properties[key]) {
+				return false
+			}
+		}
+
+		return true
+	case "array":
+		return Satisfies(*a.Items.Schema, *b.Items.Schema)
+
+	default:
+		return true
+	}
+}
