@@ -1,14 +1,11 @@
 package tower
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func maxLenRow(rows []table.Row, index int, minLim, maxLim int) int {
@@ -29,14 +26,6 @@ func styleRow(style lipgloss.Style, row table.Row) {
 	for i, value := range row {
 		row[i] = style.Render(value)
 	}
-}
-
-func field(resource *unstructured.Unstructured, keys ...string) string {
-	value, _, _ := unstructured.NestedFieldCopy(resource.Object, keys...)
-	if value == nil {
-		return "n/a"
-	}
-	return fmt.Sprintf("%v", value)
 }
 
 func highlightYaml(text string) string {

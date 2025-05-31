@@ -260,18 +260,7 @@
                             }
                           },
                           "default": {
-                            "type": "object",
-                            "required": [
-                              "-"
-                            ],
-                            "properties": {
-                              "-": {
-                                "type": "array",
-                                "items": {
-                                  "type": "integer"
-                                }
-                              }
-                            }
+                            "type": "object"
                           },
                           "definitions": {
                             "type": "object",
@@ -564,14 +553,42 @@
     "status": {
       "type": "object",
       "properties": {
-        "msg": {
-          "type": "string"
-        },
-        "observedGeneration": {
-          "type": "integer"
-        },
-        "status": {
-          "type": "string"
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "type",
+              "status",
+              "lastTransitionTime",
+              "reason",
+              "message"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "observedGeneration": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            }
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
         }
       }
     }

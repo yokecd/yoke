@@ -4,26 +4,31 @@ import (
 	"encoding/json"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func UnstructuredObject(value any) (map[string]any, error) {
+func UnstructuredObject[T any](value any) (T, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return nil, err
+		var zero T
+		return zero, err
 	}
-	var result map[string]any
+	var result T
 	err = json.Unmarshal(data, &result)
 	return result, err
 }
 
 func ToUnstructured(value any) (*unstructured.Unstructured, error) {
-	m, err := UnstructuredObject(value)
+	m, err := UnstructuredObject[map[string]any](value)
 	return &unstructured.Unstructured{Object: m}, err
 }
 
-func MustUnstructuredObject(value any) map[string]any {
-	result, _ := UnstructuredObject(value)
+func MustUnstructuredObject[T any](value any) T {
+	result, err := UnstructuredObject[T](value)
+	if err != nil {
+		panic(err)
+	}
 	return result
 }
 
@@ -37,6 +42,23 @@ func ResourcesAreEqual(a, b *unstructured.Unstructured) bool {
 		{"metadata", "resourceVersion"},
 		{"metadata", "managedFields"},
 		{"status"},
+	}
+
+	return reflect.DeepEqual(
+		DropProperties(a, dropKeys).Object,
+		DropProperties(b, dropKeys).Object,
+	)
+}
+
+func ResourcesAreEqualWithStatus(a, b *unstructured.Unstructured) bool {
+	if (a == nil) || (b == nil) {
+		return false
+	}
+
+	dropKeys := [][]string{
+		{"metadata", "generation"},
+		{"metadata", "resourceVersion"},
+		{"metadata", "managedFields"},
 	}
 
 	return reflect.DeepEqual(
@@ -87,4 +109,29 @@ func RemoveAdditions[T any](expected, actual T) T {
 	}
 
 	return actual
+}
+
+func GetFlightConditions(resource *unstructured.Unstructured) []metav1.Condition {
+	if resource == nil {
+		return nil
+	}
+
+	rawConditions, _, _ := unstructured.NestedFieldNoCopy(resource.Object, "status", "conditions")
+
+	data, _ := json.Marshal(rawConditions)
+
+	var conditions []metav1.Condition
+	json.Unmarshal(data, &conditions)
+
+	return conditions
+}
+
+func GetFlightReadyCondition(resource *unstructured.Unstructured) *metav1.Condition {
+	cond, ok := Find(GetFlightConditions(resource), func(cond metav1.Condition) bool {
+		return cond.Type == "Ready"
+	})
+	if !ok {
+		return nil
+	}
+	return &cond
 }

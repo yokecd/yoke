@@ -66,7 +66,7 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 	case "yoke.cd":
 		switch gvk.Kind {
 		case "Airway":
-			return flightReadiness(resource), nil
+			return FlightIsReady(resource), nil
 		}
 	}
 
@@ -74,16 +74,15 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 	if _, ok := internal.Find(resource.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
 		return ref.APIVersion == v1alpha1.APIVersion && ref.Kind == v1alpha1.KindAirway
 	}); ok {
-		return flightReadiness(resource), nil
+		return FlightIsReady(resource), nil
 	}
 
 	return true, nil
 }
 
-func flightReadiness(resource *unstructured.Unstructured) bool {
-	status, _, _ := unstructured.NestedString(resource.Object, "status", "status")
-	observedGeneration, _, _ := unstructured.NestedInt64(resource.Object, "status", "observedGeneration")
-	return status == "Ready" && observedGeneration == resource.GetGeneration()
+func FlightIsReady(resource *unstructured.Unstructured) bool {
+	cond := internal.GetFlightReadyCondition(resource)
+	return cond != nil && cond.Type == "Ready" && cond.Status == metav1.ConditionTrue && cond.ObservedGeneration == resource.GetGeneration()
 }
 
 func meetsConditions(resource *unstructured.Unstructured, keys ...string) bool {

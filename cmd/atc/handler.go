@@ -205,6 +205,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 					UID:        cr.GetUID(),
 				},
 			},
+			IdentityFunc: func(item *unstructured.Unstructured) bool {
+				return item.GroupVersionKind().GroupKind() == schema.GroupKind{
+					Group: airway.Spec.Template.Group,
+					Kind:  airway.Spec.Template.Names.Kind,
+				} &&
+					item.GetName() == cr.GetName() &&
+					item.GetNamespace() == cr.GetNamespace()
+			},
 		}
 
 		if overrideURL, _, _ := unstructured.NestedString(cr.Object, "metadata", "annotations", flight.AnnotationOverrideFlight); overrideURL != "" {
@@ -292,7 +300,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		if next != nil && internal.ResourcesAreEqual(prev, next) {
+		if next != nil && internal.ResourcesAreEqualWithStatus(prev, next) {
 			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
 			return
 		}
