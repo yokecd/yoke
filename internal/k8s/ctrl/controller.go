@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
-	"reflect"
 	"sync"
 	"time"
 
@@ -14,14 +13,11 @@ import (
 	"github.com/davidmdm/x/xruntime"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/metadata"
 	kcache "k8s.io/client-go/tools/cache"
-	retryWatcher "k8s.io/client-go/tools/watch"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -93,7 +89,7 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 
 	intf := params.Client.Meta.Resource(mapping.Resource)
 
-	instance.events, err = instance.eventsFromMetaGetter(ctx, intf, mapping)
+	instance.events = instance.eventsFromMetaGetter(ctx, intf, mapping)
 	if err != nil {
 		return instance, fmt.Errorf("failed to setup event stream: %w", err)
 	}
@@ -208,98 +204,42 @@ func (ctrl *Instance) Run() error {
 	return context.Cause(ctrl.ctx)
 }
 
-func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) (chan Event, error) {
+func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) chan Event {
 	events := make(chan Event)
-	cache := make(map[Event]*unstructured.Unstructured)
 
-	list, err := getter.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list resources: %w", err)
-	}
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(ctrl.Client.Dynamic, 0)
 
-	watcher, err := retryWatcher.NewRetryWatcher(list.ResourceVersion, &kcache.ListWatch{WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-		return getter.Watch(ctx, options)
-	}})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initiate watch: %w", err)
-	}
+	informer := factory.ForResource(mapping.Resource).Informer()
 
-	go func() {
-		defer func() {
-			Logger(ctx).Warn("watcher exited", "resource", mapping.Resource)
-			ctrl.mu.Lock()
-			close(events)
-			ctrl.closed = true
-			ctrl.mu.Unlock()
-		}()
-
-		kubeEvents := watcher.ResultChan()
-		defer watcher.Stop()
-
-		for _, item := range list.Items {
-			events <- Event{
-				Name:      item.Name,
-				Namespace: item.Namespace,
-				typ:       "start-up",
-			}
+	informerHandler := func(obj any) {
+		resource := obj.(*unstructured.Unstructured)
+		events <- Event{
+			Name:      resource.GetName(),
+			Namespace: resource.GetNamespace(),
 		}
+	}
 
-		for {
-			select {
-			case <-ctx.Done():
+	informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
+		AddFunc: informerHandler,
+		UpdateFunc: func(oldObj any, newObj any) {
+			prev := oldObj.(*unstructured.Unstructured)
+			next := newObj.(*unstructured.Unstructured)
+
+			if internal.ResourcesAreEqual(prev, next) {
 				return
-			case event, ok := <-kubeEvents:
-				if !ok {
-					Logger(ctx).Error("unexpected close of kube events channel")
-					return
-				}
-
-				if event.Type == watch.Error {
-					Logger(ctx).Error("kube events sent an error", "error", event)
-					continue
-				}
-
-				metadata, ok := event.Object.(*metav1.PartialObjectMetadata)
-				if !ok {
-					Logger(ctx).Warn("unexpected event type", "type", fmt.Sprintf("%T", event.Object), "runtimeObject", func() string {
-						if event.Object == nil {
-							return "<nil>"
-						}
-						return reflect.TypeOf(event.Object).String()
-					}())
-					continue
-				}
-
-				intf := func() dynamic.ResourceInterface {
-					if mapping.Scope == meta.RESTScopeRoot {
-						return ctrl.Client.Dynamic.Resource(mapping.Resource)
-					}
-					return ctrl.Client.Dynamic.Resource(mapping.Resource).Namespace(metadata.Namespace)
-				}()
-
-				evt := Event{
-					Name:      metadata.Name,
-					Namespace: metadata.Namespace,
-					typ:       string(event.Type),
-				}
-
-				if event.Type == watch.Modified || event.Type == watch.Added {
-					current, err := intf.Get(ctx, metadata.Name, metav1.GetOptions{})
-					if err == nil {
-						prev := cache[evt]
-						cache[evt] = current
-						if internal.ResourcesAreEqual(prev, current) {
-							continue
-						}
-					}
-				}
-
-				events <- evt
 			}
-		}
-	}()
 
-	return events, nil
+			events <- Event{
+				Name:      next.GetName(),
+				Namespace: next.GetNamespace(),
+			}
+		},
+		DeleteFunc: informerHandler,
+	})
+
+	factory.Start(ctx.Done())
+
+	return events
 }
 
 func (ctrl *Instance) SendEvent(evt Event) {
