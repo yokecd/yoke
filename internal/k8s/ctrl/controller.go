@@ -12,11 +12,9 @@ import (
 	"github.com/davidmdm/x/xerr"
 	"github.com/davidmdm/x/xruntime"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/metadata"
 	kcache "k8s.io/client-go/tools/cache"
 
 	"github.com/yokecd/yoke/internal"
@@ -64,13 +62,6 @@ type Params struct {
 }
 
 func NewController(ctx context.Context, params Params) (*Instance, error) {
-	params.Client.Mapper.Reset()
-
-	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
-	}
-
 	logger := params.Logger.With(slog.String("groupKind", params.GK.String()))
 	logger.Info("watching resources")
 
@@ -87,12 +78,14 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 		closed: false,
 	}
 
-	intf := params.Client.Meta.Resource(mapping.Resource)
+	params.Client.Mapper.Reset()
 
-	instance.events = instance.eventsFromMetaGetter(ctx, intf, mapping)
+	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
 	if err != nil {
-		return instance, fmt.Errorf("failed to setup event stream: %w", err)
+		return nil, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
 	}
+
+	instance.events = instance.eventsFromMetaGetter(ctx, mapping.Resource)
 
 	return instance, nil
 }
@@ -204,12 +197,12 @@ func (ctrl *Instance) Run() error {
 	return context.Cause(ctrl.ctx)
 }
 
-func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, getter metadata.Getter, mapping *meta.RESTMapping) chan Event {
+func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, resource schema.GroupVersionResource) chan Event {
 	events := make(chan Event)
 
 	factory := dynamicinformer.NewDynamicSharedInformerFactory(ctrl.Client.Dynamic, 0)
 
-	informer := factory.ForResource(mapping.Resource).Informer()
+	informer := factory.ForResource(resource).Informer()
 
 	informerHandler := func(obj any) {
 		resource := obj.(*unstructured.Unstructured)
