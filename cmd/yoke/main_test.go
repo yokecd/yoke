@@ -1005,7 +1005,7 @@ func TestLookupResource(t *testing.T) {
 	err = TakeOff(background, params)
 	require.NotNil(t, err)
 	require.True(t, internal.IsWarning(err), "should be warning but got: %v", err)
-	require.EqualError(t, err, "resources are the same as previous revision: skipping takeoff")
+	require.EqualError(t, err, "resources are the same as previous revision: skipping creation of new revision")
 
 	stderr.Reset()
 
@@ -1114,4 +1114,38 @@ func TestOciFlight(t *testing.T) {
 			Path: "oci://localhost:5001/test:alt",
 		},
 	}))
+}
+
+func TestTakeoffAssertsDesiredState(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	params := func() yoke.TakeoffParams {
+		return yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Input: createBasicDeployment(t, "foo", ""),
+			},
+		}
+	}
+
+	require.NoError(t, commander.Takeoff(background, params()))
+
+	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
+
+	dep, err := deploymentIntf.Get(background, "foo", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, dep)
+
+	require.NoError(t, deploymentIntf.Delete(background, "foo", metav1.DeleteOptions{}))
+
+	err = commander.Takeoff(background, params())
+	require.True(t, internal.IsWarning(err))
+	require.EqualError(t, err, "resources are the same as previous revision: skipping creation of new revision")
+
+	dep, err = deploymentIntf.Get(background, "foo", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, dep)
 }

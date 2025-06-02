@@ -738,6 +738,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Input:     bytes.NewReader(data),
 				Namespace: event.Namespace,
 			},
+			ForceConflicts:        true,
 			HistoryCapSize:        cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
 			ClusterAccess:         params.Airway.Spec.ClusterAccess,
 			ClusterResourceAccess: params.Airway.Spec.ResourceAccessMatchers,

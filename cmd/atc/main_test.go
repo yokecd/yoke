@@ -1706,7 +1706,7 @@ func TestAirwayModes(t *testing.T) {
 			}
 			deployment.Spec.Replicas = ptr.To[int32](5)
 			expectedErr := `admission webhook "resources.yoke.cd" denied the request: cannot modify flight sub-resources`
-			deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
+			deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "yoke"})
 			if err == nil {
 				return fmt.Errorf("expected error but got none")
 			}
@@ -1745,7 +1745,7 @@ func TestAirwayModes(t *testing.T) {
 
 	testBE.SetAnnotations(annotations)
 
-	_, err = backendIntf.Update(ctx, testBE, metav1.UpdateOptions{FieldManager: "test"})
+	_, err = backendIntf.Update(ctx, testBE, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	testutils.EventuallyNoErrorf(
@@ -1774,7 +1774,7 @@ func TestAirwayModes(t *testing.T) {
 
 	deployment.Spec.Replicas = ptr.To[int32](8)
 
-	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{FieldManager: "test"})
+	deployment, err = deploymentIntf.Update(ctx, deployment, metav1.UpdateOptions{})
 	require.NoError(t, err)
 	require.EqualValues(t, 8, *deployment.Spec.Replicas)
 
@@ -1823,7 +1823,7 @@ func TestAirwayModes(t *testing.T) {
 	// The flight.v1.modes flight lets us set the replicas via the intermediary of our configmap.
 	configmap.Data = map[string]string{"replicas": "7"}
 
-	_, err = configmapIntf.Update(ctx, configmap, metav1.UpdateOptions{FieldManager: "test"})
+	_, err = configmapIntf.Update(ctx, configmap, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	testutils.EventuallyNoErrorf(
