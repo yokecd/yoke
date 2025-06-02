@@ -246,10 +246,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to get previous resources for revision: %w", err)
 	}
 
-	if reflect.DeepEqual(previous, stages) {
-		return internal.Warning("resources are the same as previous revision: skipping takeoff")
-	}
-
 	if params.CreateNamespace {
 		if err := commander.k8s.EnsureNamespace(ctx, targetNS); err != nil {
 			return fmt.Errorf("failed to ensure namespace: %w", err)
@@ -301,6 +297,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	if params.DryRun {
 		fmt.Fprintf(internal.Stderr(ctx), "successful dry-run takeoff of %s\n", params.Release)
 		return nil
+	}
+
+	if reflect.DeepEqual(previous, stages) {
+		return internal.Warning("resources are the same as previous revision: skipping creation of new revision")
 	}
 
 	now := time.Now()
