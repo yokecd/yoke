@@ -10,8 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// Release is convenience for fetching the release name within the context of an executing flight.
-// This will generally be the name of release passed to "yoke takeoff"
+// Release is a convenience function for fetching the release name within the context of an executing flight.
+//
+// For standalone Flights, this will be the name of the release passed to "yoke takeoff".
+// For ATC Airflows, this will be the group.Kind.namespace.name of the Custom Resource.
+// For YokeCD this will be the name of the corresponding Application.
+//
+// Note: When using Release in resource names or similar contexts, consider sanitizing the output first.
 func Release() string {
 	if _, release := filepath.Split(os.Getenv("YOKE_RELEASE")); release != "" {
 		return release
