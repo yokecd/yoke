@@ -71,6 +71,10 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
+	if err := ApplyResources(ctx, client, cfg); err != nil {
+		return fmt.Errorf("failed to apply dependent resources: %w", err)
+	}
+
 	moduleCache := new(wasm.ModuleCache)
 	controllers := new(atc.ControllerCache)
 
