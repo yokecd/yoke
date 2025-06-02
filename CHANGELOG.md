@@ -4,7 +4,26 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-05-26) atc-installer/v0.11.8 - latest
+## (2025-06-01) atc/v0.12.2 - latest - v0.13.2 - yokecd/v0.12.1
+
+- yoke/takeoff: reapply desired state on takeoff even if identical to previous revision ([8c1b4e1](https://github.com/yokecd/yoke/commit/8c1b4e1e51e1691be613e9ae7a5b5d97ab9ccb9f))
+- k8s/ctrl: refactor function signature that had unused params ([d7a6335](https://github.com/yokecd/yoke/commit/d7a63356935958e9dcf56b14b9fedf60b8b6dedc))
+
+## (2025-06-01) atc/v0.12.1 - v0.13.1
+
+- k8s/ctrl: switch controller event source from retry watcher to dynamic informer ([49c863f](https://github.com/yokecd/yoke/commit/49c863f88d390b0ba477f0b8e49f4067f96e4884))
+
+## (2025-06-01) atc/v0.12.0 - atc-installer/v0.12.0 - v0.13.0 - yokecd/v0.12.0 - yokecd-installer/v0.12.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: support custom status schemas ([5eabc61](https://github.com/yokecd/yoke/commit/5eabc61a22a8edd2dae553e631e9d8b6ae7a7795))
+- atc: support custom status for managed CRs ([6ad60cd](https://github.com/yokecd/yoke/commit/6ad60cd2bd7167e4ee87395dc5fd2614b768b6fc))
+- pkg/flight: status supports xpreserveunknown fields ([c8c5d8b](https://github.com/yokecd/yoke/commit/c8c5d8b6b0af4279a0924511b4648dd57573c4fe))
+- atc: breaking change: modify flights to use standard metav1.Conditions ([e24b22f](https://github.com/yokecd/yoke/commit/e24b22f29df4b7b086b9b3c0aff7b4f1510be01a))
+
+## (2025-05-26) atc-installer/v0.11.8
 
 - atc/installer: log useful TLS cert generation messages ([fa15b19](https://github.com/yokecd/yoke/commit/fa15b19dd1509e5e1574106f745f34f7b8b477e7))
 - atc/testing: refactors c4ts server ([34f0aca](https://github.com/yokecd/yoke/commit/34f0acaa59c537a05ae67aef154b81e669915957))
