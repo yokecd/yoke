@@ -4,6 +4,10 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-06-02) atc/v0.12.3 - atc-installer/v0.12.1 - v0.13.3 - yokecd-installer/v0.12.1
+
+- Impove clarity of the comment  for the function  flight.Release ([bf1ecad](https://github.com/yokecd/yoke/commit/bf1ecadb3ffebcf19dff3a5b7d3b5d1375ca0110))
+
 ## (2025-06-01) atc/v0.12.2 - latest - v0.13.2 - yokecd/v0.12.1
 
 - yoke/takeoff: reapply desired state on takeoff even if identical to previous revision ([8c1b4e1](https://github.com/yokecd/yoke/commit/8c1b4e1e51e1691be613e9ae7a5b5d97ab9ccb9f))
