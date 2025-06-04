@@ -948,7 +948,7 @@ func TestTurbulenceFix(t *testing.T) {
 }
 
 func TestLookupResource(t *testing.T) {
-	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flight", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
@@ -1074,6 +1074,28 @@ func TestLookupResource(t *testing.T) {
 		}),
 		"exit_code(1)",
 	)
+}
+
+func TestBadVersion(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/versioncheck", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	var stderr bytes.Buffer
+	ctx := internal.WithStderr(background, &stderr)
+
+	err := TakeOff(ctx, TakeoffParams{
+		GlobalSettings: settings,
+		TakeoffParams: yoke.TakeoffParams{
+			Release: "foo",
+			Flight: yoke.FlightParams{
+				Path:      "./test_output/flight.wasm",
+				Namespace: "default",
+			},
+			Wait: 10 * time.Second,
+			Poll: time.Second,
+		},
+	})
+	require.ErrorContains(t, err, "exit_code(1)")
+	require.Contains(t, stderr.String(), "failed to meet min version requirement for yoke")
 }
 
 func TestOciFlight(t *testing.T) {

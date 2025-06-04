@@ -128,6 +128,7 @@ func EvalFlight(ctx context.Context, client *k8s.Client, release string, matcher
 			"YOKE_RELEASE":   release,
 			"YOKE_NAMESPACE": flight.Namespace,
 			"NAMESPACE":      flight.Namespace,
+			"YOKE_VERSION":   internal.Version(),
 		},
 		CacheDir:       flight.CompilationCacheDir,
 		LookupResource: wasi.HostLookupResource(client, matchers),
