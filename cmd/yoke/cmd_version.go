@@ -2,19 +2,18 @@ package main
 
 import (
 	"fmt"
-	"runtime/debug"
 	"slices"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+
+	"github.com/yokecd/yoke/internal"
 )
 
 func Version() error {
-	info, _ := debug.ReadBuildInfo()
-
 	tbl := table.NewWriter()
 	tbl.SetStyle(table.StyleRounded)
 
-	tbl.AppendRow(table.Row{"yoke", info.Main.Version})
+	tbl.AppendRow(table.Row{"yoke", internal.Version()})
 	tbl.AppendSeparator()
 
 	modules := []string{
@@ -24,7 +23,7 @@ func Version() error {
 
 	slices.Sort(modules)
 
-	for _, mod := range info.Deps {
+	for _, mod := range internal.Mods() {
 		if slices.Contains(modules, mod.Path) {
 			tbl.AppendRow(table.Row{mod.Path, mod.Version})
 		}

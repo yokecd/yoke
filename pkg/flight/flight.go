@@ -31,6 +31,11 @@ func Namespace() string {
 	return cmp.Or(os.Getenv("YOKE_NAMESPACE"), os.Getenv("NAMESPACE"))
 }
 
+// YokeVersion returns the version of the yoke CLI or SDK used to run the flight.
+func YokeVersion() string {
+	return os.Getenv("YOKE_VERSION")
+}
+
 const (
 	AnnotationOverrideFlight = "overrides.yoke.cd/flight"
 	AnnotationOverrideMode   = "overrides.yoke.cd/mode"
