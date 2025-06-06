@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yokecd/yoke/pkg/flight"
 	"golang.org/x/mod/semver"
+
+	"github.com/yokecd/yoke/pkg/flight"
 )
 
 // let's hope we never reach this version otherwise we break out tests.
