@@ -105,6 +105,14 @@ func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns, manage
 	}
 }
 
+func RemoveYokeMetadata(resources []*unstructured.Unstructured) {
+	for _, resource := range resources {
+		delete(resource.GetLabels(), LabelManagedBy)
+		delete(resource.GetLabels(), LabelYokeRelease)
+		delete(resource.GetLabels(), LabelYokeReleaseNS)
+	}
+}
+
 func GetOwner(resource *unstructured.Unstructured) string {
 	if resource == nil {
 		return ""

@@ -84,9 +84,19 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 		},
 	)
 
+	var removeAll bool
+	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
+	flagset.BoolVar(&params.RemoveCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
+	flagset.BoolVar(&params.RemoveNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
+
 	args, params.Flight.Args = internal.CutArgs(args)
 
 	flagset.Parse(args)
+
+	if removeAll {
+		params.RemoveCRDs = true
+		params.RemoveNamespaces = true
+	}
 
 	params.Release = flagset.Arg(0)
 	params.Flight.Path = flagset.Arg(1)

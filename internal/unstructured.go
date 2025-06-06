@@ -6,6 +6,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func UnstructuredObject[T any](value any) (T, error) {
@@ -134,4 +135,15 @@ func GetFlightReadyCondition(resource *unstructured.Unstructured) *metav1.Condit
 		return nil
 	}
 	return &cond
+}
+
+func IsNamespace(resource *unstructured.Unstructured) bool {
+	return resource != nil && resource.GroupVersionKind().GroupKind() == schema.GroupKind{Kind: "Namespace"}
+}
+
+func IsCRD(resource *unstructured.Unstructured) bool {
+	return resource != nil && resource.GroupVersionKind().GroupKind() == schema.GroupKind{
+		Group: "apiextensions.k8s.io",
+		Kind:  "CustomResourceDefinition",
+	}
 }
