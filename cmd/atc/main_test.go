@@ -108,6 +108,7 @@ func TestMain(m *testing.M) {
         "image": "yokecd/atc",
         "version": "test"
       }`),
+			Args:      []string{"--skip-version-check"},
 			Namespace: "atc",
 		},
 		CreateNamespace: true,

@@ -8,11 +8,9 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"reflect"
 	"slices"
 	"strconv"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -21,10 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
-	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 type Config struct {
@@ -48,35 +44,7 @@ var (
 	}
 )
 
-func Run(cfg Config) (flight.Stages, error) {
-	crd := &apiextensionsv1.CustomResourceDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CustomResourceDefinition",
-			APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: names.Plural + "." + group,
-		},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: group,
-			Names: names,
-			Scope: apiextensionsv1.ClusterScoped,
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha1",
-					Served:  true,
-					Storage: true,
-					Subresources: &apiextensionsv1.CustomResourceSubresources{
-						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
-					},
-					Schema: &apiextensionsv1.CustomResourceValidation{
-						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Airway]()),
-					},
-				},
-			},
-		},
-	}
-
+func Run(cfg Config) (flight.Resources, error) {
 	account, binding := func() (*corev1.ServiceAccount, *rbacv1.ClusterRoleBinding) {
 		if cfg.ServiceAccountName != "" {
 			return nil, nil
@@ -210,46 +178,6 @@ func Run(cfg Config) (flight.Stages, error) {
 		return hex.EncodeToString(hash.Sum(nil))
 	}()
 
-	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
-			Kind:       "ValidatingWebhookConfiguration",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: flight.Release() + "-airway",
-		},
-		Webhooks: []admissionregistrationv1.ValidatingWebhook{
-			{
-				Name: "airways.yoke.cd",
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{
-					Service: &admissionregistrationv1.ServiceReference{
-						Namespace: svc.Namespace,
-						Name:      svc.Name,
-						Path:      ptr.To("/validations/airways.yoke.cd"),
-						Port:      &svc.Spec.Ports[0].Port,
-					},
-					CABundle: tls.RootCA,
-				},
-				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
-				AdmissionReviewVersions: []string{"v1"},
-				Rules: []admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{
-							admissionregistrationv1.Create,
-							admissionregistrationv1.Update,
-						},
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{"yoke.cd"},
-							APIVersions: []string{"v1alpha1"},
-							Resources:   []string{"airways"},
-							Scope:       ptr.To(admissionregistrationv1.ClusterScope),
-						},
-					},
-				},
-			},
-		},
-	}
-
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -339,76 +267,11 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
-	resourceValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
-			Kind:       "ValidatingWebhookConfiguration",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: flight.Release() + "-resources",
-		},
-		Webhooks: []admissionregistrationv1.ValidatingWebhook{
-			{
-				Name: "resources.yoke.cd",
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{
-					Service: &admissionregistrationv1.ServiceReference{
-						Namespace: svc.Namespace,
-						Name:      svc.Name,
-						Path:      ptr.To("/validations/resources"),
-						Port:      &svc.Spec.Ports[0].Port,
-					},
-					CABundle: tls.RootCA,
-				},
-				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
-				AdmissionReviewVersions: []string{"v1"},
-				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
-				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
-				MatchConditions: []admissionregistrationv1.MatchCondition{
-					{
-						Name:       "managed-by-atc",
-						Expression: `object.metadata.labels["app.kubernetes.io/managed-by"] == "atc.yoke" || oldObject.metadata.labels["app.kubernetes.io/managed-by"] == "atc.yoke"`,
-					},
-					{
-						Name: "not-atc-service-account",
-						Expression: fmt.Sprintf(
-							`request.userInfo.username != "system:serviceaccount:%s:%s-service-account"`,
-							deployment.Namespace,
-							deployment.Name,
-						),
-					},
-				},
-				Rules: []admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{
-							admissionregistrationv1.Update,
-							admissionregistrationv1.Delete,
-						},
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{"*"},
-							APIVersions: []string{"*"},
-							Resources:   []string{"*/*"},
-							Scope:       ptr.To(admissionregistrationv1.AllScopes),
-						},
-					},
-				},
-			},
-		},
-	}
-
-	return flight.Stages{
-		{
-			crd,
-		},
-		{
-			svc,
-			tlsSecret,
-			deployment,
-			airwayValidation,
-			account,
-			binding,
-		},
-		{
-			resourceValidation,
-		},
+	return flight.Resources{
+		svc,
+		tlsSecret,
+		deployment,
+		account,
+		binding,
 	}, nil
 }
