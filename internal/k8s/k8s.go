@@ -660,3 +660,65 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 // NoTimeout as a timeout values will cause Wait for ready to never timeout. Any negative number will do.
 // This constant is added for semantic clarity.
 const NoTimeout = -1
+
+type PatchConfig struct {
+	Remove []string
+}
+
+func (patch PatchConfig) MarshalJSON() ([]byte, error) {
+	type patchOp struct {
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value string `json:"value,omitempty"`
+	}
+
+	patches := []patchOp{}
+	for _, path := range patch.Remove {
+		patches = append(patches, patchOp{
+			Op:   "remove",
+			Path: path,
+		})
+	}
+
+	return json.Marshal(patches)
+}
+
+func (client Client) Patch(ctx context.Context, resource *unstructured.Unstructured, patch PatchConfig) error {
+	intf, err := client.GetDynamicResourceInterface(resource)
+	if err != nil {
+		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
+	}
+
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("unexpected error serializing patch config: %w", err)
+	}
+
+	_, err = intf.Patch(ctx, resource.GetName(), types.JSONPatchType, data, metav1.PatchOptions{FieldManager: yoke})
+	return err
+}
+
+func (client Client) PatchMany(ctx context.Context, resources []*unstructured.Unstructured, patch PatchConfig) error {
+	var wg sync.WaitGroup
+	wg.Add(len(resources))
+
+	semaphore := make(chan struct{}, runtime.GOMAXPROCS(-1))
+	errs := make([]error, len(resources))
+
+	for i, resource := range resources {
+		go func() {
+			defer wg.Done()
+
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			if err := client.Patch(ctx, resource, patch); err != nil {
+				errs[i] = fmt.Errorf("%s: %w", internal.Canonical(resource), err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return xerr.MultiErrFrom("", errs...)
+}

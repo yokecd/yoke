@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/davidmdm/x/xerr"
 
+	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
@@ -111,32 +113,85 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	return nil
 }
 
-func (client Commander) Mayday(ctx context.Context, name, ns string) error {
+type MaydayParams struct {
+	Release          string
+	Namespace        string
+	RemoveCRDs       bool
+	RemoveNamespaces bool
+}
+
+func (client Commander) Mayday(ctx context.Context, params MaydayParams) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
-	targetNS := cmp.Or(ns, "default")
+	targetNS := cmp.Or(params.Namespace, "default")
 
-	release, err := client.k8s.GetRelease(ctx, name, targetNS)
+	release, err := client.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
 
 	if len(release.History) == 0 {
-		return internal.Warning("mayday noop: no history found for release: " + name)
+		return internal.Warning("mayday noop: no history found for release: " + params.Release)
 	}
 
-	state, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+	stages, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	if _, err := client.k8s.RemoveOrphans(ctx, state, nil); err != nil {
+	orphans := func() (orhpans []*unstructured.Unstructured) {
+		if params.RemoveCRDs && params.RemoveNamespaces {
+			return nil
+		}
+		for i, stage := range stages {
+			result := make([]*unstructured.Unstructured, 0, len(stage))
+			for _, resource := range stage {
+				switch {
+				case !params.RemoveCRDs && resource.GetAPIVersion() == apiext.SchemeGroupVersion.Identifier() && resource.GetKind() == "CustomResourceDefinition":
+					orhpans = append(orhpans, resource)
+				case !params.RemoveNamespaces && resource.GetAPIVersion() == "v1" && resource.GetKind() == "Namespace":
+					orhpans = append(orhpans, resource)
+				default:
+					result = append(result, resource)
+				}
+			}
+			stages[i] = result
+		}
+
+		return
+	}()
+
+	internal.RemoveYokeMetadata(orphans)
+
+	orphanNames := make([]string, len(orphans))
+	for i, orphan := range orphans {
+		orphanNames[i] = "  - " + internal.Canonical(orphan)
+	}
+
+	fmt.Fprintf(internal.Stderr(ctx), "Starting Deletion...\n\n")
+
+	if len(orphans) > 0 {
+		fmt.Fprintf(internal.Stderr(ctx), "The following resources shall be orhpaned:\n %s\n\n", strings.Join(orphanNames, "\n"))
+		if err := client.k8s.PatchMany(ctx, orphans, k8s.PatchConfig{Remove: []string{
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1")),
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1")),
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1")),
+		}}); err != nil {
+			return fmt.Errorf("failed to remove metadata from orphaned resources: %w", err)
+		}
+	}
+
+	if _, err := client.k8s.RemoveOrphans(ctx, stages, nil); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
+
+	fmt.Fprintf(internal.Stderr(ctx), "Removed %d resource(s)...\n\n", len(stages.Flatten()))
 
 	if err := client.k8s.DeleteRevisions(ctx, *release); err != nil {
 		return fmt.Errorf("failed to delete revision history: %w", err)
 	}
+
+	fmt.Fprintf(internal.Stderr(ctx), "Successfully deleted release %s\n", params.Release)
 
 	return nil
 }
