@@ -317,7 +317,7 @@ func TestAirTrafficController(t *testing.T) {
 		"failed to assert expected replica count for c4ts backend deployment",
 	)
 
-	require.NoError(t, commander.Mayday(ctx, "c4ts", "default"))
+	require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "c4ts"}))
 
 	testutils.EventuallyNoErrorf(
 		t,
@@ -658,7 +658,7 @@ func TestRestarts(t *testing.T) {
 	)
 
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "backend-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "backend-airway"}))
 
 		testutils.EventuallyNoErrorf(
 			t,
@@ -802,7 +802,7 @@ func TestCrossNamespace(t *testing.T) {
 	)
 
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "crossnamespace-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "crossnamespace-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -943,7 +943,7 @@ func TestHistoryCap(t *testing.T) {
 		"failed to create airway",
 	)
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "backend-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "backend-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -1179,7 +1179,7 @@ func TestFixDriftInterval(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "test-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "test-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -1222,7 +1222,7 @@ func TestFixDriftInterval(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "test", "default"))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "test"}))
 	}()
 
 	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
@@ -1332,7 +1332,7 @@ func TestStatusReadiness(t *testing.T) {
 		Namespace("default")
 
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "longrunning-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "longrunning-airway"}))
 	}()
 
 	emptyTest := &unstructured.Unstructured{
@@ -1509,7 +1509,7 @@ func TestResourceAccessMatchers(t *testing.T) {
 		}
 	}
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "resourceaccessmatchers-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "resourceaccessmatchers-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -1636,7 +1636,7 @@ func TestAirwayModes(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "modes-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "modes-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -1679,7 +1679,7 @@ func TestAirwayModes(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "test", "default"))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "test"}))
 	}()
 
 	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
@@ -1903,7 +1903,7 @@ func TestStatusUpdates(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "status-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "status-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",
@@ -2147,7 +2147,7 @@ func TestDeploymentStatus(t *testing.T) {
 		Poll: time.Second,
 	}))
 	defer func() {
-		require.NoError(t, commander.Mayday(ctx, "deploymentstatus-airway", ""))
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "deploymentstatus-airway"}))
 
 		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
 			Group:    "yoke.cd",

@@ -696,7 +696,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if !resource.GetDeletionTimestamp().IsZero() {
 			flightStatus(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, ReleaseName(resource), event.Namespace); err != nil {
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, yoke.MaydayParams{Release: ReleaseName(resource), Namespace: event.Namespace}); err != nil {
 				if !internal.IsWarning(err) {
 					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 				}
