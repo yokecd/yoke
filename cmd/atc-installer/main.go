@@ -32,10 +32,10 @@ func run() error {
 		}
 	}
 
-	stages, err := installer.Run(cfg)
+	resources, err := installer.Run(cfg)
 	if err != nil {
 		return err
 	}
 
-	return json.NewEncoder(os.Stdout).Encode(stages)
+	return json.NewEncoder(os.Stdout).Encode(resources)
 }
