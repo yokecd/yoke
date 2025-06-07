@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
-	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
@@ -366,8 +365,8 @@ func Run(cfg Config) (flight.Stages, error) {
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
-						Name:       "yoke-labeled",
-						Expression: fmt.Sprintf("%q in object.metadata.labels || %q in oldObject.metadata.labels", internal.LabelYokeRelease, internal.LabelYokeRelease),
+						Name:       "managed-by-atc",
+						Expression: `object.metadata.labels["app.kubernetes.io/managed-by"] == "atc.yoke" || oldObject.metadata.labels["app.kubernetes.io/managed-by"] == "atc.yoke"`,
 					},
 					{
 						Name: "not-atc-service-account",

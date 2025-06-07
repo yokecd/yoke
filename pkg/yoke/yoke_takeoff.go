@@ -115,6 +115,9 @@ type TakeoffParams struct {
 	// IdentityFunc is provided in contexts such as the AirTrafficController where the flight may return resources that reference itself.
 	// If the IdentityFunc is passed any resources that match the predicate should be removed from the stages.
 	IdentityFunc func(*unstructured.Unstructured) bool
+
+	// ManagedBy is the value used in the yoke managed-by label. If left empty will default to `yoke`.
+	ManagedBy string
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -166,7 +169,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	targetNS := cmp.Or(params.Flight.Namespace, "default")
 	for _, stage := range stages {
-		internal.AddYokeMetadata(stage, params.Release, targetNS)
+		internal.AddYokeMetadata(stage, params.Release, targetNS, params.ManagedBy)
 	}
 
 	if !params.CrossNamespace {

@@ -92,13 +92,13 @@ const (
 	LabelYokeReleaseNS = "app.kubernetes.io/yoke-release-namespace"
 )
 
-func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns string) {
+func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns, manager string) {
 	for _, resource := range resources {
 		labels := resource.GetLabels()
 		if labels == nil {
 			labels = make(map[string]string)
 		}
-		labels[LabelManagedBy] = "yoke"
+		labels[LabelManagedBy] = cmp.Or(manager, "yoke")
 		labels[LabelYokeRelease] = release
 		labels[LabelYokeReleaseNS] = ns
 		resource.SetLabels(labels)
