@@ -19,6 +19,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -52,7 +54,7 @@ var (
 			return flags
 		}(),
 	}
-	background = internal.WithStdout(context.Background(), io.Discard)
+	background = internal.WithStdio(context.Background(), io.Discard, io.Discard, nil)
 )
 
 func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
@@ -134,7 +136,9 @@ func TestCreateEmptyDeployment(t *testing.T) {
 	// Test cleanup in case a foo release already exists (best-effort)
 	Mayday(background, MaydayParams{
 		GlobalSettings: settings,
-		Release:        "foo",
+		MaydayParams: yoke.MaydayParams{
+			Release: "foo",
+		},
 	})
 }
 
@@ -193,7 +197,9 @@ func TestCreateThenEmptyCycle(t *testing.T) {
 	// Test cleanup in case a foo release already exists (best-effort)
 	Mayday(background, MaydayParams{
 		GlobalSettings: settings,
-		Release:        "foo",
+		MaydayParams: yoke.MaydayParams{
+			Release: "foo",
+		},
 	})
 }
 
@@ -237,7 +243,9 @@ func TestCreateDeleteCycle(t *testing.T) {
 
 	require.NoError(t, Mayday(background, MaydayParams{
 		GlobalSettings: settings,
-		Release:        "foo",
+		MaydayParams: yoke.MaydayParams{
+			Release: "foo",
+		},
 	}))
 
 	deployments, err = defaultDeployments.List(background, metav1.ListOptions{})
@@ -263,7 +271,9 @@ func TestCreateWithWait(t *testing.T) {
 	mayday := func() error {
 		return Mayday(background, MaydayParams{
 			GlobalSettings: settings,
-			Release:        "foo",
+			MaydayParams: yoke.MaydayParams{
+				Release: "foo",
+			},
 		})
 	}
 
@@ -352,7 +362,7 @@ func TestMultiNamespaceValidation(t *testing.T) {
 
 	require.NoError(t, TakeOff(context.Background(), makeParams(true)))
 	require.NoError(t, Mayday(context.Background(), MaydayParams{
-		Release:        "foo",
+		MaydayParams:   yoke.MaydayParams{Release: "foo"},
 		GlobalSettings: settings,
 	}))
 }
@@ -372,7 +382,10 @@ func TestReleaseOwnership(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, makeParams("foo")))
 	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", GlobalSettings: settings}))
+		require.NoError(t, Mayday(background, MaydayParams{
+			MaydayParams:   yoke.MaydayParams{Release: "foo"},
+			GlobalSettings: settings,
+		}))
 	}()
 
 	require.EqualError(
@@ -432,7 +445,7 @@ func TestForceOwnership(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, makeParams("foo", true)))
 	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", GlobalSettings: settings}))
+		require.NoError(t, Mayday(background, MaydayParams{MaydayParams: yoke.MaydayParams{Release: "foo"}, GlobalSettings: settings}))
 	}()
 
 	deployment, err := deploymentIntf.Get(background, "sample-app", metav1.GetOptions{})
@@ -500,7 +513,7 @@ func TestReleasesInDifferentNamespaces(t *testing.T) {
 			}),
 		)
 		defer func() {
-			require.NoError(t, Mayday(background, MaydayParams{GlobalSettings: settings, Release: "rel", Namespace: ns}))
+			require.NoError(t, Mayday(background, MaydayParams{GlobalSettings: settings, MaydayParams: yoke.MaydayParams{Release: "rel", Namespace: ns}}))
 		}()
 
 		secrets, err := client.Clientset.CoreV1().Secrets(ns).List(background, metav1.ListOptions{LabelSelector: internal.LabelKind + "=revision"})
@@ -535,7 +548,7 @@ func TestTakeoffWithNamespace(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, params))
 	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", Namespace: ns, GlobalSettings: settings}))
+		require.NoError(t, Mayday(background, MaydayParams{MaydayParams: yoke.MaydayParams{Release: "foo", Namespace: ns}, GlobalSettings: settings}))
 		require.NoError(t, client.CoreV1().Namespaces().Delete(background, ns, metav1.DeleteOptions{}))
 	}()
 
@@ -620,7 +633,7 @@ func TestTakeoffWithNamespaceStage(t *testing.T) {
 	defer func() {
 		require.NoError(t, Mayday(background, MaydayParams{
 			GlobalSettings: settings,
-			Release:        "foo",
+			MaydayParams:   yoke.MaydayParams{Release: "foo"},
 		}))
 		require.NoError(
 			t,
@@ -719,7 +732,7 @@ func TestTakeoffWithCRDResource(t *testing.T) {
 	defer func() {
 		require.NoError(t, Mayday(background, MaydayParams{
 			GlobalSettings: settings,
-			Release:        "foo",
+			MaydayParams:   yoke.MaydayParams{Release: "foo"},
 		}))
 	}()
 }
@@ -747,7 +760,7 @@ func TestTakeoffDiffOnly(t *testing.T) {
 
 	require.NoError(t, TakeOff(background, params))
 	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{Release: "foo", GlobalSettings: settings}))
+		require.NoError(t, Mayday(background, MaydayParams{MaydayParams: yoke.MaydayParams{Release: "foo"}, GlobalSettings: settings}))
 	}()
 
 	var stdout bytes.Buffer
@@ -844,7 +857,7 @@ func TestDescent(t *testing.T) {
 
 	require.NoError(t, Mayday(context.Background(), MaydayParams{
 		GlobalSettings: settings,
-		Release:        "foo",
+		MaydayParams:   yoke.MaydayParams{Release: "foo"},
 	}))
 }
 
@@ -879,7 +892,7 @@ func TestTurbulenceFix(t *testing.T) {
 	defer func() {
 		require.NoError(t, Mayday(background, MaydayParams{
 			GlobalSettings: settings,
-			Release:        takeoffParams.Release,
+			MaydayParams:   yoke.MaydayParams{Release: takeoffParams.Release},
 		}))
 	}()
 
@@ -993,7 +1006,7 @@ func TestLookupResource(t *testing.T) {
 	defer func() {
 		require.NoError(t, Mayday(background, MaydayParams{
 			GlobalSettings: params.GlobalSettings,
-			Release:        "foo",
+			MaydayParams:   yoke.MaydayParams{Release: "foo"},
 		}))
 	}()
 
@@ -1170,4 +1183,386 @@ func TestTakeoffAssertsDesiredState(t *testing.T) {
 	dep, err = deploymentIntf.Get(background, "foo", metav1.GetOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, dep)
+}
+
+func TestMayday(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	makeResources := func() []*unstructured.Unstructured {
+		return []*unstructured.Unstructured{
+			{
+				Object: map[string]any{
+					"apiVersion": "apiextensions.k8s.io/v1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]any{
+						"name": "tests.examples.com",
+					},
+					"spec": map[string]any{
+						"group": "examples.com",
+						"names": map[string]any{
+							"kind":     "Test",
+							"plural":   "tests",
+							"singular": "test",
+						},
+						"scope": "Cluster",
+						"versions": []any{
+							map[string]any{
+								"name":    "v1",
+								"served":  true,
+								"storage": true,
+								"schema": map[string]any{
+									"openAPIV3Schema": map[string]any{
+										"type": "object",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "Namespace",
+					"metadata": map[string]any{
+						"name": "foo",
+					},
+				},
+			},
+			{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]any{
+						"name": "cm",
+					},
+					"data": map[string]any{
+						"key": "value",
+					},
+				},
+			},
+		}
+	}
+
+	crdIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "apiextensions.k8s.io",
+		Version:  "v1",
+		Resource: "customresourcedefinitions",
+	})
+
+	cases := []struct {
+		Name         string
+		Params       yoke.MaydayParams
+		Expectations func(t *testing.T)
+	}{
+		{
+			Name:   "no removals",
+			Params: yoke.MaydayParams{},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.True(t, kerrors.IsNotFound(err))
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, crd.GetLabels(), internal.LabelYokeRelease)
+			},
+		},
+		{
+			Name: "remove crds",
+			Params: yoke.MaydayParams{
+				PruneOpts: yoke.PruneOpts{RemoveCRDs: true},
+			},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.True(t, kerrors.IsNotFound(err))
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, crd.GetDeletionTimestamp(), "expected a deletion timestamp on crd but got none")
+				}
+			},
+		},
+		{
+			Name: "remove both",
+			Params: yoke.MaydayParams{
+				PruneOpts: k8s.PruneOpts{
+					RemoveCRDs:       true,
+					RemoveNamespaces: true,
+				},
+			},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.True(t, kerrors.IsNotFound(err))
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, ns.GetDeletionTimestamp(), "expected a deletion timestamp on ns but got none")
+				}
+
+				testutils.EventuallyNoErrorf(
+					t,
+					func() error {
+						_, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+						if !kerrors.IsNotFound(err) {
+							return fmt.Errorf("expected error not found but got %v", err)
+						}
+						return nil
+					},
+					time.Second,
+					30*time.Second,
+					"ns was not deleted",
+				)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, crd.GetDeletionTimestamp(), "expected a deletion timestamp on crd but got none")
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			require.NoError(
+				t,
+				commander.Takeoff(background, yoke.TakeoffParams{
+					Release:        "test",
+					ForceOwnership: true,
+					Flight: yoke.FlightParams{
+						Input: testutils.JsonReader(makeResources()),
+					},
+				}),
+			)
+			_, err = client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+			require.NoError(t, err)
+
+			ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Contains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+			crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Contains(t, crd.GetLabels(), internal.LabelYokeRelease)
+
+			tc.Params.Release = "test"
+
+			require.NoError(t, commander.Mayday(background, tc.Params))
+
+			tc.Expectations(t)
+		})
+	}
+}
+
+func TestTakeoffPruning(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	makeResources := func(with bool) []*unstructured.Unstructured {
+		crd := &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "apiextensions.k8s.io/v1",
+				"kind":       "CustomResourceDefinition",
+				"metadata": map[string]any{
+					"name": "tests.examples.com",
+				},
+				"spec": map[string]any{
+					"group": "examples.com",
+					"names": map[string]any{
+						"kind":     "Test",
+						"plural":   "tests",
+						"singular": "test",
+					},
+					"scope": "Cluster",
+					"versions": []any{
+						map[string]any{
+							"name":    "v1",
+							"served":  true,
+							"storage": true,
+							"schema": map[string]any{
+								"openAPIV3Schema": map[string]any{
+									"type": "object",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		ns := &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "Namespace",
+				"metadata": map[string]any{
+					"name": "foo",
+				},
+			},
+		}
+		results := []*unstructured.Unstructured{
+			{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]any{
+						"name": "cm",
+					},
+					"data": map[string]any{
+						"key": "value",
+					},
+				},
+			},
+		}
+
+		if with {
+			results = append(results, crd, ns)
+		}
+
+		return results
+	}
+
+	crdIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "apiextensions.k8s.io",
+		Version:  "v1",
+		Resource: "customresourcedefinitions",
+	})
+
+	cases := []struct {
+		Name         string
+		Params       yoke.TakeoffParams
+		Expectations func(t *testing.T)
+	}{
+		{
+			Name: "no removals",
+			Params: yoke.TakeoffParams{
+				PruneOpts: k8s.PruneOpts{},
+			},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.NoError(t, err)
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, crd.GetLabels(), internal.LabelYokeRelease)
+			},
+		},
+		{
+			Name: "remove crds",
+			Params: yoke.TakeoffParams{
+				PruneOpts: yoke.PruneOpts{RemoveCRDs: true},
+			},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.NoError(t, err)
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, crd.GetDeletionTimestamp(), "expected a deletion timestamp on crd but got none")
+				}
+			},
+		},
+		{
+			Name: "remove both",
+			Params: yoke.TakeoffParams{
+				PruneOpts: k8s.PruneOpts{
+					RemoveCRDs:       true,
+					RemoveNamespaces: true,
+				},
+			},
+			Expectations: func(t *testing.T) {
+				_, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+				require.NoError(t, err)
+
+				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, ns.GetDeletionTimestamp(), "expected a deletion timestamp on ns but got none")
+				}
+
+				testutils.EventuallyNoErrorf(
+					t,
+					func() error {
+						_, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+						if !kerrors.IsNotFound(err) {
+							return fmt.Errorf("expected error not found but got %v", err)
+						}
+						return nil
+					},
+					time.Second,
+					30*time.Second,
+					"ns was not deleted",
+				)
+
+				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+				if err != nil {
+					require.True(t, kerrors.IsNotFound(err), "expected error to be not found but got: %v", err)
+				} else {
+					require.NotEmpty(t, crd.GetDeletionTimestamp(), "expected a deletion timestamp on crd but got none")
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			require.NoError(
+				t,
+				commander.Takeoff(background, yoke.TakeoffParams{
+					Release:        "test",
+					ForceOwnership: true,
+					Wait:           time.Minute,
+					Flight: yoke.FlightParams{
+						Input: testutils.JsonReader(makeResources(true)),
+					},
+				}),
+			)
+			_, err = client.Clientset.CoreV1().ConfigMaps("default").Get(background, "cm", metav1.GetOptions{})
+			require.NoError(t, err)
+
+			ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Contains(t, ns.GetLabels(), internal.LabelYokeRelease)
+
+			crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Contains(t, crd.GetLabels(), internal.LabelYokeRelease)
+
+			tc.Params.Release = "test"
+			tc.Params.Flight.Input = testutils.JsonReader(makeResources(false))
+
+			require.NoError(t, commander.Takeoff(background, tc.Params))
+
+			tc.Expectations(t)
+		})
+	}
+
+	require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test"}))
 }

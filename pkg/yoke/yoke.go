@@ -50,6 +50,8 @@ type DescentParams struct {
 	Namespace  string
 	Wait       time.Duration
 	Poll       time.Duration
+
+	PruneOpts
 }
 
 func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
@@ -102,8 +104,8 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 		return fmt.Errorf("failed to update revision history: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous, next); err != nil {
-		return fmt.Errorf("failed to remove orphaned resources: %w", err)
+	if _, _, err := commander.k8s.PruneReleaseDiff(ctx, previous, next, params.PruneOpts); err != nil {
+		return fmt.Errorf("failed to prune release diff: %w", err)
 	}
 
 	fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s from revision %d to %d\n", params.Release, previousID, params.RevisionID)
@@ -111,32 +113,44 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	return nil
 }
 
-func (client Commander) Mayday(ctx context.Context, name, ns string) error {
+type PruneOpts = k8s.PruneOpts
+
+type MaydayParams struct {
+	Release   string
+	Namespace string
+	PruneOpts
+}
+
+func (client Commander) Mayday(ctx context.Context, params MaydayParams) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
-	targetNS := cmp.Or(ns, "default")
+	targetNS := cmp.Or(params.Namespace, "default")
 
-	release, err := client.k8s.GetRelease(ctx, name, targetNS)
+	release, err := client.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
 
 	if len(release.History) == 0 {
-		return internal.Warning("mayday noop: no history found for release: " + name)
+		return internal.Warning("mayday noop: no history found for release: " + params.Release)
 	}
 
-	state, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+	stages, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	if _, err := client.k8s.RemoveOrphans(ctx, state, nil); err != nil {
+	if _, _, err := client.k8s.PruneReleaseDiff(ctx, stages, nil, params.PruneOpts); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
+
+	fmt.Fprintf(internal.Stderr(ctx), "Removed %d resource(s)...\n\n", len(stages.Flatten()))
 
 	if err := client.k8s.DeleteRevisions(ctx, *release); err != nil {
 		return fmt.Errorf("failed to delete revision history: %w", err)
 	}
+
+	fmt.Fprintf(internal.Stderr(ctx), "Successfully deleted release %s\n", params.Release)
 
 	return nil
 }

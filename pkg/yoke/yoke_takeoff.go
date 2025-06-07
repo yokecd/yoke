@@ -118,6 +118,11 @@ type TakeoffParams struct {
 
 	// ManagedBy is the value used in the yoke managed-by label. If left empty will default to `yoke`.
 	ManagedBy string
+
+	// PruneOpts controls if namespaces and crds are removed when creating new releases.
+	// If a prior release had a namespace or crd resource and the next revision of the release would not have it
+	// setting prune options would allow you to remove the resources. By default CRDs and Namespaces are not pruned.
+	PruneOpts
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
@@ -327,8 +332,8 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return fmt.Errorf("failed to create revision: %w", err)
 	}
 
-	if _, err := commander.k8s.RemoveOrphans(ctx, previous, stages); err != nil {
-		return fmt.Errorf("failed to remove orhpans: %w", err)
+	if _, _, err := commander.k8s.PruneReleaseDiff(ctx, previous, stages, params.PruneOpts); err != nil {
+		return fmt.Errorf("failed to prune release diff: %w", err)
 	}
 
 	if params.HistoryCapSize > 0 {

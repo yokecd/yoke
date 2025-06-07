@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -226,24 +227,34 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 	return nil
 }
 
-func (client Client) RemoveOrphans(ctx context.Context, previous, current internal.Stages) ([]*unstructured.Unstructured, error) {
-	defer internal.DebugTimer(ctx, "remove orphaned resources")()
+type PruneOpts struct {
+	RemoveCRDs       bool
+	RemoveNamespaces bool
+}
+
+func (client Client) PruneReleaseDiff(ctx context.Context, previous, next internal.Stages, opts PruneOpts) (removed, orphaned []*unstructured.Unstructured, err error) {
+	defer internal.DebugTimer(ctx, "prune release diff")()
 
 	curentSet := make(map[string]struct{})
-	for _, resource := range current.Flatten() {
+	for _, resource := range next.Flatten() {
 		curentSet[internal.CanonicalWithoutVersion(resource)] = struct{}{}
 	}
 
-	var (
-		errs             []error
-		removedResources []*unstructured.Unstructured
-	)
+	var errs []error
 
 	for _, stage := range slices.Backward(previous) {
 		for _, resource := range stage {
 			func() {
 				name := internal.CanonicalWithoutVersion(resource)
 				if _, ok := curentSet[name]; ok {
+					return
+				}
+
+				if (!opts.RemoveCRDs && internal.IsCRD(resource)) || (!opts.RemoveNamespaces && internal.IsNamespace(resource)) {
+					if err := client.OrhpanResource(ctx, resource); err != nil {
+						errs = append(errs, fmt.Errorf("failed to orphan resource: %s: %w", name, err))
+					}
+					orphaned = append(orphaned, resource)
 					return
 				}
 
@@ -260,12 +271,12 @@ func (client Client) RemoveOrphans(ctx context.Context, previous, current intern
 					return
 				}
 
-				removedResources = append(removedResources, resource)
+				removed = append(removed, resource)
 			}()
 		}
 	}
 
-	return removedResources, xerr.MultiErrOrderedFrom("", errs...)
+	return removed, orphaned, xerr.MultiErrOrderedFrom("", errs...)
 }
 
 func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal.Release, error) {
@@ -660,3 +671,85 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 // NoTimeout as a timeout values will cause Wait for ready to never timeout. Any negative number will do.
 // This constant is added for semantic clarity.
 const NoTimeout = -1
+
+type PatchConfig struct {
+	Remove []string
+}
+
+func (patch PatchConfig) MarshalJSON() ([]byte, error) {
+	type patchOp struct {
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value string `json:"value,omitempty"`
+	}
+
+	patches := []patchOp{}
+	for _, path := range patch.Remove {
+		patches = append(patches, patchOp{
+			Op:   "remove",
+			Path: path,
+		})
+	}
+
+	return json.Marshal(patches)
+}
+
+func (client Client) Patch(ctx context.Context, resource *unstructured.Unstructured, patch PatchConfig) error {
+	intf, err := client.GetDynamicResourceInterface(resource)
+	if err != nil {
+		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
+	}
+
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("unexpected error serializing patch config: %w", err)
+	}
+
+	_, err = intf.Patch(ctx, resource.GetName(), types.JSONPatchType, data, metav1.PatchOptions{FieldManager: yoke})
+	return err
+}
+
+func (client Client) PatchMany(ctx context.Context, resources []*unstructured.Unstructured, patch PatchConfig) error {
+	var wg sync.WaitGroup
+	wg.Add(len(resources))
+
+	semaphore := make(chan struct{}, runtime.GOMAXPROCS(-1))
+	errs := make([]error, len(resources))
+
+	for i, resource := range resources {
+		go func() {
+			defer wg.Done()
+
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			if err := client.Patch(ctx, resource, patch); err != nil {
+				errs[i] = fmt.Errorf("%s: %w", internal.Canonical(resource), err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return xerr.MultiErrFrom("", errs...)
+}
+
+func (client Client) OrhpanResource(ctx context.Context, resource *unstructured.Unstructured) error {
+	resource, err := client.GetInClusterState(ctx, resource)
+	if err != nil {
+		return fmt.Errorf("failed to get in cluster state: %w", err)
+	}
+	if labels := resource.GetLabels(); labels != nil {
+		if _, ok := labels[internal.LabelManagedBy]; !ok {
+			return nil
+		}
+	}
+
+	return client.Patch(ctx, resource, PatchConfig{
+		Remove: []string{
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1")),
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1")),
+			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1")),
+		},
+	})
+}
