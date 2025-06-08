@@ -505,6 +505,9 @@ func (client Client) CapReleaseHistory(ctx context.Context, name, ns string, siz
 func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) (internal.Stages, error) {
 	secret, err := client.Clientset.CoreV1().Secrets(revision.Namespace).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -745,11 +748,15 @@ func (client Client) OrhpanResource(ctx context.Context, resource *unstructured.
 		}
 	}
 
-	return client.Patch(ctx, resource, PatchConfig{
-		Remove: []string{
-			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1")),
-			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1")),
-			fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1")),
-		},
-	})
+	paths := []string{
+		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1")),
+		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1")),
+		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1")),
+	}
+
+	if len(resource.GetOwnerReferences()) > 0 {
+		paths = append(paths, "/metadata/ownerReferences")
+	}
+
+	return client.Patch(ctx, resource, PatchConfig{Remove: paths})
 }

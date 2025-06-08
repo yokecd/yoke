@@ -40,6 +40,17 @@
             "type": "string"
           }
         },
+        "prune": {
+          "type": "object",
+          "properties": {
+            "crds": {
+              "type": "boolean"
+            },
+            "namespaces": {
+              "type": "boolean"
+            }
+          }
+        },
         "resourceAccessMatchers": {
           "type": "array",
           "items": {

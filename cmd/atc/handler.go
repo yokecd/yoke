@@ -196,7 +196,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				Input:     bytes.NewReader(data),
 				Namespace: cr.GetNamespace(),
 			},
-			DryRun: true,
+			DryRun:         true,
+			ForceOwnership: true,
+			ForceConflicts: true,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: cr.GetAPIVersion(),

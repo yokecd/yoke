@@ -2217,3 +2217,225 @@ func TestDeploymentStatus(t *testing.T) {
 		"failed to get available pods",
 	)
 }
+
+func TestPruning(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	airwayParams := func(prune v1alpha1.PruneOptions) yoke.TakeoffParams {
+		return yoke.TakeoffParams{
+			Release: "prune-airway",
+			Flight: yoke.FlightParams{
+				Input: testutils.JsonReader(v1alpha1.Airway{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "tests.examples.com",
+					},
+					Spec: v1alpha1.AirwaySpec{
+						WasmURLs: v1alpha1.WasmURLs{
+							Flight: "http://wasmcache/prune.wasm",
+						},
+						Mode:          v1alpha1.AirwayModeDynamic,
+						Prune:         prune,
+						ClusterAccess: true,
+						Template: apiextv1.CustomResourceDefinitionSpec{
+							Group: "examples.com",
+							Names: apiextv1.CustomResourceDefinitionNames{
+								Plural:   "tests",
+								Singular: "test",
+								Kind:     "Test",
+							},
+							Scope: apiextv1.ClusterScoped,
+							Versions: []apiextv1.CustomResourceDefinitionVersion{
+								{
+									Name:    "v1",
+									Served:  true,
+									Storage: true,
+									Schema: &apiextv1.CustomResourceValidation{
+										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[struct{}]()),
+									},
+								},
+							},
+						},
+					},
+				}),
+			},
+			Wait: 30 * time.Second,
+			Poll: time.Second,
+		}
+	}
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "prune-airway"}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+					Group:    "yoke.cd",
+					Version:  "v1alpha1",
+					Resource: "airways",
+				})
+				_, err := airwayIntf.Get(ctx, "tests.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("tests.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"clear all prunes!",
+		)
+	}()
+
+	require.NoError(t, commander.Takeoff(ctx, airwayParams(v1alpha1.PruneOptions{})))
+
+	testIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "tests",
+	})
+
+	nsIntf := client.Clientset.CoreV1().Namespaces()
+
+	crdIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "apiextensions.k8s.io",
+		Version:  "v1",
+		Resource: "customresourcedefinitions",
+	})
+
+	resource, err := testIntf.Create(
+		ctx,
+		&unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "examples.com/v1",
+				"kind":       "Test",
+				"metadata": map[string]any{
+					"name": "test",
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	expectedOwner := "default/examples.com.Test.test"
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			ns, err := nsIntf.Get(ctx, "prune", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected namespace: %w", err)
+			}
+			nsUnstructured, _ := internal.ToUnstructured(ns)
+			if owner := internal.GetOwner(nsUnstructured); owner != expectedOwner {
+				return fmt.Errorf("expected owner to be %q but got %q", expectedOwner, owner)
+			}
+			crd, err := crdIntf.Get(ctx, "prunes.test.com", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected crd: %w", err)
+			}
+			if owner := internal.GetOwner(crd); owner != expectedOwner {
+				return fmt.Errorf("expected owner to be %q but got %q", expectedOwner, owner)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"package state not as expected",
+	)
+
+	require.NoError(t, testIntf.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			ns, err := nsIntf.Get(ctx, "prune", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected namespace: %w", err)
+			}
+			nsUnstructured, _ := internal.ToUnstructured(ns)
+			if owner := internal.GetOwner(nsUnstructured); owner != "" {
+				return fmt.Errorf("expected no owner but got: %q", owner)
+			}
+			crd, err := crdIntf.Get(ctx, "prunes.test.com", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected crd: %w", err)
+			}
+			if owner := internal.GetOwner(crd); owner != "" {
+				return fmt.Errorf("expected no owner but got: %q", owner)
+			}
+			return nil
+		},
+		time.Second/2,
+		30*time.Second,
+		"expected resources without owners",
+	)
+
+	require.NoError(t, commander.Takeoff(ctx, airwayParams(v1alpha1.PruneOptions{CRDs: true, Namespaces: true})))
+
+	resource, err = testIntf.Create(
+		ctx,
+		&unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "examples.com/v1",
+				"kind":       "Test",
+				"metadata": map[string]any{
+					"name": "test",
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			ns, err := nsIntf.Get(ctx, "prune", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected namespace: %w", err)
+			}
+			nsUnstructured, _ := internal.ToUnstructured(ns)
+			if owner := internal.GetOwner(nsUnstructured); owner != expectedOwner {
+				return fmt.Errorf("expected owner to be %q but got %q", expectedOwner, owner)
+			}
+			crd, err := crdIntf.Get(ctx, "prunes.test.com", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get expected crd: %w", err)
+			}
+			if owner := internal.GetOwner(crd); owner != expectedOwner {
+				return fmt.Errorf("expected owner to be %q but got %q", expectedOwner, owner)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"package state not as expected",
+	)
+
+	require.NoError(t, testIntf.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if _, err := nsIntf.Get(ctx, "prune", metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+				return fmt.Errorf("expected error not found but got: %v", err)
+			}
+			if _, err := crdIntf.Get(ctx, "prunes.test.com", metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+				return fmt.Errorf("expected error not found but got: %v", err)
+			}
+			return nil
+		},
+		time.Second,
+		time.Minute,
+		"expected resources without owners",
+	)
+}
