@@ -119,6 +119,22 @@ type AirwaySpec struct {
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
 	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+
+	// Prune enables pruning for resources that are not automatically pruned between updates or on deletion.
+	Prune PruneOptions `json:"prune,omitzero"`
+}
+
+// PruneOptions describes the resources we wish to enable pruning for.
+type PruneOptions struct {
+	// CRDs enables the pruning of CustomResourceDefinition resources.
+	// By default CRDs are orphaned but if set to true they will be removed. This cascades to deleting all custom resources defined by the CRD.
+	// Destructive and dangerous, use with care.
+	CRDs bool `json:"crds,omitzero"`
+
+	// Namespaces enables the pruning of Namespace resources.
+	// By default namespaces are orphaned but if set to true they will be removed. This cascades to deleting all resources within the namespace.
+	// Destructive and dangerous, use with care.
+	Namespaces bool `json:"namespaces,omitzero"`
 }
 
 type WasmURLs struct {

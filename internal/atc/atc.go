@@ -696,7 +696,14 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if !resource.GetDeletionTimestamp().IsZero() {
 			flightStatus(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, yoke.MaydayParams{Release: ReleaseName(resource), Namespace: event.Namespace}); err != nil {
+			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, yoke.MaydayParams{
+				Release:   ReleaseName(resource),
+				Namespace: event.Namespace,
+				PruneOpts: k8s.PruneOpts{
+					RemoveCRDs:       params.Airway.Spec.Prune.CRDs,
+					RemoveNamespaces: params.Airway.Spec.Prune.Namespaces,
+				},
+			}); err != nil {
 				if !internal.IsWarning(err) {
 					return ctrl.Result{}, fmt.Errorf("failed to run atc cleanup: %w", err)
 				}
@@ -740,10 +747,15 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			},
 			ManagedBy:             "atc.yoke",
 			ForceConflicts:        true,
+			ForceOwnership:        true,
 			HistoryCapSize:        cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
 			ClusterAccess:         params.Airway.Spec.ClusterAccess,
 			ClusterResourceAccess: params.Airway.Spec.ResourceAccessMatchers,
 			CrossNamespace:        params.Airway.Spec.CrossNamespace,
+			PruneOpts: k8s.PruneOpts{
+				RemoveCRDs:       params.Airway.Spec.Prune.CRDs,
+				RemoveNamespaces: params.Airway.Spec.Prune.Namespaces,
+			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: resource.GetAPIVersion(),
