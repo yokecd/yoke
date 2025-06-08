@@ -122,6 +122,8 @@ func run(ctx context.Context, cfg Config) (err error) {
 
 	addSyncWaveAnnotations(stages)
 
+	internal.AddYokeMetadata(stages.Flatten(), cfg.Application.Name, cfg.Application.Namespace, "yokecd")
+
 	return EncodeResources(json.NewEncoder(os.Stdout), stages.Flatten())
 }
 
