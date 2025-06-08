@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /cmp
 
@@ -10,10 +10,12 @@ COPY ./cmd/yokecd ./cmd/yokecd
 COPY ./internal ./internal
 COPY ./pkg ./pkg
 
-RUN go install ./cmd/yokecd
+RUN go build -o /bin/yokecd ./cmd/yokecd
 
+FROM golang:1.24-alpine
+
+COPY --from=builder /bin/yokecd /bin/yokecd
 COPY ./cmd/yokecd/plugin.yaml /home/argocd/cmp-server/config/plugin.yaml
 
 RUN chmod -R 777 /go && mkdir /.cache && chmod -R 777 /.cache
-
 
