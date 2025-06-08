@@ -15,12 +15,15 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/pkg/yoke"
+)
+
+const (
+	annotationArgocdSyncWave string = "argocd.argoproj.io/sync-wave"
 )
 
 func main() {
@@ -112,15 +115,34 @@ func run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to execute flight wasm: %w", err)
 	}
 
-	return EncodeResources(json.NewEncoder(os.Stdout), data)
-}
-
-func EncodeResources(out *json.Encoder, data []byte) error {
-	var resources internal.List[*unstructured.Unstructured]
-	if err := yaml.Unmarshal(data, &resources); err != nil {
-		return fmt.Errorf("failed to unmarshal executed flight data: %w", err)
+	stages, err := internal.ParseStages(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse output into valid flight output: %w", err)
 	}
 
+	addSyncWaveAnnotations(stages)
+
+	return EncodeResources(json.NewEncoder(os.Stdout), stages.Flatten())
+}
+
+func addSyncWaveAnnotations(stages internal.Stages) {
+	if len(stages) < 2 {
+		return
+	}
+
+	for i, stage := range stages {
+		for _, resource := range stage {
+			annotations := resource.GetAnnotations()
+			if annotations == nil {
+				annotations = make(map[string]string)
+			}
+			annotations[annotationArgocdSyncWave] = fmt.Sprint(i)
+			resource.SetAnnotations(annotations)
+		}
+	}
+}
+
+func EncodeResources(out *json.Encoder, resources []*unstructured.Unstructured) error {
 	for _, resource := range resources {
 		if err := out.Encode(resource); err != nil {
 			return err
