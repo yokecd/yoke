@@ -4,11 +4,35 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-06-08) atc/v0.13.1 - atc-installer/v0.13.1 - latest
+
+- atc: manage crds and validation webhook resource on startup instead of installer ([d9a62d4](https://github.com/yokecd/yoke/commit/d9a62d4b97e7d38efa71230c0bff767f9bbb4a03))
+
+## (2025-06-08) atc/v0.13.0 - atc-installer/v0.13.0 - v0.14.0 - yokecd/v0.13.0 - yokecd-installer/v0.13.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: support pruning options in airway specification ([0ee887f](https://github.com/yokecd/yoke/commit/0ee887fe1f5a2f4f7fbede225d547641b90fa1ec))
+- yoke: breaking change: crds and ns no longer removed by default ([e1da50b](https://github.com/yokecd/yoke/commit/e1da50b2621e2315e87c229741fbc2102a714a63))
+- use multistage build for yokecd to reduce image size ([0465e12](https://github.com/yokecd/yoke/commit/0465e124621491eb3eaeb9bc3e58793a73d0ca31))
+
+## (2025-06-06) atc/v0.12.5 - atc-installer/v0.12.3 - v0.13.5 - yokecd/v0.12.4 - yokecd-installer/v0.12.3
+
+- atc: use new managed-by value to filter admission webhook resources ([7413098](https://github.com/yokecd/yoke/commit/74130989653d7b54749aa1c75aefe476857918ad))
+
+## (2025-06-05) atc/v0.12.4 - atc-installer/v0.12.2 - v0.13.4 - yokecd/v0.12.3 - yokecd-installer/v0.12.2
+
+- yoke: pass yoke version to running flights ([cac5ef0](https://github.com/yokecd/yoke/commit/cac5ef08b7ee7728b35a581e809e68583b6079ac))
+
+## (2025-06-03) yokecd/v0.12.2
+
+
 ## (2025-06-02) atc/v0.12.3 - atc-installer/v0.12.1 - v0.13.3 - yokecd-installer/v0.12.1
 
 - Impove clarity of the comment  for the function  flight.Release ([bf1ecad](https://github.com/yokecd/yoke/commit/bf1ecadb3ffebcf19dff3a5b7d3b5d1375ca0110))
 
-## (2025-06-01) atc/v0.12.2 - latest - v0.13.2 - yokecd/v0.12.1
+## (2025-06-01) atc/v0.12.2 - v0.13.2 - yokecd/v0.12.1
 
 - yoke/takeoff: reapply desired state on takeoff even if identical to previous revision ([8c1b4e1](https://github.com/yokecd/yoke/commit/8c1b4e1e51e1691be613e9ae7a5b5d97ab9ccb9f))
 - k8s/ctrl: refactor function signature that had unused params ([d7a6335](https://github.com/yokecd/yoke/commit/d7a63356935958e9dcf56b14b9fedf60b8b6dedc))
