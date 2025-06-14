@@ -25,7 +25,6 @@ import (
 type Event struct {
 	Name      string
 	Namespace string
-	Drift     bool
 
 	attempts int
 	typ      string
