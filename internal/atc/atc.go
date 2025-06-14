@@ -795,18 +795,6 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
 		}
 
-		if event.Drift || params.Airway.Spec.FixDriftInterval.Duration > 0 {
-			flightStatus(metav1.ConditionFalse, "InProgress", "Fixing drift / turbulence")
-			if err := commander.Turbulence(ctx, yoke.TurbulenceParams{
-				Release:   release,
-				Namespace: event.Namespace,
-				Fix:       true,
-				Silent:    true,
-			}); err != nil && !internal.IsWarning(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to fix drift: %w", err)
-			}
-		}
-
 		if identity != nil && identity.Object["status"] != nil {
 
 			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})

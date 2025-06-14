@@ -426,7 +426,6 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				// Perhaps support for cluster scope owners needs to be thought of?
 				// Also crossNamespace deployments?
 				Namespace: namespace,
-				Drift:     true,
 			}
 
 			addRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
