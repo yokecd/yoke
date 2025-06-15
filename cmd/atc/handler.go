@@ -14,6 +14,7 @@ import (
 	"github.com/davidmdm/x/xruntime"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -139,6 +140,72 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		if err := json.Unmarshal(review.Request.Object.Raw, &cr); err != nil {
 			http.Error(w, fmt.Sprintf("failed to decode resource: %v", err), http.StatusBadRequest)
 			return
+		}
+
+		shouldCheckAirwayPerms, err := func() (bool, error) {
+			switch review.Request.Operation {
+			case admissionv1.Create:
+				return internal.GetAnnotation(cr, flight.AnnotationOverrideFlight) != "" || internal.GetAnnotation(cr, flight.AnnotationOverrideMode) != "", nil
+
+			case admissionv1.Update:
+				var oldCr unstructured.Unstructured
+				if err := json.Unmarshal(review.Request.OldObject.Raw, &oldCr); err != nil {
+					return false, fmt.Errorf("failed to decode old resource: %w", err)
+				}
+				return false ||
+					internal.GetAnnotation(oldCr, flight.AnnotationOverrideFlight) != internal.GetAnnotation(cr, flight.AnnotationOverrideFlight) ||
+					internal.GetAnnotation(oldCr, flight.AnnotationOverrideMode) != internal.GetAnnotation(cr, flight.AnnotationOverrideMode), nil
+
+			default:
+				return false, nil
+			}
+		}()
+		if err != nil {
+			http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+			return
+		}
+
+		if shouldCheckAirwayPerms {
+			accessReview, err := client.Clientset.AuthorizationV1().SubjectAccessReviews().Create(
+				r.Context(),
+				&authorizationv1.SubjectAccessReview{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "SubectAccessReview",
+						APIVersion: authorizationv1.SchemeGroupVersion.Identifier(),
+					},
+					Spec: authorizationv1.SubjectAccessReviewSpec{
+						UID:    review.Request.UserInfo.UID,
+						User:   review.Request.UserInfo.Username,
+						Groups: review.Request.UserInfo.Groups,
+						ResourceAttributes: &authorizationv1.ResourceAttributes{
+							Verb:     "update",
+							Group:    "yoke.cd",
+							Version:  "v1alpha1",
+							Resource: "airways",
+						},
+					},
+				},
+				metav1.CreateOptions{},
+			)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to perform access review: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			if !accessReview.Status.Allowed {
+				review.Response = &admissionv1.AdmissionResponse{
+					UID:     review.Request.UID,
+					Allowed: false,
+					Result: &metav1.Status{
+						Status:  metav1.StatusFailure,
+						Reason:  metav1.StatusReasonForbidden,
+						Message: "user does not have permissions to create or update override annotations",
+					},
+				}
+				review.Request = nil
+				json.NewEncoder(w).Encode(&review)
+				return
+			}
 		}
 
 		airwayGVR := schema.GroupVersionResource{Group: "yoke.cd", Version: "v1alpha1", Resource: "airways"}
