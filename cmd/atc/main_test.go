@@ -15,12 +15,15 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
@@ -2439,4 +2442,193 @@ func TestPruning(t *testing.T) {
 		time.Minute,
 		"expected resources without owners",
 	)
+}
+
+func TestOverridePermissions(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	sa, err := client.Clientset.CoreV1().ServiceAccounts("default").Create(
+		context.Background(),
+		&corev1.ServiceAccount{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "ServiceAccount",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test",
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	role, err := client.Clientset.RbacV1().Roles("default").Create(
+		context.Background(),
+		&rbacv1.Role{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
+				Kind:       "Role",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "backender",
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"*"},
+					APIGroups: []string{"examples.com"},
+					Resources: []string{"backends"},
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	t.Log(role.TypeMeta)
+
+	_, err = client.Clientset.RbacV1().RoleBindings("default").Create(
+		context.Background(),
+		&rbacv1.RoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "RoleBinding",
+				APIVersion: rbacv1.SchemeGroupVersion.Identifier(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-backender",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa.Name,
+					Namespace: sa.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: role.GroupVersionKind().Group,
+				Kind:     "Role",
+				Name:     role.Name,
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	restCfg, err := clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+	require.NoError(t, err)
+
+	restCfg.Impersonate = rest.ImpersonationConfig{
+		UserName: "system:serviceaccount:default:" + sa.Name,
+	}
+
+	saClient, err := k8s.NewClient(restCfg)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), func(value bool) *bool { return &value }(true))
+
+	commander := yoke.FromK8Client(client)
+
+	airwayTakeoffParams := yoke.TakeoffParams{
+		Release: "backend-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/flight.v1.wasm",
+					},
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:     "backends",
+							Singular:   "backend",
+							ShortNames: []string{"be"},
+							Kind:       "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}
+
+	require.NoError(t, commander.Takeoff(ctx, airwayTakeoffParams))
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "backend-airway"}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+					Group:    "yoke.cd",
+					Version:  "v1alpha1",
+					Resource: "airways",
+				})
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("backends.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"cleanup not successful",
+		)
+	}()
+
+	be, err := internal.ToUnstructured(backendv1.Backend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "backend",
+			Annotations: map[string]string{
+				flight.AnnotationOverrideFlight: "https://evil.attack",
+			},
+		},
+		Spec: backendv1.BackendSpec{
+			Image:    "yokecd/c4ts:test",
+			Replicas: 2,
+		},
+	})
+	require.NoError(t, err)
+
+	beIntf := saClient.Dynamic.
+		Resource(schema.GroupVersionResource{
+			Group:    "examples.com",
+			Version:  "v1",
+			Resource: "backends",
+		}).
+		Namespace("default")
+
+	_, err = beIntf.Create(ctx, be, metav1.CreateOptions{})
+	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: user does not have permissions to create or update override annotations`)
+
+	be.SetAnnotations(map[string]string{})
+
+	be, err = beIntf.Create(ctx, be, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	be.SetAnnotations(map[string]string{
+		flight.AnnotationOverrideMode: string(v1alpha1.AirwayModeDynamic),
+	})
+
+	_, err = beIntf.Update(ctx, be, metav1.UpdateOptions{})
+	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: user does not have permissions to create or update override annotations`)
 }
