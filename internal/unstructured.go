@@ -147,3 +147,10 @@ func IsCRD(resource *unstructured.Unstructured) bool {
 		Kind:  "CustomResourceDefinition",
 	}
 }
+
+func GetAnnotation(resource unstructured.Unstructured, key string) string {
+	if annotations := resource.GetAnnotations(); annotations != nil {
+		return annotations[key]
+	}
+	return ""
+}
