@@ -4,6 +4,16 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-06-14) atc/v0.13.2 - atc-installer/v0.13.2 - v0.14.1 - yokecd/v0.13.2 - yokecd-installer/v0.13.1
+
+- atc: remove call to turbulence command now that takeoff reapplies state ([121f0cd](https://github.com/yokecd/yoke/commit/121f0cd99cbc833b335b7dec0b8b37dacd7f7ed7))
+
+## (2025-06-09) yokecd/v0.13.1
+
+- yokecd: add test for addSyncWaveAnnotations ([1642782](https://github.com/yokecd/yoke/commit/164278279a4e28a0cb3bf15b70a629d0de288a5c))
+- yokecd: add yoke meta labels to created resources ([aaac61f](https://github.com/yokecd/yoke/commit/aaac61f5439a692471fc4c13333095a8365229e3))
+- yokecd: support stages using argocd sync-waves ([4151256](https://github.com/yokecd/yoke/commit/4151256a359d3a1fab8be5b02f52f277146ac4fe))
+
 ## (2025-06-08) atc/v0.13.1 - atc-installer/v0.13.1 - latest
 
 - atc: manage crds and validation webhook resource on startup instead of installer ([d9a62d4](https://github.com/yokecd/yoke/commit/d9a62d4b97e7d38efa71230c0bff767f9bbb4a03))
