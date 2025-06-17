@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"time"
@@ -106,9 +107,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				continue
 			}
 
-			if err := unstructured.SetNestedField(raw, originalStatus, "status"); err != nil {
-				continue
-			}
+			_ = unstructured.SetNestedField(raw, originalStatus, "status")
 
 			data, err := json.Marshal(raw)
 			if err != nil {
@@ -235,8 +234,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			addRequestAttrs(r.Context(), slog.Bool("skipped", true))
 
 			if err := json.NewEncoder(w).Encode(&review); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				log.Fatalf("error in encoding: %v", err)
 			}
 
 			return
@@ -361,8 +359,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				"details", review.Response.Result.Message,
 			))
 			if err := json.NewEncoder(w).Encode(review); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
+				log.Fatalf("error in encoding: %v", err)
 			}
 		}()
 

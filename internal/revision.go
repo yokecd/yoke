@@ -221,7 +221,7 @@ func RandomString() string {
 	buf := make([]byte, 6)
 	_, err := rand.Read(buf)
 	if err != nil {
-		return ""
+		panic(err)
 	}
 	return fmt.Sprintf("%x", buf)
 }

@@ -1002,10 +1002,7 @@ func TestHistoryCap(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := unstructured.SetNestedMap(
-				backend.Object,
-				map[string]any{"test": strconv.Itoa(i + 1)},
-				"spec", "labels"); err != nil {
+			if err := unstructured.SetNestedMap(backend.Object, map[string]any{"test": strconv.Itoa(i + 1)}, "spec", "labels"); err != nil {
 				return err
 			}
 			backend, err = backendIntf.Update(ctx, backend, metav1.UpdateOptions{})

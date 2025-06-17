@@ -131,7 +131,7 @@ func (chart Chart) Render(release, namespace string, values any, opts ...RenderO
 	}
 
 	if err := chartutil.ProcessDependencies(chart.Chart, valueMap); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to process chart dependencies: %w", err)
 	}
 
 	valueMap, err = chartutil.ToRenderValues(chart.Chart, valueMap, releaseOptions, capabilities)
