@@ -27,7 +27,7 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 	flagset := flag.NewFlagSet("mayday", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), maydayHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), maydayHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -43,6 +43,9 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 	flagset.BoolVar(&params.RemoveNamespaces, "remove-namespaces", false, "deletes namespaces owned by the release. Destructive and dangerous use with caution.")
 
 	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	if removeAll {
 		params.RemoveCRDs = true
