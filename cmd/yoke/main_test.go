@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -297,10 +298,10 @@ func TestFailApplyDryRun(t *testing.T) {
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
-			Release: "foo",
+			Release:         "foo",
+			CreateNamespace: true,
 			Flight: yoke.FlightParams{
-				Input:     createBasicDeployment(t, "%invalid-chars&*", "does-not-exist"),
-				Namespace: "does-not-exist",
+				Input: createBasicDeployment(t, "%invalid-chars&*", "default"),
 			},
 		},
 	}
@@ -308,7 +309,7 @@ func TestFailApplyDryRun(t *testing.T) {
 	require.ErrorContains(
 		t,
 		TakeOff(background, params),
-		`failed to apply resources: dry run: does-not-exist/apps/v1/deployment/%invalid-chars&*: failed to validate resource release`,
+		`failed to apply resources: dry run: default/apps/v1/deployment/%invalid-chars&*: failed to validate resource release`,
 	)
 }
 
@@ -1565,4 +1566,57 @@ func TestTakeoffPruning(t *testing.T) {
 	}
 
 	require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test"}))
+}
+
+func TestOptimisticLocking(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	errCh := make(chan error, 2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	_ = commander.Mayday(background, yoke.MaydayParams{Release: "foo"})
+
+	takeoff := func(lockless bool) {
+		defer wg.Done()
+		if err := commander.Takeoff(background, yoke.TakeoffParams{
+			Release:  "foo",
+			Lockless: lockless,
+			Flight: yoke.FlightParams{
+				Input: createBasicDeployment(t, "foo", ""),
+			},
+		}); err != nil {
+			errCh <- err
+		}
+	}
+
+	go takeoff(false)
+	go takeoff(false)
+
+	wg.Wait()
+
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+
+	require.Len(t, errs, 1)
+	require.EqualError(t, errs[0], "failed to lock release: lock is already taken")
+
+	errCh = make(chan error, 2)
+	wg.Add(2)
+
+	go takeoff(true)
+	go takeoff(true)
+
+	close(errCh)
+	require.Nil(t, <-errCh)
+
+	commander.Mayday(background, yoke.MaydayParams{Release: "foo"})
 }

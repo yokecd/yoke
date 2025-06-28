@@ -42,6 +42,7 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release")
 	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
 	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
+	flagset.BoolVar(&params.Lockless, "lockless", false, "if enabled does not lock release before deploying revision.")
 
 	var removeAll bool
 	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
