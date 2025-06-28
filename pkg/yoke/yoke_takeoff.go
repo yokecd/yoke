@@ -43,6 +43,10 @@ type FlightParams struct {
 	Namespace           string
 	CompilationCacheDir string
 
+	// Env specifies user-defined envvars to be added to the flight execution.
+	// Standard yoke envvars will take precendence.
+	Env map[string]string
+
 	// Stderr is the writer that will be exposed to the wasm module as os.Stderr.
 	// If not provided all stderr writes in the wasm module will be buffered instead
 	// and surfaced to the user only on error exit codes.
@@ -130,15 +134,17 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 
 	output, wasm, err := EvalFlight(
 		ctx,
-		func() *k8s.Client {
-			if !params.ClusterAccess {
-				return nil
-			}
-			return commander.k8s
-		}(),
-		params.Release,
-		params.ClusterResourceAccess,
-		params.Flight,
+		EvalParams{
+			Client: func() *k8s.Client {
+				if !params.ClusterAccess {
+					return nil
+				}
+				return commander.k8s
+			}(),
+			Release:  params.Release,
+			Matchers: params.ClusterResourceAccess,
+			Flight:   params.Flight,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to evaluate flight: %w", err)

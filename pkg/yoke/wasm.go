@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,37 +102,51 @@ func gzipReader(r io.Reader) io.Reader {
 	return pr
 }
 
-func EvalFlight(ctx context.Context, client *k8s.Client, release string, matchers []string, flight FlightParams) ([]byte, []byte, error) {
-	if flight.Input != nil && flight.Path == "" && flight.Module.Instance == nil {
-		output, err := io.ReadAll(flight.Input)
+type EvalParams struct {
+	Client   *k8s.Client
+	Release  string
+	Matchers []string
+	Flight   FlightParams
+}
+
+func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) {
+	if params.Flight.Input != nil && params.Flight.Path == "" && params.Flight.Module.Instance == nil {
+		output, err := io.ReadAll(params.Flight.Input)
 		return output, nil, err
 	}
 
 	wasm, err := func() ([]byte, error) {
-		if flight.Module.Instance != nil {
+		if params.Flight.Module.Instance != nil {
 			return nil, nil
 		}
-		return LoadWasm(ctx, flight.Path, flight.Insecure)
+		return LoadWasm(ctx, params.Flight.Path, params.Flight.Insecure)
 	}()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)
 	}
 
+	yokeEnvVars := map[string]string{
+		"YOKE_RELEASE":   params.Release,
+		"YOKE_NAMESPACE": params.Flight.Namespace,
+		"NAMESPACE":      params.Flight.Namespace,
+		"YOKE_VERSION":   internal.Version(),
+	}
+
+	env := map[string]string{}
+	for _, vars := range []map[string]string{params.Flight.Env, yokeEnvVars} {
+		maps.Copy(env, vars)
+	}
+
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
-		Wasm:    wasm,
-		Module:  flight.Module.Instance,
-		Release: release,
-		Stdin:   flight.Input,
-		Stderr:  flight.Stderr,
-		Args:    flight.Args,
-		Env: map[string]string{
-			"YOKE_RELEASE":   release,
-			"YOKE_NAMESPACE": flight.Namespace,
-			"NAMESPACE":      flight.Namespace,
-			"YOKE_VERSION":   internal.Version(),
-		},
-		CacheDir:       flight.CompilationCacheDir,
-		LookupResource: wasi.HostLookupResource(client, matchers),
+		Wasm:           wasm,
+		Module:         params.Flight.Module.Instance,
+		Release:        params.Release,
+		Stdin:          params.Flight.Input,
+		Stderr:         params.Flight.Stderr,
+		Args:           params.Flight.Args,
+		Env:            env,
+		CacheDir:       params.Flight.CompilationCacheDir,
+		LookupResource: wasi.HostLookupResource(params.Client, params.Matchers),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
