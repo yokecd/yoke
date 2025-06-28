@@ -102,11 +102,17 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get wasm path: %w", err)
 		}
 
-		data, _, err := yoke.EvalFlight(ctx, client, cfg.Application.Name, nil, yoke.FlightParams{
-			Path:      wasmPath,
-			Input:     strings.NewReader(cfg.Flight.Input),
-			Args:      cfg.Flight.Args,
-			Namespace: cfg.Application.Namespace,
+		data, _, err := yoke.EvalFlight(ctx, yoke.EvalParams{
+			Client:   client,
+			Release:  cfg.Application.Name,
+			Matchers: nil,
+			Flight: yoke.FlightParams{
+				Path:      wasmPath,
+				Input:     strings.NewReader(cfg.Flight.Input),
+				Args:      cfg.Flight.Args,
+				Namespace: cfg.Application.Namespace,
+				Env:       cfg.Env,
+			},
 		})
 
 		return data, err

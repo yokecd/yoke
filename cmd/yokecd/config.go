@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -94,6 +95,7 @@ type Config struct {
 	}
 	Flight    Parameters
 	Namespace string
+	Env       map[string]string
 }
 
 func getConfig() (cfg Config, err error) {
@@ -102,5 +104,19 @@ func getConfig() (cfg Config, err error) {
 	conf.Var(conf.Environ, &cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
 	err = conf.Environ.Parse()
+
+	cfg.Env = map[string]string{}
+	for _, e := range os.Environ() {
+		envvar, ok := strings.CutPrefix(e, "ARGOCD_ENV_")
+		if !ok {
+			continue
+		}
+		k, v, ok := strings.Cut(envvar, "=")
+		if !ok {
+			continue
+		}
+		cfg.Env[k] = v
+	}
+
 	return
 }
