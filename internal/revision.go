@@ -81,6 +81,7 @@ type Revision struct {
 	Name      string    `json:"-"`
 	Namespace string    `json:"-"`
 	Source    Source    `json:"source"`
+	LockedBy  string    `json:"lockedBy"`
 	CreatedAt time.Time `json:"createdAt"`
 	ActiveAt  time.Time `json:"-"`
 	Resources int       `json:"resources"`
@@ -202,6 +203,7 @@ const (
 	AnnotationActiveAt       = "internal.yoke/active-at"
 	AnnotationResourceCount  = "internal.yoke/resources"
 	KeyResources             = "resources"
+	KeyLockedBy              = "lockedBy"
 )
 
 func MustParseTime(value string) time.Time {

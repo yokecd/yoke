@@ -50,11 +50,12 @@ type DescentParams struct {
 	Namespace  string
 	Wait       time.Duration
 	Poll       time.Duration
+	Lockless   bool
 
 	PruneOpts
 }
 
-func (commander Commander) Descent(ctx context.Context, params DescentParams) error {
+func (commander Commander) Descent(ctx context.Context, params DescentParams) (err error) {
 	defer internal.DebugTimer(ctx, "descent")()
 
 	targetNS := cmp.Or(params.Namespace, "default")
@@ -63,6 +64,17 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) er
 	if err != nil {
 		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
 	}
+
+	if !params.Lockless {
+		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
+			return fmt.Errorf("failed to aquire release lock: %w", err)
+		}
+	}
+	defer func() {
+		if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
+			err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+		}
+	}()
 
 	if len(release.History) == 0 {
 		return fmt.Errorf("no release found %q in namespace %q", params.Release, targetNS)
