@@ -502,6 +502,42 @@ func (client Client) CapReleaseHistory(ctx context.Context, name, ns string, siz
 	return xerr.MultiErrFrom("deleting release history", errs...)
 }
 
+var ErrLockTaken = errors.New("lock is already taken")
+
+func (client Client) LockRelease(ctx context.Context, release internal.Release) error {
+	secretIntf := client.Clientset.CoreV1().Secrets(release.Namespace)
+
+	secret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower("yoke." + release.Name),
+		},
+	}
+
+	if _, err := secretIntf.Create(ctx, secret, metav1.CreateOptions{FieldManager: yoke}); err != nil {
+		if kerrors.IsAlreadyExists(err) {
+			return ErrLockTaken
+		}
+		return fmt.Errorf("failed to create secret: %w", err)
+	}
+
+	return nil
+}
+
+func (client Client) UnlockRelease(ctx context.Context, release internal.Release) error {
+	secretIntf := client.Clientset.CoreV1().Secrets(release.Namespace)
+	if err := secretIntf.Delete(ctx, strings.ToLower("yoke."+release.Name), metav1.DeleteOptions{}); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (client Client) GetRevisionResources(ctx context.Context, revision internal.Revision) (internal.Stages, error) {
 	secret, err := client.Clientset.CoreV1().Secrets(revision.Namespace).Get(ctx, revision.Name, metav1.GetOptions{})
 	if err != nil {

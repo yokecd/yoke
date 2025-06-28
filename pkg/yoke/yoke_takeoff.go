@@ -127,9 +127,14 @@ type TakeoffParams struct {
 	// If a prior release had a namespace or crd resource and the next revision of the release would not have it
 	// setting prune options would allow you to remove the resources. By default CRDs and Namespaces are not pruned.
 	PruneOpts
+
+	// Lockless defines whether the lock should not be taken during takeoff. Doing so implies there is no guarantee that another
+	// actor isn't also updating the same release. However this is a practical way of running and removing a hung lock.
+	// By default is false. Dry-run always run in Lockless mode.
+	Lockless bool
 }
 
-func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) error {
+func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (err error) {
 	defer internal.DebugTimer(ctx, "takeoff of "+params.Release)()
 
 	output, wasm, err := EvalFlight(
@@ -245,10 +250,32 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 		return err
 	}
 
+	if params.CreateNamespace {
+		if err := commander.k8s.EnsureNamespace(ctx, targetNS); err != nil {
+			return fmt.Errorf("failed to ensure namespace: %w", err)
+		}
+		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(targetNS), k8s.WaitOptions{Interval: params.Poll}); err != nil {
+			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", targetNS, err)
+		}
+	}
+
 	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
+
+	if !params.DryRun && !params.Lockless {
+		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
+			return fmt.Errorf("failed to lock release: %w", err)
+		}
+	}
+	// Always defer the unlock even in lockless mode.
+	// This allows user a practical way of unlocking locks that might be stuck simply by rerunning the apply command in lockless mode.
+	defer func() {
+		if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
+			err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+		}
+	}()
 
 	previous, err := func() (internal.Stages, error) {
 		if len(release.History) == 0 {
@@ -258,15 +285,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) er
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to get previous resources for revision: %w", err)
-	}
-
-	if params.CreateNamespace {
-		if err := commander.k8s.EnsureNamespace(ctx, targetNS); err != nil {
-			return fmt.Errorf("failed to ensure namespace: %w", err)
-		}
-		if err := commander.k8s.WaitForReady(ctx, toUnstructuredNS(targetNS), k8s.WaitOptions{Interval: params.Poll}); err != nil {
-			return fmt.Errorf("failed to wait for namespace %s to be ready: %w", targetNS, err)
-		}
 	}
 
 	applyOpts := k8s.ApplyResourcesOpts{
