@@ -746,6 +746,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				Namespace: event.Namespace,
 			},
 			ManagedBy:             "atc.yoke",
+			Lockless:              true,
 			ForceConflicts:        true,
 			ForceOwnership:        true,
 			HistoryCapSize:        cmp.Or(params.Airway.Spec.HistoryCapSize, 2),

@@ -268,14 +268,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
 			return fmt.Errorf("failed to lock release: %w", err)
 		}
+		defer func() {
+			if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
+				err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+			}
+		}()
 	}
-	// Always defer the unlock even in lockless mode.
-	// This allows user a practical way of unlocking locks that might be stuck simply by rerunning the apply command in lockless mode.
-	defer func() {
-		if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
-			err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
-		}
-	}()
 
 	previous, err := func() (internal.Stages, error) {
 		if len(release.History) == 0 {

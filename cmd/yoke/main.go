@@ -122,6 +122,14 @@ func run() error {
 			}
 			return yoke.Stow(ctx, *params)
 		}
+	case "unlatch", "unlock":
+		{
+			params, err := GetUnlatchParams(settings, subcmdArgs)
+			if err != nil {
+				return err
+			}
+			return Unlatch(ctx, *params)
+		}
 	case "version":
 		{
 			return Version()

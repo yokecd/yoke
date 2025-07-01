@@ -1,0 +1,17 @@
+!yellow yoke unlatch
+
+The unlatch command unlocks releases.
+This can happen when a applying a release and the process is killed without a chance to release its lock.
+When this happens you can unlatch to lock with this command.
+
+!cyan Usage: 
+  yoke unlatch [flags] <release>
+
+!cyan Aliases:
+  unlock
+
+!cyan Examples:
+  # unlock a release foo in namespace bar
+  yoke unlatch --namespace=bar foo
+
+!cyan Flags:

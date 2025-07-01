@@ -69,12 +69,12 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) (e
 		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
 			return fmt.Errorf("failed to aquire release lock: %w", err)
 		}
+		defer func() {
+			if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
+				err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+			}
+		}()
 	}
-	defer func() {
-		if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
-			err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
-		}
-	}()
 
 	if len(release.History) == 0 {
 		return fmt.Errorf("no release found %q in namespace %q", params.Release, targetNS)
@@ -133,12 +133,12 @@ type MaydayParams struct {
 	PruneOpts
 }
 
-func (client Commander) Mayday(ctx context.Context, params MaydayParams) error {
+func (commander Commander) Mayday(ctx context.Context, params MaydayParams) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
 	targetNS := cmp.Or(params.Namespace, "default")
 
-	release, err := client.k8s.GetRelease(ctx, params.Release, targetNS)
+	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release: %w", err)
 	}
@@ -147,18 +147,18 @@ func (client Commander) Mayday(ctx context.Context, params MaydayParams) error {
 		return internal.Warning("mayday noop: no history found for release: " + params.Release)
 	}
 
-	stages, err := client.k8s.GetRevisionResources(ctx, release.ActiveRevision())
+	stages, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
 	if err != nil {
 		return fmt.Errorf("failed to get resources for current revision: %w", err)
 	}
 
-	if _, _, err := client.k8s.PruneReleaseDiff(ctx, stages, nil, params.PruneOpts); err != nil {
+	if _, _, err := commander.k8s.PruneReleaseDiff(ctx, stages, nil, params.PruneOpts); err != nil {
 		return fmt.Errorf("failed to delete resources: %w", err)
 	}
 
 	fmt.Fprintf(internal.Stderr(ctx), "Removed %d resource(s)...\n\n", len(stages.Flatten()))
 
-	if err := client.k8s.DeleteRevisions(ctx, *release); err != nil {
+	if err := commander.k8s.DeleteRevisions(ctx, *release); err != nil {
 		return fmt.Errorf("failed to delete revision history: %w", err)
 	}
 
@@ -298,4 +298,16 @@ func Stow(ctx context.Context, params StowParams) error {
 	fmt.Fprintf(internal.Stderr(ctx), "stowed wasm artifact at %s\n", digestURL)
 
 	return nil
+}
+
+type UnlockParams struct {
+	Release   string
+	Namespace string
+}
+
+func (commander Commander) UnlockRelease(ctx context.Context, params UnlockParams) error {
+	return commander.k8s.UnlockRelease(ctx, internal.Release{
+		Name:      params.Release,
+		Namespace: cmp.Or(params.Namespace, "default"),
+	})
 }
