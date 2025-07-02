@@ -3,7 +3,6 @@ package internal
 import (
 	"cmp"
 	"crypto/rand"
-	"crypto/sha1"
 	"fmt"
 	"net/url"
 	"path"
@@ -48,7 +47,7 @@ type Source struct {
 
 func SourceFrom(ref string, wasm []byte) (src Source) {
 	if len(wasm) > 0 {
-		src.Checksum = fmt.Sprintf("%x", sha1.Sum(wasm))
+		src.Checksum = SHA1HexString(wasm)
 	}
 
 	if ref != "" {

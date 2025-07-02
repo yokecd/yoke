@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -299,12 +297,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 			*value.Mod.Instance = mod
 			value.Mod.SourceMetadata = yoke.ModuleSourcetadata{
-				Ref: value.URL,
-				Checksum: func() string {
-					hash := sha1.New()
-					hash.Write(data)
-					return hex.EncodeToString(hash.Sum(nil))
-				}(),
+				Ref:      value.URL,
+				Checksum: internal.SHA1HexString(data),
 			}
 
 			// Compiling a module creates a lot of heap usage that we don't need to hang onto
