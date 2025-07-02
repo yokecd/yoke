@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/yokecd/yoke/internal"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/yokecd/yoke/internal"
 )
 
 func TestAddSyncWaveAnnotations(t *testing.T) {

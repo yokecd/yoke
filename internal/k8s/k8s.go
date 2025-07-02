@@ -513,7 +513,11 @@ func (client Client) LockRelease(ctx context.Context, release internal.Release) 
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.ToLower("yoke." + release.Name),
+			Name: "yoke." + internal.SHA1HexString([]byte(release.Name)),
+			Labels: map[string]string{
+				internal.LabelKind:    "lock",
+				internal.LabelRelease: release.Name,
+			},
 		},
 	}
 
@@ -529,7 +533,7 @@ func (client Client) LockRelease(ctx context.Context, release internal.Release) 
 
 func (client Client) UnlockRelease(ctx context.Context, release internal.Release) error {
 	secretIntf := client.Clientset.CoreV1().Secrets(release.Namespace)
-	if err := secretIntf.Delete(ctx, strings.ToLower("yoke."+release.Name), metav1.DeleteOptions{}); err != nil {
+	if err := secretIntf.Delete(ctx, "yoke."+internal.SHA1HexString([]byte(release.Name)), metav1.DeleteOptions{}); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
 		}
