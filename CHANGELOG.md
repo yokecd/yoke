@@ -4,6 +4,18 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-07-02) atc/v0.13.4 - atc-installer/v0.13.3 - v0.14.3 - yokecd/v0.13.4 - yokecd-installer/v0.13.3
+
+- yoke: use hashes for release lock keys ([62ab2b6](https://github.com/yokecd/yoke/commit/62ab2b67d9b32d1be7336b6e3300602d4994883d))
+- yoke: add unlatch command for releaing orphaned locks ([a5a5cef](https://github.com/yokecd/yoke/commit/a5a5cef359f14ac467967402a6fbf3be372cb97e))
+- yoke: introduce optimistic locking for apply/takeoff ([587a610](https://github.com/yokecd/yoke/commit/587a6102b350bdba4bbde9dbdc53bbfc9b333974))
+- yokecd: pass plugin env variables to flight execution ([564222c](https://github.com/yokecd/yoke/commit/564222c3cd634658604c66cdf12d2dc508e41a5d))
+- deps: update client-go to v0.33.2 ([3694d02](https://github.com/yokecd/yoke/commit/3694d0282ad90abd6682e8e622be47c571652f14))
+
+## (2025-06-17) atc/v0.13.3 - v0.14.2 - yokecd/v0.13.3 - yokecd-installer/v0.13.2
+
+- atc: reject override annotation updates from users who cannot manage airways ([1eea2e2](https://github.com/yokecd/yoke/commit/1eea2e2c72edb193229c1cc20059a349e04700a1))
+
 ## (2025-06-14) atc/v0.13.2 - atc-installer/v0.13.2 - v0.14.1 - yokecd/v0.13.2 - yokecd-installer/v0.13.1
 
 - atc: remove call to turbulence command now that takeoff reapplies state ([121f0cd](https://github.com/yokecd/yoke/commit/121f0cd99cbc833b335b7dec0b8b37dacd7f7ed7))
