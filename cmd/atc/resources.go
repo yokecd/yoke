@@ -50,6 +50,29 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 					Schema: &apiextensionsv1.CustomResourceValidation{
 						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Airway]()),
 					},
+					AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{
+						{
+							Name:     "flight",
+							Type:     "string",
+							JSONPath: ".spec.wasmUrls.flight",
+						},
+						{
+							Name:     "mode",
+							Type:     "string",
+							JSONPath: ".spec.mode",
+						},
+						{
+							Name:     "cluster_access",
+							Type:     "boolean",
+							JSONPath: ".spec.clusterAccess",
+						},
+						{
+							Name:     "fix_drift_interval",
+							Type:     "string",
+							Format:   "date",
+							JSONPath: ".spec.fixDriftInterval",
+						},
+					},
 				},
 			},
 		},

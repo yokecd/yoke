@@ -12,7 +12,8 @@
       ],
       "properties": {
         "clusterAccess": {
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
         },
         "crossNamespace": {
           "type": "boolean"
@@ -28,6 +29,7 @@
         },
         "mode": {
           "type": "string",
+          "default": "standard",
           "enum": [
             "standard",
             "static",

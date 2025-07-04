@@ -26,13 +26,21 @@ type Airway struct {
 type AirwayMode string
 
 func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	mustJSON := func(value any) *apiextensionsv1.JSON {
+		data, err := json.Marshal(value)
+		if err != nil {
+			panic(err)
+		}
+		return &apiextensionsv1.JSON{Raw: data}
+	}
+
 	return &apiextensionsv1.JSONSchemaProps{
-		Type: "string",
+		Type:    "string",
+		Default: mustJSON(AirwayModeStandard),
 		Enum: func() []apiextensionsv1.JSON {
 			var result []apiextensionsv1.JSON
 			for _, value := range Modes() {
-				data, _ := json.Marshal(value)
-				result = append(result, apiextensionsv1.JSON{Raw: data})
+				result = append(result, *mustJSON(value))
 			}
 			return result
 		}(),
@@ -66,7 +74,7 @@ type AirwaySpec struct {
 	FixDriftInterval metav1.Duration `json:"fixDriftInterval,omitzero"`
 
 	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
-	ClusterAccess bool `json:"clusterAccess,omitempty"`
+	ClusterAccess bool `json:"clusterAccess,omitempty" Default:"false"`
 
 	// ResourceAccessMatchers combined with ClusterAccess allow you to lookup any resource in your cluster. By default without any matchers
 	// the only resources that you can lookup are resources that are directly owned by the release. If you wish to access resources external
