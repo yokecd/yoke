@@ -1581,11 +1581,11 @@ func TestOptimisticLocking(t *testing.T) {
 
 	_ = commander.Mayday(background, yoke.MaydayParams{Release: "foo"})
 
-	takeoff := func(lockless bool) {
+	takeoff := func(lock bool) {
 		defer wg.Done()
 		if err := commander.Takeoff(background, yoke.TakeoffParams{
-			Release:  "foo",
-			Lockless: lockless,
+			Release: "foo",
+			Lock:    lock,
 			Flight: yoke.FlightParams{
 				Input: createBasicDeployment(t, "foo", ""),
 			},
@@ -1594,8 +1594,8 @@ func TestOptimisticLocking(t *testing.T) {
 		}
 	}
 
-	go takeoff(false)
-	go takeoff(false)
+	go takeoff(true)
+	go takeoff(true)
 
 	wg.Wait()
 
@@ -1612,8 +1612,8 @@ func TestOptimisticLocking(t *testing.T) {
 	errCh = make(chan error, 2)
 	wg.Add(2)
 
-	go takeoff(true)
-	go takeoff(true)
+	go takeoff(false)
+	go takeoff(false)
 
 	close(errCh)
 	require.Nil(t, <-errCh)
