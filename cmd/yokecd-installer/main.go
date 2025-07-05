@@ -47,10 +47,16 @@ func run() error {
 	}
 
 	repoServer, i := func() (*unstructured.Unstructured, int) {
-		repoServerName := flight.Release() + "-argocd-repo-server"
+		repoServerName := "argocd-repo-server"
+		if flight.Release() != "argocd" {
+			repoServerName = flight.Release() + "-" + repoServerName
+		}
 		for i, resource := range resources {
 			if resource.GetName() == repoServerName && resource.GetKind() == "Deployment" {
 				return resource, i
+			}
+			if resource.GetKind() == "Deployment" {
+				fmt.Fprintf(os.Stderr, "did not match deployment: %s != %s\n", resource.GetName(), repoServerName)
 			}
 		}
 		return nil, -1
