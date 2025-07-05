@@ -128,9 +128,10 @@ type TakeoffParams struct {
 	// setting prune options would allow you to remove the resources. By default CRDs and Namespaces are not pruned.
 	PruneOpts
 
-	// Lock defines whether the lock should not be taken during takeoff. Doing so implies there is no guarantee that another
-	// actor isn't also updating the same release. However this is a practical way of running and removing a hung lock.
-	// By default is false. Dry-run always run in Lock mode.
+	// Lock defines whether the lock should not be taken during takeoff. By default the lock is not taken and conflicts can arise.
+	// Processes that opt-in to using the locking mechanism cannot run at the same time.
+	// This feature is opt-in since locking can cause conflicts with release namespaces that would be created by the namespace.
+	// This is an unfortunate reality of supporting kubectl apply yaml dumps.
 	Lock bool
 }
 
