@@ -4,6 +4,23 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-07-04) yokecd/v0.14.0 - yokecd-installer/v0.14.1
+
+- yokecd-installer: remove debug log ([6d7ed9c](https://github.com/yokecd/yoke/commit/6d7ed9ced12ccb05dd537bfeec552dfb812b6688))
+
+## (2025-07-04) atc/v0.14.0 - v0.15.0 - yokecd-installer/v0.14.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- atc: explicitly do not lock atc reconciliation takeoffs ([ac95630](https://github.com/yokecd/yoke/commit/ac95630ca2e3d61a2385f247a406faa66afbc5fc))
+- yokecd-installer: fix repo-server naming logic for lookup ([3b2ae3a](https://github.com/yokecd/yoke/commit/3b2ae3a0f4130d7af6196647e15d6b9c9bc81b4d))
+- yoke: breaking change: locking releases on takeoff/apply is opt-in ([2cc1d8d](https://github.com/yokecd/yoke/commit/2cc1d8d296a7b558b2f6f21af8e4687918b1a380))
+
+## (2025-07-04) atc/v0.13.5 - v0.14.4
+
+- atc: add airway printer columns ([b882bd2](https://github.com/yokecd/yoke/commit/b882bd296574880d59cf5f78ebd693470b05be95))
+
 ## (2025-07-02) atc/v0.13.4 - atc-installer/v0.13.3 - v0.14.3 - yokecd/v0.13.4 - yokecd-installer/v0.13.3
 
 - yoke: use hashes for release lock keys ([62ab2b6](https://github.com/yokecd/yoke/commit/62ab2b67d9b32d1be7336b6e3300602d4994883d))
