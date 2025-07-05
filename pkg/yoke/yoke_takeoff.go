@@ -128,10 +128,10 @@ type TakeoffParams struct {
 	// setting prune options would allow you to remove the resources. By default CRDs and Namespaces are not pruned.
 	PruneOpts
 
-	// Lockless defines whether the lock should not be taken during takeoff. Doing so implies there is no guarantee that another
+	// Lock defines whether the lock should not be taken during takeoff. Doing so implies there is no guarantee that another
 	// actor isn't also updating the same release. However this is a practical way of running and removing a hung lock.
-	// By default is false. Dry-run always run in Lockless mode.
-	Lockless bool
+	// By default is false. Dry-run always run in Lock mode.
+	Lock bool
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (err error) {
@@ -264,7 +264,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
 
-	if !params.DryRun && !params.Lockless {
+	if !params.DryRun && params.Lock {
 		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
 			return fmt.Errorf("failed to lock release: %w", err)
 		}

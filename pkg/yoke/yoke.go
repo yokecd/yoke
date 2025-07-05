@@ -50,7 +50,7 @@ type DescentParams struct {
 	Namespace  string
 	Wait       time.Duration
 	Poll       time.Duration
-	Lockless   bool
+	Lock       bool
 
 	PruneOpts
 }
@@ -65,7 +65,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) (e
 		return fmt.Errorf("failed to get revisions for release %q: %w", params.Release, err)
 	}
 
-	if !params.Lockless {
+	if params.Lock {
 		if err := commander.k8s.LockRelease(ctx, *release); err != nil {
 			return fmt.Errorf("failed to aquire release lock: %w", err)
 		}

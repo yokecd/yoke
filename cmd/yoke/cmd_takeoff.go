@@ -58,7 +58,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.ForceOwnership, "force-ownership", false, "take ownership of previously existing unowned resources.")
 
-	flagset.BoolVar(&params.Lockless, "lockless", false, "if enabled does not lock release before deploying revision.")
+	flagset.BoolVar(&params.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
 	flagset.BoolVar(&params.CreateNamespace, "create-namespace", false, "create namespace of target release if not present")
 	flagset.BoolVar(&params.CrossNamespace, "cross-namespace", false, "allows releases to create resources in other namespaces than the target namespace")
 	flagset.BoolVar(&params.ClusterAccess, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
