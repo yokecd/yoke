@@ -55,9 +55,6 @@ func run() error {
 			if resource.GetName() == repoServerName && resource.GetKind() == "Deployment" {
 				return resource, i
 			}
-			if resource.GetKind() == "Deployment" {
-				fmt.Fprintf(os.Stderr, "did not match deployment: %s != %s\n", resource.GetName(), repoServerName)
-			}
 		}
 		return nil, -1
 	}()
