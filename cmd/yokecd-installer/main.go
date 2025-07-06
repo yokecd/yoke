@@ -28,12 +28,16 @@ func main() {
 }
 
 type Values struct {
+	Image   string         `json:"image"`
 	Version string         `json:"version"`
 	ArgoCD  map[string]any `json:"argocd"`
 }
 
 func run() error {
-	values := Values{Version: "latest"}
+	values := Values{
+		Image:   "ghcr.io/yokecd/yokecd",
+		Version: "latest",
+	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&values); err != nil && err != io.EOF {
@@ -70,7 +74,7 @@ func run() error {
 	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
-		Image:           "ghcr.io/yokecd/yokecd:" + values.Version,
+		Image:           values.Image + ":" + values.Version,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 
 		Env: []corev1.EnvVar{
