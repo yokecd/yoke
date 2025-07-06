@@ -213,6 +213,12 @@ func MustParseTime(value string) time.Time {
 	return t
 }
 
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func MustParseInt(value string) int {
 	i, _ := strconv.Atoi(value)
 	return i

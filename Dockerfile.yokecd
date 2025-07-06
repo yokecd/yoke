@@ -17,5 +17,9 @@ FROM golang:1.24-alpine
 COPY --from=builder /bin/yokecd /bin/yokecd
 COPY ./cmd/yokecd/plugin.yaml /home/argocd/cmp-server/config/plugin.yaml
 
-RUN chmod -R 777 /go && mkdir /.cache && chmod -R 777 /.cache
+RUN \
+  chmod -R 777 /go && \
+  mkdir -p /.cache/wasm && \
+  mkdir -p /.cache/compiled && \
+  chmod -R 777 /.cache
 
