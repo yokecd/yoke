@@ -14,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/internal"
+
+	"dario.cat/mergo"
 )
 
 type Ref struct {
@@ -30,6 +32,14 @@ type Parameters struct {
 	Args  []string
 }
 
+// structure of individual CMP parameters
+type CmpParam struct {
+	Name   string          `json:"name"`
+	String string          `json:"string"`
+	Array  []string        `json:"array"`
+	Map    json.RawMessage `json:"map"`
+}
+
 var _ encoding.TextUnmarshaler = new(Parameters)
 
 func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
@@ -39,19 +49,12 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 		}
 	}()
 
-	type Param struct {
-		Name   string          `json:"name"`
-		String string          `json:"string"`
-		Array  []string        `json:"array"`
-		Map    json.RawMessage `json:"map"`
-	}
-
-	var elems []Param
+	var elems []CmpParam
 	if err := yaml.NewYAMLToJSONDecoder(bytes.NewReader(data)).Decode(&elems); err != nil {
 		return err
 	}
 
-	build, _ := internal.Find(elems, func(param Param) bool { return param.Name == "build" })
+	build, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "build" })
 
 	if build.String != "" {
 		parameters.Build, err = strconv.ParseBool(build.String)
@@ -60,7 +63,7 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 		}
 	}
 
-	wasm, _ := internal.Find(elems, func(param Param) bool { return param.Name == "wasm" })
+	wasm, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "wasm" })
 	parameters.Wasm = strings.TrimLeft(wasm.String, "/")
 
 	if parameters.Wasm == "" && !parameters.Build {
@@ -71,13 +74,16 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 		return fmt.Errorf("wasm asset cannot be present and build enabled")
 	}
 
-	input, _ := internal.Find(elems, func(param Param) bool { return param.Name == "input" })
-	parameters.Input = input.String
+	input, err := parseInput(elems)
+	if err != nil {
+		return err
+	}
+	parameters.Input = input
 
-	args, _ := internal.Find(elems, func(param Param) bool { return param.Name == "args" })
+	args, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "args" })
 	parameters.Args = args.Array
 
-	refs, _ := internal.Find(elems, func(param Param) bool { return param.Name == "refs" })
+	refs, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "refs" })
 
 	if refs.Map != nil {
 		if err := json.Unmarshal(refs.Map, &parameters.Refs); err != nil {
@@ -86,6 +92,61 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 	}
 
 	return nil
+}
+
+// parses `input` or `inputFiles` CMP parameters to compose the `Input` Flight param value
+func parseInput(params []CmpParam) (string, error) {
+	// value can be either `string` or `map`
+	input, _ := internal.Find(params, func(p CmpParam) bool { return p.Name == "input" })
+
+	if input.String != "" {
+		// string `input` overrides other options
+		return input.String, nil
+	}
+
+	var result map[string]any
+
+	inputFiles, _ := internal.Find(params, func(p CmpParam) bool { return p.Name == "inputFiles" })
+
+	for _, filePath := range inputFiles.Array {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return "", fmt.Errorf("could not read file '%v': %v", filePath, err)
+		}
+		defer file.Close()
+
+		decoder := yaml.NewYAMLOrJSONDecoder(file, 4096)
+
+		var out map[string]any
+		if err := decoder.Decode(&out); err != nil {
+			return "", fmt.Errorf("could not parse YAML or JSON file '%v': %v", filePath, err)
+		}
+
+		if err := mergo.Merge(&result, out, mergo.WithOverride); err != nil {
+			return "", fmt.Errorf("could not merge input files: %v", err)
+		}
+	}
+
+	if len(input.Map) > 0 {
+		var inputMap map[string]any
+
+		if err := json.Unmarshal(input.Map, &inputMap); err != nil {
+			return "", fmt.Errorf("could not parse map input: %v", err)
+		}
+
+		if err := mergo.Merge(&result, inputMap, mergo.WithOverride); err != nil {
+			return "", fmt.Errorf("could not merge input map: %v", err)
+		}
+	}
+
+	if len(result) > 0 {
+		bytes, err := json.Marshal(result)
+		if err != nil {
+			return "", fmt.Errorf("could not encode input into JSON: %v", err)
+		}
+		return string(bytes), nil
+	}
+	return "", nil
 }
 
 type Config struct {
