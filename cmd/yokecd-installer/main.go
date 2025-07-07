@@ -28,9 +28,10 @@ func main() {
 }
 
 type Values struct {
-	Image   string         `json:"image"`
-	Version string         `json:"version"`
-	ArgoCD  map[string]any `json:"argocd"`
+	Image                string         `json:"image"`
+	Version              string         `json:"version"`
+	DockerAuthSecretName string         `json:"dockerAuthSecretName"`
+	ArgoCD               map[string]any `json:"argocd"`
 }
 
 func run() error {
@@ -71,7 +72,7 @@ func run() error {
 		return fmt.Errorf("failed to convert argocd-repo-server to typed deployment: %w", err)
 	}
 
-	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, corev1.Container{
+	yokeCdContainer := corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
 		Image:           values.Image + ":" + values.Version,
@@ -103,14 +104,38 @@ func run() error {
 			RunAsNonRoot: ptr(true),
 			RunAsUser:    ptr[int64](999),
 		},
-	})
-
-	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, corev1.Volume{
-		Name: "cmp-tmp",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+	}
+	yokeCdVolumes := []corev1.Volume{
+		{
+			Name: "cmp-tmp",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
 		},
-	})
+	}
+
+	if values.DockerAuthSecretName != "" {
+		yokeCdContainer.VolumeMounts = append(yokeCdContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "docker-auth-secret",
+			MountPath: "/docker/config.json",
+			SubPath:   ".dockerconfigjson",
+		})
+		yokeCdContainer.Env = append(yokeCdContainer.Env, corev1.EnvVar{
+			Name:  "DOCKER_CONFIG",
+			Value: "/docker",
+		})
+		yokeCdVolumes = append(yokeCdVolumes, corev1.Volume{
+			Name: "docker-auth-secret",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: values.DockerAuthSecretName,
+				},
+			},
+		})
+	}
+
+	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, yokeCdContainer)
+	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, yokeCdVolumes...)
 
 	data, err := json.Marshal(deployment)
 	if err != nil {
