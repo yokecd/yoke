@@ -54,7 +54,6 @@ func main() {
 
 func run() error {
 	repo := flag.String("repo", "", "bitnami repo to turn into a flight function")
-	useSchema := flag.Bool("schema", true, "prefer schema over parsing values file")
 	version := flag.String("version", "", "version of chart to download")
 	outDir := flag.String("outdir", "", "outdir for the flight package")
 
@@ -69,10 +68,6 @@ func run() error {
 
 	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
 	defer cancel()
-
-	if err := ensureReadmeGenerator(ctx); err != nil {
-		return fmt.Errorf("failed to ensure bitnami/readme-generator installation: %w", err)
-	}
 
 	if err := ensureGoJsonSchema(ctx); err != nil {
 		return fmt.Errorf("failed to ensure go-jsonschema installation: %w", err)
@@ -117,28 +112,16 @@ func run() error {
 
 	// schemaFile must be called values for the generation to use: type Values
 	schemaFile := filepath.Join(os.TempDir(), "values")
-	valuesFile := filepath.Join(os.TempDir(), "raw")
 
 	err = func() error {
-		if *useSchema && len(chart.Schema) > 0 {
+		if len(chart.Schema) > 0 {
 			debug("using charts builtin schema")
 			if err := os.WriteFile(schemaFile, chart.Schema, 0o644); err != nil {
 				return fmt.Errorf("failed to write schema to temp file: %w", err)
 			}
 		} else {
-			if *useSchema && len(chart.Schema) == 0 {
+			if len(chart.Schema) == 0 {
 				debug("no schema found within chart")
-			}
-
-			debug("inferring schema from values file")
-
-			if err := os.WriteFile(valuesFile, chart.ValuesFile(), 0o644); err != nil {
-				return fmt.Errorf("failed to write values to temp file: %w", err)
-			}
-
-			genSchema := exec.CommandContext(ctx, "node", "./bin/index.js", "-v", valuesFile, "-s", schemaFile)
-			if err := x(genSchema, WithDir(schemaGenDir)); err != nil {
-				return fmt.Errorf("failed to generate jsonschema: %w", err)
 			}
 		}
 

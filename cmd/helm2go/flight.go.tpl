@@ -4,8 +4,9 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/yokecd/yoke/pkg/helm"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/yokecd/yoke/pkg/helm"
 )
 
 //go:embed {{ .Archive }}
