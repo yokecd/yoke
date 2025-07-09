@@ -24,6 +24,12 @@ const (
 	cacheRoot = "/.cache"
 )
 
+type CompilationMetadata struct {
+	Data     []byte
+	Checksum []byte
+	Deadline time.Time
+}
+
 func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 	uri, err := url.Parse(path)
 	if err != nil {
@@ -52,74 +58,50 @@ func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 
 	fd := int(mf.Fd())
 
-	type CompilationMetadata struct {
-		Data     []byte
-		Checksum []byte
-		Deadline time.Time
-	}
-
-	for {
-		mod, err := func() (module *wasi.Module, err error) {
-			if err := unix.Flock(fd, unix.LOCK_SH); err != nil {
-				return nil, fmt.Errorf("failed to acquire lock: %w", err)
-			}
-			defer func() {
-				if unlockErr := unix.Flock(fd, unix.LOCK_UN); unlockErr != nil {
-					err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to release lock: %w", err))
-				}
-			}()
-
-			content, err := os.ReadFile(metafilepath)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(content) == 0 {
-				return nil, nil
-			}
-
-			gr, err := gzip.NewReader(bytes.NewReader(content))
-			if err != nil {
-				return nil, nil
-			}
-			defer gr.Close()
-
-			var cacheFile CompilationMetadata
-			if err := gob.NewDecoder(gr).Decode(&cacheFile); err != nil {
-				return nil, fmt.Errorf("failed to decode cached file: %w", err)
-			}
-
-			if time.Now().After(cacheFile.Deadline) || !bytes.Equal(internal.SHA1(cacheFile.Data), cacheFile.Checksum) {
-				// If the deadline is exceeded or the data corrupted, treat it is as cache miss.
-				return nil, nil
-			}
-
-			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm:     cacheFile.Data,
-				CacheDir: compilationCache,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to compile from cache: %w", err)
-			}
-
-			return &mod, nil
-		}()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read from cache: %w", err)
-		}
-
-		if mod != nil {
-			return mod, nil
-		}
-
-		if err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-			if err == unix.EWOULDBLOCK {
-				continue
-			}
+	buildFromCache := func() (module *wasi.Module, err error) {
+		if err := unix.Flock(fd, unix.LOCK_SH); err != nil {
 			return nil, fmt.Errorf("failed to acquire lock: %w", err)
 		}
-		// Best effort, kernal will release lock once process ends.
+		defer func() {
+			if unlockErr := unix.Flock(fd, unix.LOCK_UN); unlockErr != nil {
+				err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to release lock: %w", err))
+			}
+		}()
+
+		cacheFile, err := ReadMetaFile(metafilepath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read cache meta file: %w", err)
+		}
+
+		if cacheFile == nil {
+			return nil, nil
+		}
+
+		mod, err := wasi.Compile(ctx, wasi.CompileParams{
+			Wasm:     cacheFile.Data,
+			CacheDir: compilationCache,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile from cache: %w", err)
+		}
+
+		return &mod, nil
+	}
+
+	buildFromSource := func() (*wasi.Module, error) {
+		if err := unix.Flock(fd, unix.LOCK_EX); err != nil {
+			return nil, fmt.Errorf("failed to acquire lock: %w", err)
+		}
 		defer unix.Flock(fd, unix.LOCK_UN)
+
+		cacheFile, err := ReadMetaFile(metafilepath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read cache meta file: %w", err)
+		}
+
+		if cacheFile != nil {
+			return nil, nil
+		}
 
 		wasm, err := yoke.LoadWasm(ctx, path, false)
 		if err != nil {
@@ -149,4 +131,52 @@ func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 
 		return &module, nil
 	}
+
+	for {
+		mod, err := buildFromCache()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build module from cache: %w", err)
+		}
+		if mod != nil {
+			return mod, nil
+		}
+
+		mod, err = buildFromSource()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build module from source: %w", err)
+		}
+		if mod == nil {
+			continue
+		}
+		return mod, nil
+	}
+}
+
+func ReadMetaFile(filename string) (*CompilationMetadata, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(content) == 0 {
+		return nil, nil
+	}
+
+	gr, err := gzip.NewReader(bytes.NewReader(content))
+	if err != nil {
+		return nil, nil
+	}
+	defer gr.Close()
+
+	var cacheFile CompilationMetadata
+	if err := gob.NewDecoder(gr).Decode(&cacheFile); err != nil {
+		return nil, fmt.Errorf("failed to decode cached file: %w", err)
+	}
+
+	if time.Now().After(cacheFile.Deadline) || !bytes.Equal(internal.SHA1(cacheFile.Data), cacheFile.Checksum) {
+		// If the deadline is exceeded or the data corrupted, treat it is as cache miss.
+		return nil, nil
+	}
+
+	return &cacheFile, nil
 }
