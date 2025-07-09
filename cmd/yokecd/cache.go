@@ -15,44 +15,50 @@ import (
 	"github.com/davidmdm/x/xerr"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 const (
-	cacheRoot    = "/.cache"
-	wasmRoot     = cacheRoot + "/wasm"
-	compiledRoot = cacheRoot + "/compiled"
+	cacheRoot = "/.cache"
 )
 
-func LoadWasm(ctx context.Context, path string) ([]byte, error) {
+func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 	uri, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path: %w", err)
 	}
 
 	if uri.Scheme == "" {
-		return yoke.LoadWasm(ctx, path, false)
+		path = filepath.Clean(path)
 	}
 
-	filename := filepath.Join(wasmRoot, internal.SHA1HexString([]byte(path)))
+	key := internal.SHA1HexString([]byte(path))
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0o644)
+	compilationCache := filepath.Join(cacheRoot, key)
+	if err := os.MkdirAll(compilationCache, 0755); err != nil {
+		return nil, fmt.Errorf("failed to ensure compilation cache: %w", err)
+	}
+
+	metafilepath := filepath.Join(cacheRoot, key+".meta")
+
+	mf, err := os.OpenFile(metafilepath, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	// TODO: Handle error?
-	defer file.Close()
+	defer mf.Close()
 
-	fd := int(file.Fd())
+	fd := int(mf.Fd())
 
-	type CacheFile struct {
+	type CompilationMetadata struct {
 		Data     []byte
 		Checksum []byte
 		Deadline time.Time
 	}
 
 	for {
-		data, err := func() (data []byte, err error) {
+		mod, err := func() (module *wasi.Module, err error) {
 			if err := unix.Flock(fd, unix.LOCK_SH); err != nil {
 				return nil, fmt.Errorf("failed to acquire lock: %w", err)
 			}
@@ -62,7 +68,7 @@ func LoadWasm(ctx context.Context, path string) ([]byte, error) {
 				}
 			}()
 
-			content, err := os.ReadFile(filename)
+			content, err := os.ReadFile(metafilepath)
 			if err != nil {
 				return nil, err
 			}
@@ -71,7 +77,7 @@ func LoadWasm(ctx context.Context, path string) ([]byte, error) {
 				return nil, nil
 			}
 
-			var cacheFile CacheFile
+			var cacheFile CompilationMetadata
 			if err := gob.NewDecoder(bytes.NewReader(content)).Decode(&cacheFile); err != nil {
 				return nil, fmt.Errorf("failed to decode cached file: %w", err)
 			}
@@ -81,14 +87,22 @@ func LoadWasm(ctx context.Context, path string) ([]byte, error) {
 				return nil, nil
 			}
 
-			return cacheFile.Data, nil
+			mod, err := wasi.Compile(ctx, wasi.CompileParams{
+				Wasm:     cacheFile.Data,
+				CacheDir: compilationCache,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to compile from cache: %w", err)
+			}
+
+			return &mod, nil
 		}()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read from cache: %w", err)
 		}
 
-		if len(data) > 0 {
-			return data, nil
+		if mod != nil {
+			return mod, nil
 		}
 
 		if err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
@@ -102,19 +116,27 @@ func LoadWasm(ctx context.Context, path string) ([]byte, error) {
 
 		wasm, err := yoke.LoadWasm(ctx, path, false)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load wasm: %w", err)
 		}
 
-		cachedFile := CacheFile{
+		module, err := wasi.Compile(ctx, wasi.CompileParams{
+			Wasm:     wasm,
+			CacheDir: compilationCache,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile wasm: %w", err)
+		}
+
+		cachedFile := CompilationMetadata{
 			Data:     wasm,
 			Checksum: internal.SHA1(wasm),
 			Deadline: time.Now().Add(time.Hour),
 		}
 
-		if err := gob.NewEncoder(file).Encode(cachedFile); err != nil {
-			return nil, fmt.Errorf("failed to encode data to cache: %w", err)
+		if err := gob.NewEncoder(mf).Encode(cachedFile); err != nil {
+			return nil, fmt.Errorf("failed to encode meta to cache: %w", err)
 		}
 
-		return wasm, nil
+		return &module, nil
 	}
 }
