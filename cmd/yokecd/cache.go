@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/gob"
 	"fmt"
@@ -77,8 +78,14 @@ func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 				return nil, nil
 			}
 
+			gr, err := gzip.NewReader(bytes.NewReader(content))
+			if err != nil {
+				return nil, nil
+			}
+			defer gr.Close()
+
 			var cacheFile CompilationMetadata
-			if err := gob.NewDecoder(bytes.NewReader(content)).Decode(&cacheFile); err != nil {
+			if err := gob.NewDecoder(gr).Decode(&cacheFile); err != nil {
 				return nil, fmt.Errorf("failed to decode cached file: %w", err)
 			}
 
@@ -133,7 +140,10 @@ func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 			Deadline: time.Now().Add(time.Hour),
 		}
 
-		if err := gob.NewEncoder(mf).Encode(cachedFile); err != nil {
+		gw := gzip.NewWriter(mf)
+		defer gw.Close()
+
+		if err := gob.NewEncoder(gw).Encode(cachedFile); err != nil {
 			return nil, fmt.Errorf("failed to encode meta to cache: %w", err)
 		}
 
