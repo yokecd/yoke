@@ -19,7 +19,6 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -103,23 +102,19 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get wasm path: %w", err)
 		}
 
-		wasm, err := LoadWasm(ctx, wasmPath)
+		module, err := LoadModule(ctx, wasmPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load wasm: %w", err)
 		}
 
-		mod, err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm})
-		if err != nil {
-			return nil, fmt.Errorf("failed to compile module: %w", err)
-		}
-		defer mod.Close(ctx)
+		defer module.Close(ctx)
 
 		data, _, err := yoke.EvalFlight(ctx, yoke.EvalParams{
 			Client:   client,
 			Release:  cfg.Application.Name,
 			Matchers: nil,
 			Flight: yoke.FlightParams{
-				Module:    yoke.Module{Instance: &mod},
+				Module:    yoke.Module{Instance: module},
 				Input:     strings.NewReader(cfg.Flight.Input),
 				Args:      cfg.Flight.Args,
 				Namespace: cfg.Application.Namespace,
