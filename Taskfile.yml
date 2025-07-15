@@ -24,7 +24,7 @@ tasks:
   update-deps:
     cmds:
       - go get -u ./...
-      - go get github.com/tetratelabs/wazero@v1.6.0
+      - go get github.com/yokecd/wazero@v1.6.0
       - go mod tidy
 
   update-yokecd-argo:
@@ -59,3 +59,4 @@ tasks:
   build-cli: # Handy for contributers
     cmds:
       - go build ./cmd/yoke
+

@@ -31,6 +31,8 @@ type CompilationMetadata struct {
 }
 
 func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
+	defer internal.DebugTimer(ctx, "Loading module")()
+
 	uri, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path: %w", err)

@@ -18,7 +18,7 @@ func Version() error {
 
 	modules := []string{
 		"k8s.io/client-go",
-		"github.com/tetratelabs/wazero",
+		"github.com/yokecd/wazero",
 	}
 
 	slices.Sort(modules)
