@@ -12,6 +12,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -28,10 +29,11 @@ func main() {
 }
 
 type Values struct {
-	Image                string         `json:"image"`
-	Version              string         `json:"version"`
-	DockerAuthSecretName string         `json:"dockerAuthSecretName"`
-	ArgoCD               map[string]any `json:"argocd"`
+	Image                string           `json:"image"`
+	Version              string           `json:"version"`
+	DockerAuthSecretName string           `json:"dockerAuthSecretName"`
+	CacheTTL             *metav1.Duration `json:"cacheTTL"`
+	ArgoCD               map[string]any   `json:"argocd"`
 }
 
 func run() error {
@@ -78,12 +80,21 @@ func run() error {
 		Image:           values.Image + ":" + values.Version,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 
-		Env: []corev1.EnvVar{
-			{
-				Name:  "ARGOCD_NAMESPACE",
-				Value: cmp.Or(deployment.Namespace, flight.Namespace()),
-			},
-		},
+		Env: func() []corev1.EnvVar {
+			result := []corev1.EnvVar{
+				{
+					Name:  "ARGOCD_NAMESPACE",
+					Value: cmp.Or(deployment.Namespace, flight.Namespace()),
+				},
+			}
+			if values.CacheTTL != nil {
+				result = append(result, corev1.EnvVar{
+					Name:  "YOKECD_CACHE_TTL",
+					Value: values.CacheTTL.Duration.String(),
+				})
+			}
+			return result
+		}(),
 
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -105,6 +116,7 @@ func run() error {
 			RunAsUser:    ptr[int64](999),
 		},
 	}
+
 	yokeCdVolumes := []corev1.Volume{
 		{
 			Name: "cmp-tmp",
