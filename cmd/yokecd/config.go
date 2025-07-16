@@ -16,6 +16,7 @@ import (
 	"github.com/yokecd/yoke/internal"
 
 	"dario.cat/mergo"
+	"github.com/tidwall/sjson"
 )
 
 type Ref struct {
@@ -128,15 +129,38 @@ func parseInput(params []CmpParam) (string, error) {
 	}
 
 	if len(input.Map) > 0 {
-		var inputMap map[string]any
+		var inputMap map[string]string
 
 		if err := json.Unmarshal(input.Map, &inputMap); err != nil {
 			return "", fmt.Errorf("could not parse map input: %v", err)
 		}
 
-		if err := mergo.Merge(&result, inputMap, mergo.WithOverride); err != nil {
-			return "", fmt.Errorf("could not merge input map: %v", err)
+		// `sjson` operates on a string JSON, not `map[string]any`, so serialize first or provide empty JSON object so it can set any values at all
+		resultStr := "{}"
+		if len(result) > 0 {
+			bytes, err := json.Marshal(result)
+			if err != nil {
+				return "", fmt.Errorf("could not encode input into JSON: %v", err)
+			}
+			resultStr = string(bytes)
 		}
+
+		for key, value := range inputMap {
+			var (
+				val any
+				err error
+			)
+			if err = yaml.Unmarshal([]byte(value), &val); err != nil {
+				return "", fmt.Errorf("could not parse the input map entry %v=%v: %v", key, value, err)
+			}
+			resultStr, err = sjson.Set(resultStr, key, val)
+			if err != nil {
+				return "", fmt.Errorf("could not set input map entry %v=%v: %v", key, value, err)
+			}
+		}
+
+		// already serialized into JSON, return directly
+		return resultStr, nil
 	}
 
 	if len(result) > 0 {

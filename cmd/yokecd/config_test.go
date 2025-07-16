@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 )
 
 func TestConfigUnmarshalling(t *testing.T) {
@@ -104,11 +105,13 @@ func TestConfigUnmarshalling(t *testing.T) {
 
 func TestConfigUnmarshallingInput(t *testing.T) {
 	cases := []struct {
-		Name     string
-		Input    string
-		Expected Parameters
-		Error    string
-		Files    map[string]string
+		Name  string
+		Input string
+		// empty string is a valid value in some tests
+		ExpectedInput     *string
+		ExpectedInputJson string
+		Error             string
+		Files             map[string]string
 	}{
 		{
 			Name: "input string overrides other options",
@@ -117,11 +120,7 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 				{ name: input, string: 'override' },
 				{ name: inputFiles, array: ['values.yaml']}
 			]`,
-			Expected: Parameters{
-				Wasm:  "main.wasm",
-				Build: false,
-				Input: "override",
-			},
+			ExpectedInput: ptr.To("override"),
 		},
 		{
 			Name: "properly combines YAML and JSON files",
@@ -133,11 +132,7 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 				"values.yaml":    "property: foo\nanother: baz",
 				"overrides.json": `{ "another": "bar" }`,
 			},
-			Expected: Parameters{
-				Wasm:  "main.wasm",
-				Build: false,
-				Input: `{"another":"bar","property":"foo"}`,
-			},
+			ExpectedInputJson: `{ "another": "bar", "property": "foo" }`,
 		},
 		{
 			Name: "can handle YAML anchors",
@@ -148,11 +143,7 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 			Files: map[string]string{
 				"values.yaml": "property: &a foo\nanother: *a",
 			},
-			Expected: Parameters{
-				Wasm:  "main.wasm",
-				Build: false,
-				Input: `{"another":"foo","property":"foo"}`,
-			},
+			ExpectedInputJson: `{ "another": "foo", "property": "foo" }`,
 		},
 		{
 			Name: "input map overrides input files",
@@ -164,22 +155,14 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 			Files: map[string]string{
 				"values.yaml": "property: foo\nanother: bar",
 			},
-			Expected: Parameters{
-				Wasm:  "main.wasm",
-				Build: false,
-				Input: `{"another":"baz","property":"foo"}`,
-			},
+			ExpectedInputJson: `{ "another": "baz", "property": "foo" }`,
 		},
 		{
 			Name: "empty input doesnt output anything to stdin",
 			Input: `[
 				{ name: wasm, string: main.wasm }
 			]`,
-			Expected: Parameters{
-				Wasm:  "main.wasm",
-				Build: false,
-				Input: "",
-			},
+			ExpectedInput: ptr.To(""),
 		},
 		{
 			Name: "handles errors - not being able to read file",
@@ -199,6 +182,147 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 				"values.yaml": `this is not a YAML file`,
 			},
 			Error: "invalid config: could not parse YAML or JSON file 'values.yaml': error unmarshaling JSON: while decoding JSON: json: cannot unmarshal string into Go value of type map[string]interface {}",
+		},
+		{
+			Name: "nested map overrides with empty input",
+			Input: `[
+				{ name: wasm, string: main.wasm },
+				{ name: input, map: { some: foo, "nested.foo": bar }}
+			]`,
+			ExpectedInputJson: `{ "nested": { "foo": "bar" }, "some": "foo" }`,
+		},
+		{
+			Name: "nested map overrides with value files",
+			Input: `[
+				{ name: wasm, string: main.wasm },
+				{ name: inputFiles, array: ["values.yaml"] },
+				{ name: input, map: { some: foo, "nested.foo": bar }}
+			]`,
+			Files: map[string]string{
+				"values.yaml": `
+property: bah
+some: boo
+nested:
+  foo: bee
+  bar: baz
+`,
+			},
+			ExpectedInputJson: `{
+        "nested": {
+          "bar": "baz",
+          "foo": "bar"
+        },
+        "property": "bah",
+        "some": "foo"
+      }`,
+		},
+		{
+			Name: "complicated map overrides with value files",
+			// tests overriding - existing value, new simple value, nested existing value, nested new object, existing array object, new array item, new object array...
+			Input: `[
+				{ name: wasm, string: main.wasm },
+				{ name: inputFiles, array: ["values.yaml"] },
+				{ name: input, map: { 
+            some: foo, 
+            new: bar,
+            obj: "some: property\nanother: property",
+            "nested.foo": bar, 
+            "nested.new.bar": baz, 
+            "nested.array.0.obj": value3, 
+            "nested.array.-1": '{"some": "value"}',
+            "nested.arrayStr.-1": baz ,
+            "nested.newArrayObj.-1.foo": bar,
+            "nested.bar": "some: inline\nyaml: true"
+          }
+        }
+			]`,
+			Files: map[string]string{
+				"values.yaml": `
+property: bah
+some: boo
+obj:
+  foo: bar
+nested:
+  foo: bee
+  bar: baz
+  array:
+    - obj: value
+    - obj: value2
+  arrayStr:
+    - foo
+    - bar
+`,
+			},
+			ExpectedInputJson: `{
+        "property": "bah",
+        "new": "bar",
+        "some": "foo",
+        "obj": {
+          "some": "property",
+          "another": "property"
+        },
+        "nested": {
+          "foo": "bar",
+          "bar": {
+            "some": "inline",
+            "yaml": true
+          },
+          "new": {
+            "bar": "baz"
+          },
+          "array": [
+            { "obj": "value3" },
+            { "obj": "value2" },
+            { "some": "value" }
+          ],
+          "arrayStr": ["foo","bar","baz"],
+          "newArrayObj": [
+            { "foo": "bar" }
+          ]
+        }
+      }`,
+		},
+		{
+			Name: "input map with different types",
+			// ArgoCD passes every parameter as a string, so we need to force the string to things that would be interpreted otherwise (bools, numbers, JSON/YAML strings..)
+			Input: `[
+        { name: wasm, string: main.wasm },
+        { name: input, map: { 
+            string: foo,
+            number: "42",
+            bool: "true",
+            numberString: '"42"',
+            boolString: '"true"',
+            json: '{"some": "value", "num": 15, "bool": false, "numStr": "15", "boolStr": "false" }',
+            yaml: "some: value\nnum: 15\nbool: false\nnumStr: '15'\nboolStr: 'false'\nnested:\n foo: bar\n array:\n - value"
+          }
+        }
+      ]`,
+			ExpectedInputJson: `{
+        "string": "foo",
+        "number": 42,
+        "bool": true,
+        "numberString": "42",
+        "boolString": "true",
+        "json": {
+          "some": "value",
+          "num": 15,
+          "bool": false,
+          "numStr": "15",
+          "boolStr": "false"
+        },
+        "yaml": {
+          "some": "value",
+          "num": 15,
+          "bool": false,
+          "numStr": "15",
+          "boolStr": "false",
+          "nested": {
+            "foo": "bar",
+            "array": ["value"]
+          }
+        }
+      }`,
 		},
 	}
 
@@ -230,7 +354,12 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 			}
 
 			require.NoError(t, actual.UnmarshalText([]byte(tc.Input)))
-			require.Equal(t, tc.Expected, actual)
+
+			if tc.ExpectedInput != nil {
+				require.Equal(t, *tc.ExpectedInput, actual.Input)
+				return
+			}
+			require.JSONEq(t, tc.ExpectedInputJson, actual.Input)
 		})
 	}
 }
