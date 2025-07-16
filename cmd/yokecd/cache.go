@@ -30,8 +30,21 @@ type CompilationMetadata struct {
 	Deadline time.Time
 }
 
-func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
+func LoadModule(ctx context.Context, path string, ttl time.Duration) (*wasi.Module, error) {
 	defer internal.DebugTimer(ctx, "Loading module")()
+
+	// skip cache entirely
+	if ttl <= 0 {
+		wasm, err := yoke.LoadWasm(ctx, path, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load wasm: %w", err)
+		}
+		mod, err := wasi.Compile(ctx, wasi.CompileParams{Wasm: wasm})
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile module: %w", err)
+		}
+		return &mod, nil
+	}
 
 	uri, err := url.Parse(path)
 	if err != nil {
@@ -69,7 +82,7 @@ func LoadModule(ctx context.Context, path string) (*wasi.Module, error) {
 			return mod, nil
 		}
 
-		mod, err = BuildFromSource(ctx, mf, path, compilationCache)
+		mod, err = BuildFromSource(ctx, mf, path, compilationCache, ttl)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build module from source: %w", err)
 		}
@@ -110,7 +123,7 @@ func BuildFromCache(ctx context.Context, fd int, metafilepath, compilationCache 
 	return &mod, nil
 }
 
-func BuildFromSource(ctx context.Context, mf *os.File, path, compilationCache string) (*wasi.Module, error) {
+func BuildFromSource(ctx context.Context, mf *os.File, path, compilationCache string, ttl time.Duration) (*wasi.Module, error) {
 	fd := int(mf.Fd())
 	if err := unix.Flock(fd, unix.LOCK_EX); err != nil {
 		return nil, fmt.Errorf("failed to acquire lock: %w", err)
@@ -142,7 +155,7 @@ func BuildFromSource(ctx context.Context, mf *os.File, path, compilationCache st
 	cachedFile := CompilationMetadata{
 		Data:     wasm,
 		Checksum: internal.SHA1(wasm),
-		Deadline: time.Now().Add(time.Hour),
+		Deadline: time.Now().Add(ttl),
 	}
 
 	gw := gzip.NewWriter(mf)

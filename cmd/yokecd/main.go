@@ -102,7 +102,7 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get wasm path: %w", err)
 		}
 
-		module, err := LoadModule(ctx, wasmPath)
+		module, err := LoadModule(ctx, wasmPath, cfg.CacheTTL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load wasm: %w", err)
 		}
