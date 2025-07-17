@@ -8,16 +8,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
+
+	"dario.cat/mergo"
+	"github.com/tidwall/sjson"
 
 	"github.com/davidmdm/conf"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/internal"
-
-	"dario.cat/mergo"
-	"github.com/tidwall/sjson"
 )
 
 type Ref struct {
@@ -181,7 +180,6 @@ type Config struct {
 	}
 	Flight    Parameters
 	Namespace string
-	CacheTTL  time.Duration
 	Env       map[string]string
 }
 
@@ -204,7 +202,6 @@ func getConfig() (cfg Config, err error) {
 	conf.Var(conf.Environ, &cfg.Application.Name, "ARGOCD_APP_NAME", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
-	conf.Var(conf.Environ, &cfg.CacheTTL, "YOKECD_CACHE_TTL", conf.Default(24*time.Hour))
 
 	err = conf.Environ.Parse()
 

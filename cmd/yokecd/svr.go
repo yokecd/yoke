@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,7 +44,7 @@ func RunSvr(ctx context.Context) (err error) {
 	mods := xsync.Map[string, *Mod]{}
 
 	go func() {
-		for range time.NewTicker(time.Minute).C {
+		for range time.NewTicker(10 * time.Second).C {
 			var count int
 			for key, mod := range mods.All() {
 				func() {
@@ -57,7 +58,9 @@ func RunSvr(ctx context.Context) (err error) {
 					}
 				}()
 			}
-			logger.Info("cleared expired modules from cache", "count", count)
+			if count > 0 {
+				logger.Info("cleared expired modules from cache", "count", count)
+			}
 		}
 	}()
 
@@ -97,6 +100,7 @@ type Mod struct {
 }
 
 type ExecuteReq struct {
+	Source    []byte            `json:"source"`
 	Path      string            `json:"path"`
 	Release   string            `json:"release"`
 	Namespace string            `json:"namespace"`
@@ -115,36 +119,19 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 
 	mux.HandleFunc("POST /exec", func(w http.ResponseWriter, r *http.Request) {
 		var ex ExecuteReq
-		json.NewDecoder(r.Body).Decode(&ex)
-
-		if ttl <= 0 {
-			var stderr bytes.Buffer
-			output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
-				Client:   nil,
-				Release:  ex.Release,
-				Matchers: []string{},
-				Flight: yoke.FlightParams{
-					Path:      ex.Path,
-					Args:      ex.Args,
-					Env:       ex.Env,
-					Namespace: ex.Namespace,
-					Stderr:    &stderr,
-					Input:     strings.NewReader(ex.Input),
-				},
-			})
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			json.NewEncoder(w).Encode(ExecResponse{
-				Stdout: output,
-				Stderr: stderr.String(),
-			})
+		if err := json.NewDecoder(r.Body).Decode(&ex); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		mod, _ := mods.LoadOrStore(ex.Path, new(Mod))
+		key := func() string {
+			if len(ex.Source) > 0 {
+				return internal.SHA1HexString(ex.Source)
+			}
+			return ex.Path
+		}()
+
+		mod, _ := mods.LoadOrStore(key, new(Mod))
 
 		cacheHit := true
 
@@ -153,11 +140,10 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				mod.RLock()
 				defer mod.RUnlock()
 
-				if mod.Instance == nil || time.Now().After(mod.Deadline) {
+				if mod.Instance == nil || (ttl > 0 && time.Now().After(mod.Deadline)) {
 					return nil, nil
 				}
 
-				var stderr bytes.Buffer
 				output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
 					Client:   nil,
 					Release:  ex.Release,
@@ -167,7 +153,6 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 						Args:      ex.Args,
 						Env:       ex.Env,
 						Namespace: ex.Namespace,
-						Stderr:    &stderr,
 						Input:     strings.NewReader(ex.Input),
 					},
 				})
@@ -194,7 +179,16 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 					return nil
 				}
 
-				wasm, err := yoke.LoadWasm(r.Context(), ex.Path, false)
+				wasm, err := func() ([]byte, error) {
+					if len(ex.Source) == 0 {
+						return yoke.LoadWasm(r.Context(), ex.Path, false)
+					}
+					r, err := gzip.NewReader(bytes.NewReader(ex.Source))
+					if err != nil {
+						return nil, fmt.Errorf("invalid source: %w", err)
+					}
+					return io.ReadAll(r)
+				}()
 				if err != nil {
 					return fmt.Errorf("failed to load wasm: %w", err)
 				}

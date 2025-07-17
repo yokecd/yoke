@@ -83,23 +83,12 @@ func run() error {
 		Image:           values.Image + ":" + values.Version,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Resources:       values.YokeCDPlugin.Resources,
-
-		Env: func() []corev1.EnvVar {
-			result := []corev1.EnvVar{
-				{
-					Name:  "ARGOCD_NAMESPACE",
-					Value: cmp.Or(deployment.Namespace, flight.Namespace()),
-				},
-			}
-			if values.CacheTTL != nil {
-				result = append(result, corev1.EnvVar{
-					Name:  "YOKECD_CACHE_TTL",
-					Value: values.CacheTTL.Duration.String(),
-				})
-			}
-			return result
-		}(),
-
+		Env: []corev1.EnvVar{
+			{
+				Name:  "ARGOCD_NAMESPACE",
+				Value: cmp.Or(deployment.Namespace, flight.Namespace()),
+			},
+		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "var-files",
@@ -159,24 +148,18 @@ func run() error {
 	}
 
 	if values.DockerAuthSecretName != "" {
-		for _, container := range []corev1.Container{plugin, server} {
-			container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
-				Name:      "docker-auth-secret",
-				MountPath: "/docker/config.json",
-				SubPath:   ".dockerconfigjson",
-			})
-			container.Env = append(container.Env, corev1.EnvVar{
-				Name:  "DOCKER_CONFIG",
-				Value: "/docker",
-			})
-		}
+		server.VolumeMounts = append(server.VolumeMounts, corev1.VolumeMount{
+			Name:      "docker-auth-secret",
+			MountPath: "/docker/config.json",
+			SubPath:   ".dockerconfigjson",
+		})
+		server.Env = append(server.Env, corev1.EnvVar{
+			Name:  "DOCKER_CONFIG",
+			Value: "/docker",
+		})
 		volumes = append(volumes, corev1.Volume{
-			Name: "docker-auth-secret",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: values.DockerAuthSecretName,
-				},
-			},
+			Name:         "docker-auth-secret",
+			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: values.DockerAuthSecretName}},
 		})
 	}
 
