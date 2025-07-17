@@ -30,7 +30,7 @@ type CompilationMetadata struct {
 	Deadline time.Time
 }
 
-func LoadModule(ctx context.Context, path string, ttl time.Duration) (*wasi.Module, error) {
+func LoadLocalModule(ctx context.Context, path string, ttl time.Duration) (*wasi.Module, error) {
 	defer internal.DebugTimer(ctx, "Loading module")()
 
 	// skip cache entirely
@@ -58,7 +58,7 @@ func LoadModule(ctx context.Context, path string, ttl time.Duration) (*wasi.Modu
 	key := internal.SHA1HexString([]byte(path))
 
 	compilationCache := filepath.Join(cacheRoot, key)
-	if err := os.MkdirAll(compilationCache, 0755); err != nil {
+	if err := os.MkdirAll(compilationCache, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to ensure compilation cache: %w", err)
 	}
 

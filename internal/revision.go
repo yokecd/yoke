@@ -219,6 +219,11 @@ func Must(err error) {
 	}
 }
 
+func Must2[T any](value T, err error) T {
+	Must(err)
+	return value
+}
+
 func MustParseInt(value string) int {
 	i, _ := strconv.Atoi(value)
 	return i

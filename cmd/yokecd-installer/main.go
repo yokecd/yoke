@@ -74,7 +74,7 @@ func run() error {
 		return fmt.Errorf("failed to convert argocd-repo-server to typed deployment: %w", err)
 	}
 
-	yokeCdContainer := corev1.Container{
+	yokecd := corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
 		Image:           values.Image + ":" + values.Version,
@@ -117,6 +117,24 @@ func run() error {
 		},
 	}
 
+	yokecdSvr := corev1.Container{
+		Name:            "yokecd-svr",
+		Command:         []string{"yokecd", "-svr"},
+		Image:           values.Image + ":" + values.Version,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+
+		Env: func() []corev1.EnvVar {
+			var result []corev1.EnvVar
+			if values.CacheTTL != nil {
+				result = append(result, corev1.EnvVar{
+					Name:  "YOKECD_CACHE_TTL",
+					Value: values.CacheTTL.Duration.String(),
+				})
+			}
+			return result
+		}(),
+	}
+
 	yokeCdVolumes := []corev1.Volume{
 		{
 			Name: "cmp-tmp",
@@ -127,12 +145,12 @@ func run() error {
 	}
 
 	if values.DockerAuthSecretName != "" {
-		yokeCdContainer.VolumeMounts = append(yokeCdContainer.VolumeMounts, corev1.VolumeMount{
+		yokecd.VolumeMounts = append(yokecd.VolumeMounts, corev1.VolumeMount{
 			Name:      "docker-auth-secret",
 			MountPath: "/docker/config.json",
 			SubPath:   ".dockerconfigjson",
 		})
-		yokeCdContainer.Env = append(yokeCdContainer.Env, corev1.EnvVar{
+		yokecd.Env = append(yokecd.Env, corev1.EnvVar{
 			Name:  "DOCKER_CONFIG",
 			Value: "/docker",
 		})
@@ -146,7 +164,7 @@ func run() error {
 		})
 	}
 
-	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, yokeCdContainer)
+	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, yokecd, yokecdSvr)
 	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, yokeCdVolumes...)
 
 	data, err := json.Marshal(deployment)

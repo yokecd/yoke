@@ -4,7 +4,9 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -27,14 +29,25 @@ const (
 )
 
 func main() {
+	svr := flag.Bool("svr", false, "run module execute server")
+	flag.Parse()
+
+	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	if *svr {
+		if err := RunSvr(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	cfg, err := getConfig()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
-	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	ctx = internal.WithDebugFlag(ctx, func(value bool) *bool { return &value }(true))
 
@@ -102,27 +115,44 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get wasm path: %w", err)
 		}
 
-		module, err := LoadModule(ctx, wasmPath, cfg.CacheTTL)
+		uri, err := url.Parse(wasmPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load wasm: %w", err)
+			return nil, fmt.Errorf("failed to parse path: %w", err)
 		}
 
-		defer module.Close(ctx)
+		if uri.Scheme == "" || uri.Scheme == "file" {
+			module, err := LoadLocalModule(ctx, wasmPath, cfg.CacheTTL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load wasm: %w", err)
+			}
 
-		data, _, err := yoke.EvalFlight(ctx, yoke.EvalParams{
-			Client:   client,
-			Release:  cfg.Application.Name,
-			Matchers: nil,
-			Flight: yoke.FlightParams{
-				Module:    yoke.Module{Instance: module},
-				Input:     strings.NewReader(cfg.Flight.Input),
-				Args:      cfg.Flight.Args,
-				Namespace: cfg.Application.Namespace,
-				Env:       cfg.Env,
-			},
+			defer module.Close(ctx)
+
+			data, _, err := yoke.EvalFlight(ctx, yoke.EvalParams{
+				Client:   client,
+				Release:  cfg.Application.Name,
+				Matchers: nil,
+				Flight: yoke.FlightParams{
+					Module:    yoke.Module{Instance: module},
+					Input:     strings.NewReader(cfg.Flight.Input),
+					Args:      cfg.Flight.Args,
+					Namespace: cfg.Application.Namespace,
+					Env:       cfg.Env,
+				},
+			})
+
+			return data, err
+
+		}
+
+		return Exec(ctx, ExecuteReq{
+			Path:      wasmPath,
+			Release:   cfg.Application.Name,
+			Namespace: cfg.Application.Namespace,
+			Args:      cfg.Flight.Args,
+			Env:       cfg.Env,
+			Input:     cfg.Flight.Input,
 		})
-
-		return data, err
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to execute flight wasm: %w", err)
@@ -130,7 +160,7 @@ func run(ctx context.Context, cfg Config) (err error) {
 
 	stages, err := internal.ParseStages(data)
 	if err != nil {
-		return fmt.Errorf("failed to parse output into valid flight output: %w", err)
+		return fmt.Errorf("failed to parse output into valid flight output: %w\n\nGot: %q", err, data)
 	}
 
 	addSyncWaveAnnotations(stages)
