@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -21,7 +24,6 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 const (
@@ -120,32 +122,36 @@ func run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to parse path: %w", err)
 		}
 
-		if uri.Scheme == "" || uri.Scheme == "file" {
-			module, err := LoadLocalModule(ctx, wasmPath, cfg.CacheTTL)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load wasm: %w", err)
+		source, err := func() ([]byte, error) {
+			if uri.Scheme != "" && uri.Scheme != "file" {
+				return nil, nil
 			}
 
-			defer module.Close(ctx)
+			file, err := os.Open(wasmPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to open wasm file: %w", err)
+			}
+			defer file.Close()
 
-			data, _, err := yoke.EvalFlight(ctx, yoke.EvalParams{
-				Client:   client,
-				Release:  cfg.Application.Name,
-				Matchers: nil,
-				Flight: yoke.FlightParams{
-					Module:    yoke.Module{Instance: module},
-					Input:     strings.NewReader(cfg.Flight.Input),
-					Args:      cfg.Flight.Args,
-					Namespace: cfg.Application.Namespace,
-					Env:       cfg.Env,
-				},
-			})
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
 
-			return data, err
+			if _, err := io.Copy(gw, file); err != nil {
+				return nil, fmt.Errorf("failed to gzip wasm: %w", err)
+			}
 
+			if err := gw.Close(); err != nil {
+				return nil, fmt.Errorf("failed to gzip wasm: %w", err)
+			}
+
+			return buf.Bytes(), nil
+		}()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get source wasm: %w", err)
 		}
 
 		return Exec(ctx, ExecuteReq{
+			Source:    source,
 			Path:      wasmPath,
 			Release:   cfg.Application.Name,
 			Namespace: cfg.Application.Namespace,
