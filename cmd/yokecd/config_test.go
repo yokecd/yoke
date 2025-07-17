@@ -333,7 +333,7 @@ nested:
 
 			for file, content := range tc.Files {
 				tmpFile := filepath.Join(tmpDir, file)
-				if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+				if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
 					t.Error("error during test setup - creating fixtures", err)
 					return
 				}

@@ -1,6 +1,9 @@
 package xsync
 
-import "sync"
+import (
+	"iter"
+	"sync"
+)
 
 type Map[K comparable, V any] sync.Map
 
@@ -24,4 +27,12 @@ func (m *Map[K, V]) LoadOrStore(key K, value V) (V, bool) {
 
 func (m *Map[K, V]) Delete(key K) {
 	(*sync.Map)(m).Delete(key)
+}
+
+func (m *Map[K, V]) All() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		(*sync.Map)(m).Range(func(key any, value any) bool {
+			return yield(key.(K), value.(V))
+		})
+	}
 }
