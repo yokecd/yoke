@@ -28,27 +28,37 @@ const annotationArgocdSyncWave string = "argocd.argoproj.io/sync-wave"
 func Run(ctx context.Context, cfg Config) (err error) {
 	defer internal.DebugTimer(ctx, fmt.Sprintf("evaluating application %s/%s", cfg.Application.Name, cfg.Flight.Wasm))()
 
-	rest, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get in cluster config: %w", err)
-	}
+	secrets, err := func() (map[string]string, error) {
+		if len(cfg.Flight.Refs) == 0 {
+			return nil, nil
+		}
 
-	client, err := k8s.NewClient(rest)
-	if err != nil {
-		return fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
-	}
-
-	secrets := make(map[string]string, len(cfg.Flight.Refs))
-	for name, ref := range cfg.Flight.Refs {
-		secret, err := client.Clientset.CoreV1().Secrets(cmp.Or(ref.Namespace, cfg.Namespace)).Get(ctx, ref.Secret, v1.GetOptions{})
+		rest, err := rest.InClusterConfig()
 		if err != nil {
-			return fmt.Errorf("failed to get secret reference %q: %w", ref.Secret, err)
+			return nil, fmt.Errorf("failed to get in cluster config: %w", err)
 		}
-		value, ok := secret.Data[ref.Key]
-		if !ok {
-			return fmt.Errorf("key %q not present in secret %q", ref.Key, ref.Secret)
+
+		client, err := k8s.NewClient(rest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
 		}
-		secrets[name] = string(value)
+
+		secrets := make(map[string]string, len(cfg.Flight.Refs))
+		for name, ref := range cfg.Flight.Refs {
+			secret, err := client.Clientset.CoreV1().Secrets(cmp.Or(ref.Namespace, cfg.Namespace)).Get(ctx, ref.Secret, v1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to get secret reference %q: %w", ref.Secret, err)
+			}
+			value, ok := secret.Data[ref.Key]
+			if !ok {
+				return nil, fmt.Errorf("key %q not present in secret %q", ref.Key, ref.Secret)
+			}
+			secrets[name] = string(value)
+		}
+		return secrets, nil
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to lookup secret references: %w", err)
 	}
 
 	data, err := func() ([]byte, error) {
@@ -139,7 +149,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	internal.AddYokeMetadata(stages.Flatten(), cfg.Application.Name, cfg.Application.Namespace, "yokecd")
 
-	return encodeResources(json.NewEncoder(os.Stdout), stages.Flatten())
+	return encodeResources(json.NewEncoder(internal.Stdout(ctx)), stages.Flatten())
 }
 
 func addSyncWaveAnnotations(stages internal.Stages) {
