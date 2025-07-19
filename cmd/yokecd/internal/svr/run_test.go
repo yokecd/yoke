@@ -1,4 +1,4 @@
-package main
+package svr
 
 import (
 	"bytes"
@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/internal/xsync"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestPluginServer(t *testing.T) {
-	require.NoError(t, x.X("go build -o ./test_output/echo.wasm ./internal/testing/mods/echo", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/echo.wasm ../testing/mods/echo", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
 	wasm, err := os.ReadFile("./test_output/echo.wasm")
 	require.NoError(t, err)
