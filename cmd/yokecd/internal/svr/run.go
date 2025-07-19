@@ -48,7 +48,9 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	logger.Info("debug config", "conf", cfg)
+	cfg.CacheCollectionInterval = max(cfg.CacheCollectionInterval, 1*time.Second)
+
+	logger.Info("debug config", "cacheTTL", cfg.CacheTTL.String(), "cacheCollectionInterval", cfg.CacheCollectionInterval.String())
 
 	mods := xsync.Map[string, *Mod]{}
 

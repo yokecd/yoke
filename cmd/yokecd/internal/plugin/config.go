@@ -173,14 +173,16 @@ func parseInput(params []CmpParam) (string, error) {
 	return "", nil
 }
 
-type Config struct {
-	Application struct {
-		Name      string
-		Namespace string
-	}
-	Flight    Parameters
+type ArgoApp struct {
+	Name      string
 	Namespace string
-	Env       map[string]string
+}
+
+type Config struct {
+	Application ArgoApp
+	Flight      Parameters
+	Namespace   string
+	Env         map[string]string
 }
 
 func ConfigFromEnv() (cfg Config) {
