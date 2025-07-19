@@ -1,4 +1,4 @@
-package main
+package svr
 
 import (
 	"bytes"
@@ -24,7 +24,19 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func RunSvr(ctx context.Context) (err error) {
+type Config struct {
+	CacheTTL                time.Duration
+	CacheCollectionInterval time.Duration
+}
+
+func ConfigFromEnv() (cfg Config) {
+	conf.Var(conf.Environ, &cfg.CacheTTL, "YOKECD_CACHE_TTL", conf.Default(24*time.Hour))
+	conf.Var(conf.Environ, &cfg.CacheCollectionInterval, "YOKECD_CACHE_COLLECTION_INTERVAL", conf.Default(10*time.Second))
+	conf.Environ.MustParse()
+	return
+}
+
+func Run(ctx context.Context, cfg Config) (err error) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	defer func() {
 		if err != nil {
@@ -32,19 +44,16 @@ func RunSvr(ctx context.Context) (err error) {
 		}
 	}()
 
-	var ttl time.Duration
-	conf.Var(conf.Environ, &ttl, "YOKECD_CACHE_TTL", conf.Default(24*time.Hour))
-
 	if err := conf.Environ.Parse(); err != nil {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	logger.Info("debug config", "ttl", ttl.String())
+	logger.Info("debug config", "conf", cfg)
 
 	mods := xsync.Map[string, *Mod]{}
 
 	go func() {
-		for range time.NewTicker(10 * time.Second).C {
+		for range time.NewTicker(cfg.CacheCollectionInterval).C {
 			var count int
 			for key, mod := range mods.All() {
 				func() {
@@ -66,7 +75,7 @@ func RunSvr(ctx context.Context) (err error) {
 
 	svr := http.Server{
 		Addr:    ":3666",
-		Handler: Handler(ttl, &mods, logger),
+		Handler: Handler(cfg.CacheTTL, &mods, logger),
 	}
 
 	serverErr := make(chan error, 1)

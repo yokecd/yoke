@@ -1,4 +1,4 @@
-package main
+package plugin
 
 import (
 	"bytes"
@@ -183,7 +183,7 @@ type Config struct {
 	Env       map[string]string
 }
 
-func getConfig() (cfg Config, err error) {
+func ConfigFromEnv() (cfg Config) {
 	cfg.Env = map[string]string{}
 
 	for _, e := range os.Environ() {
@@ -203,7 +203,7 @@ func getConfig() (cfg Config, err error) {
 	conf.Var(conf.Environ, &cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
 	conf.Var(conf.Environ, &cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
 
-	err = conf.Environ.Parse()
+	conf.Environ.MustParse()
 
 	return
 }
