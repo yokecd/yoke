@@ -31,14 +31,19 @@ type ContainerOpts struct {
 	Resources corev1.ResourceRequirements `json:"resources"`
 }
 
+type YokeCDServer struct {
+	ContainerOpts
+	CacheTTL                *metav1.Duration `json:"cacheTTL"`
+	CacheCollectionInterval *metav1.Duration `json:"cacheCollectionInterval"`
+}
+
 type Values struct {
-	Image                string           `json:"image"`
-	Version              string           `json:"version"`
-	YokeCDPlugin         ContainerOpts    `json:"yokecd"`
-	YokeCDServer         ContainerOpts    `json:"yokecdServer"`
-	DockerAuthSecretName string           `json:"dockerAuthSecretName"`
-	CacheTTL             *metav1.Duration `json:"cacheTTL"`
-	ArgoCD               map[string]any   `json:"argocd"`
+	Image                string         `json:"image"`
+	Version              string         `json:"version"`
+	YokeCDPlugin         ContainerOpts  `json:"yokecd"`
+	YokeCDServer         YokeCDServer   `json:"yokecdServer"`
+	DockerAuthSecretName string         `json:"dockerAuthSecretName"`
+	ArgoCD               map[string]any `json:"argocd"`
 }
 
 func run() error {
@@ -117,10 +122,16 @@ func run() error {
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Env: func() []corev1.EnvVar {
 			var result []corev1.EnvVar
-			if values.CacheTTL != nil {
+			if values.YokeCDServer.CacheTTL != nil {
 				result = append(result, corev1.EnvVar{
 					Name:  "YOKECD_CACHE_TTL",
-					Value: values.CacheTTL.Duration.String(),
+					Value: values.YokeCDServer.CacheTTL.Duration.String(),
+				})
+			}
+			if values.YokeCDServer.CacheCollectionInterval != nil {
+				result = append(result, corev1.EnvVar{
+					Name:  "YOKECD_CACHE_COLLECTION_INTERVAL",
+					Value: values.YokeCDServer.CacheCollectionInterval.Duration.String(),
 				})
 			}
 			return result
