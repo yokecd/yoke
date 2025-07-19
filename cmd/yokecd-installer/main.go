@@ -8,12 +8,12 @@ import (
 	"io"
 	"os"
 
-	"golang.org/x/term"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/yokecd/yoke/cmd/yokecd-installer/argocd"
@@ -27,11 +27,18 @@ func main() {
 	}
 }
 
+type ContainerOpts struct {
+	Resources corev1.ResourceRequirements `json:"resources"`
+}
+
 type Values struct {
-	Image                string         `json:"image"`
-	Version              string         `json:"version"`
-	DockerAuthSecretName string         `json:"dockerAuthSecretName"`
-	ArgoCD               map[string]any `json:"argocd"`
+	Image                string           `json:"image"`
+	Version              string           `json:"version"`
+	YokeCDPlugin         ContainerOpts    `json:"yokecd"`
+	YokeCDServer         ContainerOpts    `json:"yokecdServer"`
+	DockerAuthSecretName string           `json:"dockerAuthSecretName"`
+	CacheTTL             *metav1.Duration `json:"cacheTTL"`
+	ArgoCD               map[string]any   `json:"argocd"`
 }
 
 func run() error {
@@ -40,10 +47,8 @@ func run() error {
 		Version: "latest",
 	}
 
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&values); err != nil && err != io.EOF {
-			return fmt.Errorf("failed to decode values: %w", err)
-		}
+	if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&values); err != nil && err != io.EOF {
+		return fmt.Errorf("failed to decode values: %w", err)
 	}
 
 	resources, err := argocd.RenderChart(flight.Release(), flight.Namespace(), values.ArgoCD)
@@ -72,19 +77,18 @@ func run() error {
 		return fmt.Errorf("failed to convert argocd-repo-server to typed deployment: %w", err)
 	}
 
-	yokeCdContainer := corev1.Container{
+	plugin := corev1.Container{
 		Name:            "yokecd",
 		Command:         []string{"/var/run/argocd/argocd-cmp-server"},
 		Image:           values.Image + ":" + values.Version,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-
+		Resources:       values.YokeCDPlugin.Resources,
 		Env: []corev1.EnvVar{
 			{
 				Name:  "ARGOCD_NAMESPACE",
 				Value: cmp.Or(deployment.Namespace, flight.Namespace()),
 			},
 		},
-
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "var-files",
@@ -105,7 +109,36 @@ func run() error {
 			RunAsUser:    ptr[int64](999),
 		},
 	}
-	yokeCdVolumes := []corev1.Volume{
+
+	server := corev1.Container{
+		Name:            "yokecd-svr",
+		Command:         []string{"yokecd", "-svr"},
+		Image:           values.Image + ":" + values.Version,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Env: func() []corev1.EnvVar {
+			var result []corev1.EnvVar
+			if values.CacheTTL != nil {
+				result = append(result, corev1.EnvVar{
+					Name:  "YOKECD_CACHE_TTL",
+					Value: values.CacheTTL.Duration.String(),
+				})
+			}
+			return result
+		}(),
+		Resources: values.YokeCDServer.Resources,
+		LivenessProbe: &corev1.Probe{
+			PeriodSeconds:  10,
+			TimeoutSeconds: 2,
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(3666),
+				},
+			},
+		},
+	}
+
+	volumes := []corev1.Volume{
 		{
 			Name: "cmp-tmp",
 			VolumeSource: corev1.VolumeSource{
@@ -115,27 +148,23 @@ func run() error {
 	}
 
 	if values.DockerAuthSecretName != "" {
-		yokeCdContainer.VolumeMounts = append(yokeCdContainer.VolumeMounts, corev1.VolumeMount{
+		server.VolumeMounts = append(server.VolumeMounts, corev1.VolumeMount{
 			Name:      "docker-auth-secret",
 			MountPath: "/docker/config.json",
 			SubPath:   ".dockerconfigjson",
 		})
-		yokeCdContainer.Env = append(yokeCdContainer.Env, corev1.EnvVar{
+		server.Env = append(server.Env, corev1.EnvVar{
 			Name:  "DOCKER_CONFIG",
 			Value: "/docker",
 		})
-		yokeCdVolumes = append(yokeCdVolumes, corev1.Volume{
-			Name: "docker-auth-secret",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: values.DockerAuthSecretName,
-				},
-			},
+		volumes = append(volumes, corev1.Volume{
+			Name:         "docker-auth-secret",
+			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: values.DockerAuthSecretName}},
 		})
 	}
 
-	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, yokeCdContainer)
-	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, yokeCdVolumes...)
+	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, plugin, server)
+	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volumes...)
 
 	data, err := json.Marshal(deployment)
 	if err != nil {

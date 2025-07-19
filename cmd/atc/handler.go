@@ -2,16 +2,11 @@ package main
 
 import (
 	"bytes"
-	"cmp"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"time"
-
-	"github.com/davidmdm/x/xruntime"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -27,6 +22,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"
@@ -115,7 +111,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			converted.Raw = data
 		}
 
-		addRequestAttrs(r.Context(), slog.Group(
+		xhttp.AddRequestAttrs(r.Context(), slog.Group(
 			"converter",
 			"status", review.Response.Result.Status,
 			"reason", review.Response.Result.Reason,
@@ -230,7 +226,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			}
 			review.Request = nil
 
-			addRequestAttrs(r.Context(), slog.Bool("skipped", true))
+			xhttp.AddRequestAttrs(r.Context(), slog.Bool("skipped", true))
 
 			json.NewEncoder(w).Encode(&review)
 			return
@@ -285,7 +281,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		if overrideURL, _, _ := unstructured.NestedString(cr.Object, "metadata", "annotations", flight.AnnotationOverrideFlight); overrideURL != "" {
-			addRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
+			xhttp.AddRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
 			params.Flight.Path = overrideURL
 		} else {
 			flightMod := cache.Get(airway.Name).Flight
@@ -311,7 +307,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			}
 		}
 
-		addRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
+		xhttp.AddRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
 
 		if err := json.NewEncoder(w).Encode(&review); err != nil {
 			logger.Error("unexpected: failed to write response to connection", "error", err)
@@ -325,7 +321,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		addRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
 
 		prev, err := UnstructuredFromRawExt(review.Request.OldObject)
 		if err != nil {
@@ -349,7 +345,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 		defer func() {
 			review.Request = nil
-			addRequestAttrs(r.Context(), slog.Group(
+			xhttp.AddRequestAttrs(r.Context(), slog.Group(
 				"validation",
 				"allowed", review.Response.Allowed,
 				"details", review.Response.Result.Message,
@@ -357,7 +353,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			json.NewEncoder(w).Encode(review)
 		}()
 
-		addRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(prev)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(prev)))
 
 		if next != nil && internal.GetOwner(prev) != internal.GetOwner(next) {
 			review.Response.Allowed = false
@@ -370,13 +366,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		if next != nil && internal.ResourcesAreEqualWithStatus(prev, next) {
-			addRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
+			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "resources are equal"))
 			return
 		}
 
 		owners := prev.GetOwnerReferences()
 		if len(owners) == 0 {
-			addRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
+			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
 			return
 		}
 
@@ -384,7 +380,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		gv, err := schema.ParseGroupVersion(owner.APIVersion)
 		if err != nil {
-			addRequestAttrs(
+			xhttp.AddRequestAttrs(
 				r.Context(),
 				slog.String("skipReason", "failed to parse owner apiVersion"),
 				slog.String("error", err.Error()),
@@ -395,14 +391,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		ownerGroupKind := schema.GroupKind{Group: gv.Group, Kind: owner.Kind}.String()
 		controller, ok := controllers.Load(ownerGroupKind)
 
-		addRequestAttrs(
+		xhttp.AddRequestAttrs(
 			r.Context(),
 			slog.String("ownerGroupKind", ownerGroupKind),
 			slog.Bool("matchedController", ok),
 		)
 
 		if !ok {
-			addRequestAttrs(r.Context(), slog.String("skipReason", "no registered flight controller"))
+			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no registered flight controller"))
 			return
 		}
 
@@ -412,7 +408,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		flightState, ok := controller.FlightState(prev.GetName(), namespace)
 		if !ok {
-			addRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
+			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 		}
 
 		if flightState.ClusterAccess {
@@ -429,10 +425,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			flightState.Mutex.RLock()
 			defer flightState.Mutex.RUnlock()
 
-			addRequestAttrs(r.Context(), slog.Bool("admissionLocked", true))
+			xhttp.AddRequestAttrs(r.Context(), slog.Bool("admissionLocked", true))
 		}
 
-		addRequestAttrs(r.Context(), slog.String("airwayMode", string(flightState.Mode)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("airwayMode", string(flightState.Mode)))
 
 		switch flightState.Mode {
 		case v1alpha1.AirwayModeStatic:
@@ -448,17 +444,17 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 			release, err := client.GetRelease(r.Context(), release, namespace)
 			if err != nil {
-				addRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release: %v", err)))
+				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release: %v", err)))
 				return
 			}
 			if len(release.History) == 0 {
-				addRequestAttrs(r.Context(), slog.String("skipReason", "no release history found"))
+				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no release history found"))
 				return
 			}
 
 			stages, err := client.GetRevisionResources(r.Context(), release.ActiveRevision())
 			if err != nil {
-				addRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release resources: %v", err)))
+				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release resources: %v", err)))
 				return
 			}
 
@@ -470,7 +466,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 					resource.GetName() == next.GetName()
 			})
 			if !ok {
-				addRequestAttrs(r.Context(), slog.String("skipReason", "could not find desired resource in release"))
+				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "could not find desired resource in release"))
 				return
 			}
 
@@ -495,7 +491,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				Namespace: namespace,
 			}
 
-			addRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
+			xhttp.AddRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
 
 			controller.SendEvent(evt)
 		default:
@@ -542,81 +538,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 	})
 
-	handler := withRecover(mux)
-	handler = withLogger(logger, handler)
+	handler := xhttp.WithRecover(mux)
+	handler = xhttp.WithLogger(logger, handler)
 
 	return handler
-}
-
-func withLogger(logger *slog.Logger, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		sw := statusWriter{ResponseWriter: w}
-
-		var attrs []slog.Attr
-		r = r.WithContext(withRequestAttrs(r.Context(), &attrs))
-
-		handler.ServeHTTP(&sw, r)
-
-		if sw.Code() == 200 && (r.URL.Path == "/live" || r.URL.Path == "/ready") {
-			// Skip logging on simple liveness/readiness check passes as they polute the logs with information
-			// that we don't need to see
-			return
-		}
-
-		base := []slog.Attr{
-			slog.Int("code", sw.Code()),
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("elapsed", time.Since(start).Round(time.Millisecond).String()),
-		}
-
-		logger.LogAttrs(r.Context(), slog.LevelInfo, "request served", append(base, attrs...)...)
-	})
-}
-
-func withRecover(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if e := recover(); e != nil {
-				http.Error(
-					w,
-					fmt.Sprintf("recovered from panic: %v: %s", e, xruntime.CallStack(-1)),
-					http.StatusInternalServerError,
-				)
-				return
-			}
-		}()
-		handler.ServeHTTP(w, r)
-	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w statusWriter) Code() int {
-	return cmp.Or(w.status, 200)
-}
-
-type keyReqAttrs struct{}
-
-func withRequestAttrs(ctx context.Context, attrs *[]slog.Attr) context.Context {
-	return context.WithValue(ctx, keyReqAttrs{}, attrs)
-}
-
-func addRequestAttrs(ctx context.Context, attrs ...slog.Attr) {
-	reqAttrs, _ := ctx.Value(keyReqAttrs{}).(*[]slog.Attr)
-	if reqAttrs == nil {
-		return
-	}
-	*reqAttrs = append(*reqAttrs, attrs...)
 }
 
 func UnstructuredFromRawExt(ext runtime.RawExtension) (*unstructured.Unstructured, error) {
