@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -70,6 +71,13 @@ func Run(ctx context.Context, cfg Config) (err error) {
 				}()
 			}
 			if count > 0 {
+				// Modules can consume a lot of ram. The Go runtime will not necessarily release the memory as soon as we stop referencing it.
+				// In the interest of keeping RAM usage as low as possible as quick as possible, this is a good time to **hint** to the runtime
+				// that this is a good time to release some memory.
+				//
+				// It may pause the world a couple milliseconds but that's an okay tradeoff.
+				runtime.GC()
+
 				logger.Info("cleared expired modules from cache", "count", count)
 			}
 		}
