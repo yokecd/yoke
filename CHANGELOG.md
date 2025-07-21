@@ -4,6 +4,50 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-07-20) atc/v0.15.0 - atc-installer/v0.14.0 - latest - v0.16.0 - yokecd/v0.15.0 - yokecd-installer/v0.15.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+<details>
+<summary>16 commits</summary>
+
+- yokecd: eagerly call GC when releasing wasm modules from cache ([0011378](https://github.com/yokecd/yoke/commit/0011378256eb8c63b6d4fab6dfb1fd8634727369))
+- yokecd-installer: add yokecd-server cache collection interval ([b2a4c40](https://github.com/yokecd/yoke/commit/b2a4c40b4b7d85d75ed59961bcd517b728b5e60c))
+- yokecd: add plugin integration test with server ([810dad4](https://github.com/yokecd/yoke/commit/810dad4bdd699faf50d7bc98b6348727ffe2acfd))
+- yokecd: restructured code into plugin and svr packages ([485e2cf](https://github.com/yokecd/yoke/commit/485e2cf9680af82309d9a5843256cda6afae3b95))
+- yokecd: remove fs cache implementation and support local files in yokecd-server ([a22b4c0](https://github.com/yokecd/yoke/commit/a22b4c01c8a6b2468833bea1def9173314aae046))
+- yokecd-installer: support resources for yokecd containers ([df39356](https://github.com/yokecd/yoke/commit/df3935666e7960bf87fbd90fa3c50d16a35b0f6e))
+- yokecd-svr: breaking change: add a yokecd svr long-lived process for caching and executing flight modules from RAM ([3044869](https://github.com/yokecd/yoke/commit/3044869150f70b979dfa7bf3820fa44acc8d7f92))
+- yokecd-installer: configure cacheTTL in values ([43c396d](https://github.com/yokecd/yoke/commit/43c396d396c511f9ba900798dda74de8f0f4e474))
+- yokecd: add cache ttl control via environment variable ([119ef17](https://github.com/yokecd/yoke/commit/119ef17e33cdcb6d4b279e52800e8c93eafc8314))
+- yokecd: refactor cache ([0958e40](https://github.com/yokecd/yoke/commit/0958e4065d0b084891d337b47dfaf776208b0fb4))
+- deps: update golang.org/x ([6304075](https://github.com/yokecd/yoke/commit/6304075932a7954481a15f47d94f6fb2de83918f))
+- yokecd: use yokecd wazero to support compressed compilation cache ([fc4a396](https://github.com/yokecd/yoke/commit/fc4a3963bd4248c6d65da213187abcf48d4996f8))
+- yokecd: restructure cache impl to avoid lock loops ([4b2e135](https://github.com/yokecd/yoke/commit/4b2e135860331975894f6e911b0660a741e2867b))
+- yokecd: gzip cache metadata file ([8659b3c](https://github.com/yokecd/yoke/commit/8659b3c174657ba1a2412a27b32ead096db6c72e))
+- yokecd: transform wasm cache into a compilation cache ([20c1091](https://github.com/yokecd/yoke/commit/20c1091b7e35588c211f730bcf2066f03a8ba5fd))
+- yokecd: add basic fs cache for remote wasm assets ([0d83bba](https://github.com/yokecd/yoke/commit/0d83bba394750eb98c45410bea176863d1d0a0de))
+
+</details>
+
+## (2025-07-18) yokecd/v0.14.2
+
+- yokecd: add support for JSON path keys in input map ([b2fad79](https://github.com/yokecd/yoke/commit/b2fad797c291d95db5308ececb5c1d0acac56b97))
+
+## (2025-07-07) yokecd/v0.14.1 - yokecd-installer/v0.14.4
+
+- yokecd-installer: add docker auth secret config ([fc4fc1d](https://github.com/yokecd/yoke/commit/fc4fc1d9d0bbec65d844f80f0a1f90068b0b95fb))
+- yokecd: add new input parameters for handling files ([8862bf8](https://github.com/yokecd/yoke/commit/8862bf8de5f5aa548f7d5a641ddb490b1437f4cf))
+
+## (2025-07-06) yokecd-installer/v0.14.3
+
+- yokecd-installer: install latest argocd chart 8.1.2 ([1eb57b4](https://github.com/yokecd/yoke/commit/1eb57b452c4e128559b1875bbe311ef06352346d))
+
+## (2025-07-06) yokecd-installer/v0.14.2
+
+- yokecd-installer: add an option to configutr yokecd image ([ee30de9](https://github.com/yokecd/yoke/commit/ee30de9f76fb25549288f4b9fc0707129b4fd3dd))
+
 ## (2025-07-04) yokecd/v0.14.0 - yokecd-installer/v0.14.1
 
 - yokecd-installer: remove debug log ([6d7ed9c](https://github.com/yokecd/yoke/commit/6d7ed9ced12ccb05dd537bfeec552dfb812b6688))
@@ -43,7 +87,7 @@
 - yokecd: add yoke meta labels to created resources ([aaac61f](https://github.com/yokecd/yoke/commit/aaac61f5439a692471fc4c13333095a8365229e3))
 - yokecd: support stages using argocd sync-waves ([4151256](https://github.com/yokecd/yoke/commit/4151256a359d3a1fab8be5b02f52f277146ac4fe))
 
-## (2025-06-08) atc/v0.13.1 - atc-installer/v0.13.1 - latest
+## (2025-06-08) atc/v0.13.1 - atc-installer/v0.13.1
 
 - atc: manage crds and validation webhook resource on startup instead of installer ([d9a62d4](https://github.com/yokecd/yoke/commit/d9a62d4b97e7d38efa71230c0bff767f9bbb4a03))
 
