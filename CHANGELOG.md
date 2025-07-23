@@ -4,7 +4,13 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-07-20) atc/v0.15.0 - atc-installer/v0.14.0 - latest - v0.16.0 - yokecd/v0.15.0 - yokecd-installer/v0.15.0
+## (2025-07-23) atc/v0.15.1 - latest - v0.16.1 - yokecd/v0.15.1
+
+- yokecd: support cluster access and resource matching ([702919d](https://github.com/yokecd/yoke/commit/702919d5bbc9d509942ffb3d8bebdd291f2623a4))
+- internal/wasi: refactor to make cluster-access contextual to the host module ([8ed3204](https://github.com/yokecd/yoke/commit/8ed3204cf46fd68df3434e24e87d5aae9730e95e))
+- pkg/yoke: refactor EvalParams to use namespace directly instead of passing via flightParams ([9fed95d](https://github.com/yokecd/yoke/commit/9fed95d0e7ab3c968727817ee5515ddb1a56b691))
+
+## (2025-07-20) atc/v0.15.0 - atc-installer/v0.14.0 - v0.16.0 - yokecd/v0.15.0 - yokecd-installer/v0.15.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
