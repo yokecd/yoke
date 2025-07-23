@@ -289,7 +289,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
 				Wasm:           data,
-				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx), typedAirway.Spec.ResourceAccessMatchers),
+				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx)),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
@@ -734,17 +734,19 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		var identity *unstructured.Unstructured
 
 		takeoffParams := yoke.TakeoffParams{
-			Release:               release,
-			Namespace:             event.Namespace,
-			Flight:                yoke.FlightParams{Input: bytes.NewReader(data)},
-			ManagedBy:             "atc.yoke",
-			Lock:                  false,
-			ForceConflicts:        true,
-			ForceOwnership:        true,
-			HistoryCapSize:        cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
-			ClusterAccess:         params.Airway.Spec.ClusterAccess,
-			ClusterResourceAccess: params.Airway.Spec.ResourceAccessMatchers,
-			CrossNamespace:        params.Airway.Spec.CrossNamespace,
+			Release:        release,
+			Namespace:      event.Namespace,
+			Flight:         yoke.FlightParams{Input: bytes.NewReader(data)},
+			ManagedBy:      "atc.yoke",
+			Lock:           false,
+			ForceConflicts: true,
+			ForceOwnership: true,
+			HistoryCapSize: cmp.Or(params.Airway.Spec.HistoryCapSize, 2),
+			ClusterAccess: yoke.ClusterAccessParams{
+				Enabled:          params.Airway.Spec.ClusterAccess,
+				ResourceMatchers: params.Airway.Spec.ResourceAccessMatchers,
+			},
+			CrossNamespace: params.Airway.Spec.CrossNamespace,
 			PruneOpts: k8s.PruneOpts{
 				RemoveCRDs:       params.Airway.Spec.Prune.CRDs,
 				RemoveNamespaces: params.Airway.Spec.Prune.Namespaces,

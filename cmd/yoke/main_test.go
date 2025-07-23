@@ -990,7 +990,7 @@ func TestLookupResource(t *testing.T) {
 		TakeoffParams: yoke.TakeoffParams{
 			Release:       "foo",
 			Namespace:     "default",
-			ClusterAccess: true,
+			ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
 			Flight:        yoke.FlightParams{Path: "./test_output/flight.wasm"},
 			Wait:          10 * time.Second,
 			Poll:          time.Second,
@@ -1025,7 +1025,7 @@ func TestLookupResource(t *testing.T) {
 				Release:         "foo",
 				Namespace:       "foo",
 				CreateNamespace: true,
-				ClusterAccess:   true,
+				ClusterAccess:   yoke.ClusterAccessParams{Enabled: true},
 				Flight: yoke.FlightParams{
 					Path:  "./test_output/flight.wasm",
 					Input: strings.NewReader(`{"Namespace": "default"}`),
@@ -1044,11 +1044,10 @@ func TestLookupResource(t *testing.T) {
 		TakeOff(ctx, TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:               "foo",
-				Namespace:             "foo",
-				CreateNamespace:       true,
-				ClusterAccess:         true,
-				ClusterResourceAccess: []string{"default/Configmap"},
+				Release:         "foo",
+				Namespace:       "foo",
+				CreateNamespace: true,
+				ClusterAccess:   yoke.ClusterAccessParams{Enabled: true, ResourceMatchers: []string{"default/Configmap"}},
 				Flight: yoke.FlightParams{
 					Path:  "./test_output/flight.wasm",
 					Input: strings.NewReader(`{"Namespace": "default"}`),
@@ -1067,11 +1066,13 @@ func TestLookupResource(t *testing.T) {
 		TakeOff(ctx, TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release:               "foo",
-				Namespace:             "foo",
-				CreateNamespace:       true,
-				ClusterAccess:         true,
-				ClusterResourceAccess: []string{"default/*", "foo/*"},
+				Release:         "foo",
+				Namespace:       "foo",
+				CreateNamespace: true,
+				ClusterAccess: yoke.ClusterAccessParams{
+					Enabled:          true,
+					ResourceMatchers: []string{"default/*", "foo/*"},
+				},
 				Flight: yoke.FlightParams{
 					Path:  "./test_output/flight.wasm",
 					Input: strings.NewReader(`{"Namespace": "default"}`),

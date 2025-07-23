@@ -110,10 +110,8 @@ type TakeoffParams struct {
 	OwnerReferences []metav1.OwnerReference
 
 	// ClusterAccess grants the flight access to the kubernetes cluster. Users will be able to use the host k8s_lookup function.
-	ClusterAccess bool
-
-	// ClusterResourceAccess
-	ClusterResourceAccess []string
+	// This includes enabling/disabling cluster-access and granting any external resource matchers.
+	ClusterAccess ClusterAccessParams
 
 	// HistoryCapSize limits the number of revisions kept in the release's history by the size. If Cap is less than 1 history is uncapped.
 	HistoryCapSize int
@@ -143,16 +141,11 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	output, wasm, err := EvalFlight(
 		ctx,
 		EvalParams{
-			Client: func() *k8s.Client {
-				if !params.ClusterAccess {
-					return nil
-				}
-				return commander.k8s
-			}(),
-			Release:   params.Release,
-			Namespace: params.Namespace,
-			Matchers:  params.ClusterResourceAccess,
-			Flight:    params.Flight,
+			Client:        commander.k8s,
+			Release:       params.Release,
+			Namespace:     params.Namespace,
+			ClusterAccess: params.ClusterAccess,
+			Flight:        params.Flight,
 		},
 	)
 	if err != nil {

@@ -252,15 +252,17 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		params := yoke.TakeoffParams{
-			Release:               atc.ReleaseName(&cr),
-			Namespace:             cmp.Or(cr.GetNamespace(), "default"),
-			CrossNamespace:        airway.Spec.CrossNamespace,
-			ClusterAccess:         airway.Spec.ClusterAccess,
-			ClusterResourceAccess: airway.Spec.ResourceAccessMatchers,
-			Flight:                yoke.FlightParams{Input: bytes.NewReader(data)},
-			DryRun:                true,
-			ForceOwnership:        true,
-			ForceConflicts:        true,
+			Release:        atc.ReleaseName(&cr),
+			Namespace:      cmp.Or(cr.GetNamespace(), "default"),
+			CrossNamespace: airway.Spec.CrossNamespace,
+			ClusterAccess: wasi.ClusterAccessParams{
+				Enabled:          airway.Spec.ClusterAccess,
+				ResourceMatchers: airway.Spec.ResourceAccessMatchers,
+			},
+			Flight:         yoke.FlightParams{Input: bytes.NewReader(data)},
+			DryRun:         true,
+			ForceOwnership: true,
+			ForceConflicts: true,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: cr.GetAPIVersion(),
