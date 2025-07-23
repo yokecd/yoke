@@ -104,15 +104,15 @@ func TestMain(m *testing.M) {
 	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
 
 	must(commander.Takeoff(ctx, yoke.TakeoffParams{
-		Release: "atc",
+		Release:   "atc",
+		Namespace: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/atc-installer.wasm",
 			Input: strings.NewReader(`{
         "image": "yokecd/atc",
         "version": "test"
       }`),
-			Args:      []string{"--skip-version-check"},
-			Namespace: "atc",
+			Args: []string{"--skip-version-check"},
 		},
 		CreateNamespace: true,
 		Wait:            120 * time.Second,
@@ -120,7 +120,8 @@ func TestMain(m *testing.M) {
 	}))
 
 	must(commander.Takeoff(ctx, yoke.TakeoffParams{
-		Release: "wasmcache",
+		Release:   "wasmcache",
+		Namespace: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/backend.v1.wasm",
 			Input: testutils.JsonReader(backendv1.Backend{
@@ -132,7 +133,6 @@ func TestMain(m *testing.M) {
 					Replicas: 1,
 				},
 			}),
-			Namespace: "atc",
 		},
 		CreateNamespace: true,
 		Wait:            30 * time.Second,
@@ -720,9 +720,9 @@ func TestRestarts(t *testing.T) {
 		t,
 		func() error {
 			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
-				Release: "example",
+				Release:   "example",
+				Namespace: "default",
 				Flight: yoke.FlightParams{
-					Namespace: "default",
 					Input: testutils.JsonReader(backendv1.Backend{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "example",
