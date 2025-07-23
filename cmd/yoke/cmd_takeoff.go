@@ -61,7 +61,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
 	flagset.BoolVar(&params.CreateNamespace, "create-namespace", false, "create namespace of target release if not present")
 	flagset.BoolVar(&params.CrossNamespace, "cross-namespace", false, "allows releases to create resources in other namespaces than the target namespace")
-	flagset.BoolVar(&params.ClusterAccess, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
+	flagset.BoolVar(&params.ClusterAccess.Enabled, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
 	flagset.BoolVar(&params.Flight.Insecure, "insecure", false, "allows image references to be fetched without TLS (only applies to oci urls)")
 
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
@@ -80,7 +80,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 		"resource-access",
 		"allows flights with cluster-access to read resources outside of the release that match pattern. This flag can be set many times and matchers can be comma separated.",
 		func(s string) error {
-			params.ClusterResourceAccess = append(params.ClusterResourceAccess, strings.Split(s, ",")...)
+			params.ClusterAccess.ResourceMatchers = append(params.ClusterAccess.ResourceMatchers, strings.Split(s, ",")...)
 			return nil
 		},
 	)

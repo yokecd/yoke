@@ -17,14 +17,8 @@ import (
 	"github.com/davidmdm/x/xerr"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasm"
 )
 
@@ -100,8 +94,6 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 	for key, value := range params.Env {
 		moduleCfg = moduleCfg.WithEnv(key, value)
 	}
-
-	ctx = withOwner(ctx, internal.OwnerFrom(params.Release, params.Env["YOKE_NAMESPACE"]))
 
 	defer internal.DebugTimer(ctx, "execute wasm module")()
 
@@ -181,10 +173,6 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 
 	for name, fn := range map[string]any{
 		"k8s_lookup": func(ctx context.Context, module api.Module, stateRef wasm.Ptr, name, namespace, kind, apiVersion wasm.String) wasm.Buffer {
-			if params.LookupResource == nil {
-				return Error(ctx, module, stateRef, wasm.StateFeatureNotGranted, "")
-			}
-
 			resource, err := params.LookupResource(
 				ctx,
 				LoadString(module, name),
@@ -195,6 +183,8 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 			if err != nil {
 				errState := func() wasm.State {
 					switch {
+					case errors.Is(err, ErrFeatureNotGranted):
+						return wasm.StateFeatureNotGranted
 					case kerrors.IsNotFound(err):
 						return wasm.StateNotFound
 					case kerrors.IsForbidden(err):
@@ -272,59 +262,4 @@ func LoadBytes(module api.Module, value wasm.Buffer) []byte {
 		panic("memory read out of bounds")
 	}
 	return data
-}
-
-type HostLookupResourceFunc func(ctx context.Context, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error)
-
-func HostLookupResource(client *k8s.Client, matchers []string) HostLookupResourceFunc {
-	if client == nil {
-		return nil
-	}
-	return func(ctx context.Context, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error) {
-		gv, err := schema.ParseGroupVersion(apiVersion)
-		if err != nil {
-			return nil, err
-		}
-
-		mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: kind}, gv.Version)
-		if err != nil {
-			return nil, err
-		}
-
-		intf := func() dynamic.ResourceInterface {
-			intf := client.Dynamic.Resource(mapping.Resource)
-			if mapping.Scope == meta.RESTScopeNamespace {
-				return intf.Namespace(cmp.Or(namespace, "default"))
-			}
-			return intf
-		}()
-
-		resource, err := intf.Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, matcher := range matchers {
-			if internal.MatchResource(resource, matcher) {
-				return resource, nil
-			}
-		}
-
-		if internal.GetOwner(resource) != getOwner(ctx) {
-			return nil, kerrors.NewForbidden(schema.GroupResource{}, "", errors.New("cannot access resource outside of target release ownership"))
-		}
-
-		return resource, nil
-	}
-}
-
-type ownerKey struct{}
-
-func withOwner(ctx context.Context, owner string) context.Context {
-	return context.WithValue(ctx, ownerKey{}, owner)
-}
-
-func getOwner(ctx context.Context) string {
-	value, _ := ctx.Value(ownerKey{}).(string)
-	return value
 }

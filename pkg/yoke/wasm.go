@@ -102,12 +102,14 @@ func gzipReader(r io.Reader) io.Reader {
 	return pr
 }
 
+type ClusterAccessParams = wasi.ClusterAccessParams
+
 type EvalParams struct {
-	Client    *k8s.Client
-	Release   string
-	Namespace string
-	Matchers  []string
-	Flight    FlightParams
+	Client        *k8s.Client
+	Release       string
+	Namespace     string
+	ClusterAccess ClusterAccessParams
+	Flight        FlightParams
 }
 
 func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) {
@@ -138,6 +140,9 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		maps.Copy(env, vars)
 	}
 
+	ctx = wasi.WithOwner(ctx, internal.OwnerFrom(params.Release, params.Namespace))
+	ctx = wasi.WithClusterAccess(ctx, params.ClusterAccess)
+
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
 		Wasm:           wasm,
 		Module:         params.Flight.Module.Instance,
@@ -147,7 +152,7 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		Args:           params.Flight.Args,
 		Env:            env,
 		CacheDir:       params.Flight.CompilationCacheDir,
-		LookupResource: wasi.HostLookupResource(params.Client, params.Matchers),
+		LookupResource: wasi.HostLookupResource(params.Client),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
