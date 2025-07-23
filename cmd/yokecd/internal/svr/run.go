@@ -164,15 +164,15 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				}
 
 				output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
-					Client:   nil,
-					Release:  ex.Release,
-					Matchers: []string{},
+					Client:    nil,
+					Release:   ex.Release,
+					Namespace: ex.Namespace,
+					Matchers:  []string{},
 					Flight: yoke.FlightParams{
-						Module:    yoke.Module{Instance: mod.Instance},
-						Args:      ex.Args,
-						Env:       ex.Env,
-						Namespace: ex.Namespace,
-						Input:     strings.NewReader(ex.Input),
+						Module: yoke.Module{Instance: mod.Instance},
+						Args:   ex.Args,
+						Env:    ex.Env,
+						Input:  strings.NewReader(ex.Input),
 					},
 				})
 				return output, err

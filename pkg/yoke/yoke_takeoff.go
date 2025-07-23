@@ -40,7 +40,6 @@ type FlightParams struct {
 	Insecure            bool
 	Module              Module
 	Args                []string
-	Namespace           string
 	CompilationCacheDir string
 
 	// Env specifies user-defined envvars to be added to the flight execution.
@@ -77,6 +76,9 @@ type TakeoffParams struct {
 
 	// Name of release
 	Release string
+
+	// Release Namespace
+	Namespace string
 
 	// Out is a folder to which to write all the resources hierarchically. This does not create a release or apply any state to the cluster.
 	// This is useful for debugging/inspecting output or for working CDK8s style using kubectl apply --recursive.
@@ -147,9 +149,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 				}
 				return commander.k8s
 			}(),
-			Release:  params.Release,
-			Matchers: params.ClusterResourceAccess,
-			Flight:   params.Flight,
+			Release:   params.Release,
+			Namespace: params.Namespace,
+			Matchers:  params.ClusterResourceAccess,
+			Flight:    params.Flight,
 		},
 	)
 	if err != nil {
@@ -184,7 +187,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 	}
 
-	targetNS := cmp.Or(params.Flight.Namespace, "default")
+	targetNS := cmp.Or(params.Namespace, "default")
 	for _, stage := range stages {
 		internal.AddYokeMetadata(stage, params.Release, targetNS, params.ManagedBy)
 	}

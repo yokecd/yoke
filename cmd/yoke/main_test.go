@@ -467,10 +467,10 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
 			Release:        "release",
+			Namespace:      "default",
 			CrossNamespace: true,
 			Flight: yoke.FlightParams{
-				Namespace: "default",
-				Input:     createBasicDeployment(t, "x", "shared"),
+				Input: createBasicDeployment(t, "x", "shared"),
 			},
 		},
 	}))
@@ -481,10 +481,10 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:        "release",
+				Namespace:      "shared",
 				CrossNamespace: true,
 				Flight: yoke.FlightParams{
-					Namespace: "shared",
-					Input:     createBasicDeployment(t, "x", "shared"),
+					Input: createBasicDeployment(t, "x", "shared"),
 				},
 			},
 		}),
@@ -505,10 +505,10 @@ func TestReleasesInDifferentNamespaces(t *testing.T) {
 				GlobalSettings: settings,
 				TakeoffParams: yoke.TakeoffParams{
 					Release:         "rel",
+					Namespace:       ns,
 					CreateNamespace: true,
 					Flight: yoke.FlightParams{
-						Input:     createBasicDeployment(t, "release", ""),
-						Namespace: ns,
+						Input: createBasicDeployment(t, "release", ""),
 					},
 				},
 			}),
@@ -538,11 +538,9 @@ func TestTakeoffWithNamespace(t *testing.T) {
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
-			Release: "foo",
-			Flight: yoke.FlightParams{
-				Input:     createBasicDeployment(t, "sample-app", ns),
-				Namespace: ns,
-			},
+			Release:         "foo",
+			Namespace:       ns,
+			Flight:          yoke.FlightParams{Input: createBasicDeployment(t, "sample-app", ns)},
 			CreateNamespace: true,
 		},
 	}
@@ -975,13 +973,11 @@ func TestLookupResource(t *testing.T) {
 		TakeOff(ctx, TakeoffParams{
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
-				Release: "foo",
-				Flight: yoke.FlightParams{
-					Path:      "./test_output/flight.wasm",
-					Namespace: "default",
-				},
-				Wait: 10 * time.Second,
-				Poll: time.Second,
+				Release:   "foo",
+				Namespace: "default",
+				Flight:    yoke.FlightParams{Path: "./test_output/flight.wasm"},
+				Wait:      10 * time.Second,
+				Poll:      time.Second,
 			},
 		}),
 		"exit_code(1)",
@@ -993,13 +989,11 @@ func TestLookupResource(t *testing.T) {
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
 			Release:       "foo",
+			Namespace:     "default",
 			ClusterAccess: true,
-			Flight: yoke.FlightParams{
-				Path:      "./test_output/flight.wasm",
-				Namespace: "default",
-			},
-			Wait: 10 * time.Second,
-			Poll: time.Second,
+			Flight:        yoke.FlightParams{Path: "./test_output/flight.wasm"},
+			Wait:          10 * time.Second,
+			Poll:          time.Second,
 		},
 	}
 
@@ -1029,12 +1023,12 @@ func TestLookupResource(t *testing.T) {
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:         "foo",
+				Namespace:       "foo",
 				CreateNamespace: true,
 				ClusterAccess:   true,
 				Flight: yoke.FlightParams{
-					Path:      "./test_output/flight.wasm",
-					Namespace: "foo",
-					Input:     strings.NewReader(`{"Namespace": "default"}`),
+					Path:  "./test_output/flight.wasm",
+					Input: strings.NewReader(`{"Namespace": "default"}`),
 				},
 				Wait: 10 * time.Second,
 				Poll: time.Second,
@@ -1051,13 +1045,13 @@ func TestLookupResource(t *testing.T) {
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:               "foo",
+				Namespace:             "foo",
 				CreateNamespace:       true,
 				ClusterAccess:         true,
 				ClusterResourceAccess: []string{"default/Configmap"},
 				Flight: yoke.FlightParams{
-					Path:      "./test_output/flight.wasm",
-					Namespace: "foo",
-					Input:     strings.NewReader(`{"Namespace": "default"}`),
+					Path:  "./test_output/flight.wasm",
+					Input: strings.NewReader(`{"Namespace": "default"}`),
 				},
 				Wait: 10 * time.Second,
 				Poll: time.Second,
@@ -1074,13 +1068,13 @@ func TestLookupResource(t *testing.T) {
 			GlobalSettings: settings,
 			TakeoffParams: yoke.TakeoffParams{
 				Release:               "foo",
+				Namespace:             "foo",
 				CreateNamespace:       true,
 				ClusterAccess:         true,
 				ClusterResourceAccess: []string{"default/*", "foo/*"},
 				Flight: yoke.FlightParams{
-					Path:      "./test_output/flight.wasm",
-					Namespace: "foo",
-					Input:     strings.NewReader(`{"Namespace": "default"}`),
+					Path:  "./test_output/flight.wasm",
+					Input: strings.NewReader(`{"Namespace": "default"}`),
 				},
 				Wait: 10 * time.Second,
 				Poll: time.Second,
@@ -1099,13 +1093,11 @@ func TestBadVersion(t *testing.T) {
 	err := TakeOff(ctx, TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
-			Release: "foo",
-			Flight: yoke.FlightParams{
-				Path:      "./test_output/flight.wasm",
-				Namespace: "default",
-			},
-			Wait: 10 * time.Second,
-			Poll: time.Second,
+			Release:   "foo",
+			Namespace: "default",
+			Flight:    yoke.FlightParams{Path: "./test_output/flight.wasm"},
+			Wait:      10 * time.Second,
+			Poll:      time.Second,
 		},
 	})
 	require.ErrorContains(t, err, "exit_code(1)")

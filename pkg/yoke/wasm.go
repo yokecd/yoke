@@ -103,10 +103,11 @@ func gzipReader(r io.Reader) io.Reader {
 }
 
 type EvalParams struct {
-	Client   *k8s.Client
-	Release  string
-	Matchers []string
-	Flight   FlightParams
+	Client    *k8s.Client
+	Release   string
+	Namespace string
+	Matchers  []string
+	Flight    FlightParams
 }
 
 func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) {
@@ -127,8 +128,8 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 
 	yokeEnvVars := map[string]string{
 		"YOKE_RELEASE":   params.Release,
-		"YOKE_NAMESPACE": params.Flight.Namespace,
-		"NAMESPACE":      params.Flight.Namespace,
+		"YOKE_NAMESPACE": params.Namespace,
+		"NAMESPACE":      params.Namespace,
 		"YOKE_VERSION":   internal.Version(),
 	}
 

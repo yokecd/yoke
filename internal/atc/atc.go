@@ -734,11 +734,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		var identity *unstructured.Unstructured
 
 		takeoffParams := yoke.TakeoffParams{
-			Release: release,
-			Flight: yoke.FlightParams{
-				Input:     bytes.NewReader(data),
-				Namespace: event.Namespace,
-			},
+			Release:               release,
+			Namespace:             event.Namespace,
+			Flight:                yoke.FlightParams{Input: bytes.NewReader(data)},
 			ManagedBy:             "atc.yoke",
 			Lock:                  false,
 			ForceConflicts:        true,
