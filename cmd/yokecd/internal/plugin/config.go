@@ -26,11 +26,13 @@ type Ref struct {
 }
 
 type Parameters struct {
-	Build bool
-	Wasm  string
-	Input string
-	Refs  map[string]Ref
-	Args  []string
+	Build            bool
+	Wasm             string
+	Input            string
+	Refs             map[string]Ref
+	Args             []string
+	ResourceMatchers []string
+	ClusterAccess    bool
 }
 
 // structure of individual CMP parameters
@@ -91,6 +93,12 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 			return err
 		}
 	}
+
+	resourceMatchers, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "resourceMatchers" })
+	parameters.ResourceMatchers = resourceMatchers.Array
+
+	clusterAccess, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "clusterAccess" })
+	parameters.ClusterAccess, _ = strconv.ParseBool(clusterAccess.String)
 
 	return nil
 }

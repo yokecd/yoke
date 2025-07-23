@@ -18,7 +18,12 @@ import (
 
 	"github.com/davidmdm/conf"
 
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/home"
+	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/internal/xsync"
@@ -55,6 +60,25 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	mods := xsync.Map[string, *Mod]{}
 
+	restCfg, err := func() (*rest.Config, error) {
+		restcfg, err := rest.InClusterConfig()
+		if err != nil {
+			if !errors.Is(err, rest.ErrNotInCluster) {
+				return nil, fmt.Errorf("failed to load kubernetes in-cluster config: %w", err)
+			}
+			restcfg, err = clientcmd.BuildConfigFromFlags("", home.Kubeconfig)
+		}
+		return restcfg, err
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to get kubernetes config: %w", err)
+	}
+
+	client, err := k8s.NewClient(restCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
 	go func() {
 		for range time.NewTicker(cfg.CacheCollectionInterval).C {
 			var count int
@@ -85,7 +109,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	svr := http.Server{
 		Addr:    ":3666",
-		Handler: Handler(cfg.CacheTTL, &mods, logger),
+		Handler: Handler(cfg.CacheTTL, &mods, logger, client),
 	}
 
 	serverErr := make(chan error, 1)
@@ -119,21 +143,22 @@ type Mod struct {
 }
 
 type ExecuteReq struct {
-	Source    []byte            `json:"source"`
-	Path      string            `json:"path"`
-	Release   string            `json:"release"`
-	Namespace string            `json:"namespace"`
-	Args      []string          `json:"args"`
-	Env       map[string]string `json:"env"`
-	Input     string            `json:"input"`
+	Source        []byte
+	ClusterAccess yoke.ClusterAccessParams
+	Path          string
+	Release       string
+	Namespace     string
+	Args          []string
+	Env           map[string]string
+	Input         string
 }
 
 type ExecResponse struct {
-	Stdout json.RawMessage `json:"stdout"`
-	Stderr string          `json:"stderr"`
+	Stdout json.RawMessage
+	Stderr string
 }
 
-func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logger) http.Handler {
+func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logger, client *k8s.Client) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /exec", func(w http.ResponseWriter, r *http.Request) {
@@ -164,12 +189,10 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				}
 
 				output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
-					Client:        nil,
-					ClusterAccess: yoke.ClusterAccessParams{
-						// TODO
-					},
-					Release:   ex.Release,
-					Namespace: ex.Namespace,
+					Client:        client,
+					ClusterAccess: ex.ClusterAccess,
+					Release:       ex.Release,
+					Namespace:     ex.Namespace,
 					Flight: yoke.FlightParams{
 						Module: yoke.Module{Instance: mod.Instance},
 						Args:   ex.Args,
@@ -214,7 +237,10 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 					return fmt.Errorf("failed to load wasm: %w", err)
 				}
 
-				instance, err := wasi.Compile(r.Context(), wasi.CompileParams{Wasm: wasm})
+				instance, err := wasi.Compile(r.Context(), wasi.CompileParams{
+					Wasm:           wasm,
+					LookupResource: wasi.HostLookupResource(client),
+				})
 				if err != nil {
 					return fmt.Errorf("failed to compile wasm: %w", err)
 				}

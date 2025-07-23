@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +22,7 @@ import (
 
 	"github.com/yokecd/yoke/cmd/yokecd/internal/svr"
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/testutils"
 	"github.com/yokecd/yoke/internal/x"
 )
 
@@ -46,6 +49,20 @@ func TestPluginE2E(t *testing.T) {
 			require.FailNow(t, "unexpected error running server", err.Error())
 		}
 	}()
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			conn, err := net.Dial("tcp", "localhost:3666")
+			if err != nil {
+				return err
+			}
+			return conn.Close()
+		},
+		100*time.Millisecond,
+		2*time.Second,
+		"failed to connect to plugin server",
+	)
 
 	var stdout bytes.Buffer
 	ctx = internal.WithStdout(ctx, io.MultiWriter(&stdout, os.Stdout))
