@@ -87,6 +87,19 @@ func TestConfigUnmarshalling(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "cluster access with resource matchers",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: clusterAccess, string: 'true' },
+				{ name: resourceMatchers, array: [ConfigMap, default/apps.Deployment] }
+			]`,
+			Expected: Parameters{
+				Build:            true,
+				ClusterAccess:    true,
+				ResourceMatchers: []string{"ConfigMap", "default/apps.Deployment"},
+			},
+		},
 	}
 
 	for _, tc := range cases {
