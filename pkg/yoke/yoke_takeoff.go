@@ -180,6 +180,13 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 	}
 
+	if params.Out != "" {
+		if params.Out == "-" {
+			return ExportToStdout(ctx, stages.Flatten())
+		}
+		return ExportToFS(params.Out, params.Release, stages.Flatten())
+	}
+
 	targetNS := cmp.Or(params.Namespace, "default")
 	for _, stage := range stages {
 		internal.AddYokeMetadata(stage, params.Release, targetNS, params.ManagedBy)
@@ -207,13 +214,6 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 
 	if err := setTargetNS(commander.k8s, stages.Flatten(), targetNS); err != nil {
 		return err
-	}
-
-	if params.Out != "" {
-		if params.Out == "-" {
-			return ExportToStdout(ctx, stages.Flatten())
-		}
-		return ExportToFS(params.Out, params.Release, stages.Flatten())
 	}
 
 	if params.DiffOnly {
