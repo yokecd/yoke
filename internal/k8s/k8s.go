@@ -217,10 +217,7 @@ func (client Client) checkOwnership(ctx context.Context, resource *unstructured.
 	localOwner := internal.GetOwner(resource)
 	svrOwner := internal.GetOwner(svrResource)
 
-	if localOwner != svrOwner {
-		if svrOwner == "" && opts.ForceOwnership {
-			return nil
-		}
+	if !opts.ForceOwnership && localOwner != svrOwner {
 		return fmt.Errorf("expected release %q but resource is already owned by %q", localOwner, svrOwner)
 	}
 
