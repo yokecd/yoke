@@ -192,7 +192,12 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		webhooks = append(webhooks, resource)
 	}
 
-	if err := client.ApplyResources(ctx, webhooks, k8s.ApplyResourcesOpts{}); err != nil {
+	forceful := k8s.ApplyOpts{
+		ForceConflicts: true,
+		ForceOwnership: true,
+	}
+
+	if err := client.ApplyResources(ctx, webhooks, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
 		return fmt.Errorf("failed to apply webhooks: %w", err)
 	}
 
