@@ -232,9 +232,9 @@ type PruneOpts struct {
 func (client Client) PruneReleaseDiff(ctx context.Context, previous, next internal.Stages, opts PruneOpts) (removed, orphaned []*unstructured.Unstructured, err error) {
 	defer internal.DebugTimer(ctx, "prune release diff")()
 
-	curentSet := make(map[string]struct{})
+	curentSet := make(map[string]*unstructured.Unstructured)
 	for _, resource := range next.Flatten() {
-		curentSet[internal.CanonicalWithoutVersion(resource)] = struct{}{}
+		curentSet[internal.CanonicalWithoutVersion(resource)] = resource
 	}
 
 	var errs []error
@@ -260,6 +260,15 @@ func (client Client) PruneReleaseDiff(ctx context.Context, previous, next intern
 				intf, err := client.GetDynamicResourceInterface(resource)
 				if err != nil {
 					errs = append(errs, fmt.Errorf("failed to resolve resource %s: %w", name, err))
+					return
+				}
+
+				clusterState, err := intf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+				if err != nil && !kerrors.IsNotFound(err) {
+					errs = append(errs, fmt.Errorf("failed to lookup %s: %w", name, err))
+				}
+
+				if internal.GetOwner(clusterState) != internal.GetOwner(resource) {
 					return
 				}
 
