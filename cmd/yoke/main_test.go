@@ -1561,6 +1561,54 @@ func TestTakeoffPruning(t *testing.T) {
 	require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test"}))
 }
 
+func TestPruneOwnership(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(
+		t,
+		commander.Takeoff(context.Background(), yoke.TakeoffParams{
+			Release: "foo",
+			Flight:  yoke.FlightParams{Input: createBasicDeployment(t, "test", "")},
+		}),
+	)
+
+	deploymentIntf := client.Clientset.AppsV1().Deployments("default")
+
+	deployment, err := deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "foo", deployment.Labels[internal.LabelYokeRelease])
+
+	require.NoError(
+		t,
+		commander.Takeoff(context.Background(), yoke.TakeoffParams{
+			Release:        "bar",
+			ForceOwnership: true,
+			Flight:         yoke.FlightParams{Input: createBasicDeployment(t, "test", "")},
+		}),
+	)
+
+	deployment, err = deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "bar", deployment.Labels[internal.LabelYokeRelease])
+
+	require.NoError(t, commander.Mayday(context.Background(), yoke.MaydayParams{Release: "foo"}))
+
+	deployment, err = deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "bar", deployment.Labels[internal.LabelYokeRelease])
+
+	require.NoError(t, commander.Mayday(context.Background(), yoke.MaydayParams{Release: "bar"}))
+
+	_, err = deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
+	require.True(t, kerrors.IsNotFound(err))
+}
+
 func TestOptimisticLocking(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
