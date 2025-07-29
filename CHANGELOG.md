@@ -4,6 +4,15 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-07-28) atc/v0.15.3 - v0.16.3 - yokecd/v0.15.3
+
+- yoke/mayday: do not prune resources that are no longer owned by the current release ([b98b303](https://github.com/yokecd/yoke/commit/b98b303afd6762c3dd64a8af597131e8948bcd69))
+- yoke: forceOwnership now forces ownership in all sitatuations ([0e7abd9](https://github.com/yokecd/yoke/commit/0e7abd9e9c1c9317da03b6ae258a0e191da28f5e))
+
+## (2025-07-25) atc/v0.15.2 - v0.16.2 - yokecd/v0.15.2
+
+- yoke/takeoff: move all resource mutations after exports ([5b1c0e7](https://github.com/yokecd/yoke/commit/5b1c0e7d0b9407e2e0b5735120a8469eacf3ff74))
+
 ## (2025-07-23) atc/v0.15.1 - latest - v0.16.1 - yokecd/v0.15.1
 
 - yokecd: support cluster access and resource matching ([702919d](https://github.com/yokecd/yoke/commit/702919d5bbc9d509942ffb3d8bebdd291f2623a4))
