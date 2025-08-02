@@ -1656,8 +1656,13 @@ func TestOptimisticLocking(t *testing.T) {
 	go takeoff(false)
 	go takeoff(false)
 
+	wg.Wait()
+
 	close(errCh)
-	require.Nil(t, <-errCh)
+
+	for err := range errCh {
+		require.True(t, internal.IsWarning(err), "expected error to be a warning but got: %v", err)
+	}
 
 	commander.Mayday(background, yoke.MaydayParams{Release: "foo"})
 }
