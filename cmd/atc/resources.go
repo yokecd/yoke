@@ -25,6 +25,10 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 			Singular: "airway",
 			Kind:     "Airway",
 		}
+		forceful = k8s.ApplyOpts{
+			ForceConflicts: true,
+			ForceOwnership: true,
+		}
 	)
 
 	airwayDef := &apiextensionsv1.CustomResourceDefinition{
@@ -83,7 +87,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		return fmt.Errorf("failed to convert airway crd to its unstructured representation: %w", err)
 	}
 
-	if err := client.ApplyResource(ctx, airwayResource, k8s.ApplyOpts{}); err != nil {
+	if err := client.ApplyResource(ctx, airwayResource, forceful); err != nil {
 		return fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 
@@ -190,11 +194,6 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 			return fmt.Errorf("failed to convert webhook configuration to unstructured representation: %s: %w", webhook.Name, err)
 		}
 		webhooks = append(webhooks, resource)
-	}
-
-	forceful := k8s.ApplyOpts{
-		ForceConflicts: true,
-		ForceOwnership: true,
 	}
 
 	if err := client.ApplyResources(ctx, webhooks, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
