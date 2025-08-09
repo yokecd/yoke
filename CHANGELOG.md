@@ -4,6 +4,15 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-08-09) atc/v0.15.5
+
+- atc: apply Airway CRD with forceful options on startup ([8237363](https://github.com/yokecd/yoke/commit/823736382cc8704873e913dc7ba81f84df1abe21))
+- yoke/tests: fix flaky test ([6fc2e60](https://github.com/yokecd/yoke/commit/6fc2e602bac630fc0565fdd2d3145cd2a1ef90aa))
+
+## (2025-08-02) atc/v0.15.4 - atc-installer/v0.14.1 - v0.16.4 - yokecd/v0.15.4 - yokecd-installer/v0.15.1
+
+- deps: update deps ([e4a309f](https://github.com/yokecd/yoke/commit/e4a309f4e138630c85a560464cb7085b4356e774))
+
 ## (2025-07-28) atc/v0.15.3 - v0.16.3 - yokecd/v0.15.3
 
 - yoke/mayday: do not prune resources that are no longer owned by the current release ([b98b303](https://github.com/yokecd/yoke/commit/b98b303afd6762c3dd64a8af597131e8948bcd69))
