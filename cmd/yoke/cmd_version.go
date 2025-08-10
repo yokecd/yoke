@@ -13,8 +13,8 @@ func Version() error {
 	tbl := table.NewWriter()
 	tbl.SetStyle(table.StyleRounded)
 
-	tbl.AppendRow(table.Row{"yoke", internal.Version()})
-	tbl.AppendSeparator()
+	tbl.AppendRow(table.Row{"yoke", internal.Info.Main.Version})
+	tbl.AppendRow(table.Row{"toolchain", internal.Info.GoVersion})
 
 	modules := []string{
 		"k8s.io/client-go",
@@ -23,7 +23,7 @@ func Version() error {
 
 	slices.Sort(modules)
 
-	for _, mod := range internal.Mods() {
+	for _, mod := range internal.Info.Deps {
 		if slices.Contains(modules, mod.Path) {
 			tbl.AppendRow(table.Row{mod.Path, mod.Version})
 		}
