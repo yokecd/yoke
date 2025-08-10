@@ -30,12 +30,4 @@ func DebugTimer(ctx context.Context, msg string) func() {
 	return func() { terminal.Printf("done:  %s: %s\n", msg, time.Since(start).Round(time.Millisecond)) }
 }
 
-var info, _ = debug.ReadBuildInfo()
-
-func Version() string {
-	return info.Main.Version
-}
-
-func Mods() []*debug.Module {
-	return info.Deps
-}
+var Info, _ = debug.ReadBuildInfo()

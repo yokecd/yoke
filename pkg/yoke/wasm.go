@@ -132,7 +132,7 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		"YOKE_RELEASE":   params.Release,
 		"YOKE_NAMESPACE": params.Namespace,
 		"NAMESPACE":      params.Namespace,
-		"YOKE_VERSION":   internal.Version(),
+		"YOKE_VERSION":   internal.Info.Main.Version,
 	}
 
 	env := map[string]string{}
