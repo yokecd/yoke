@@ -33,6 +33,10 @@ func init() {
 	if err := x.Xf("docker login ghcr.io -u %s -p %s", []any{actor, token}); err != nil {
 		panic(fmt.Errorf("failed to login to ghcr.io: %w", err))
 	}
+
+	if err := x.X("go install github.com/davidmdm/gostall@latest"); err != nil {
+		panic(fmt.Errorf("failed to install `gostall`: %w", err))
+	}
 }
 
 func main() {
@@ -177,12 +181,16 @@ func (releaser Releaser) ReleaseYokeCLI() error {
 		return nil
 	}
 
+	if err := x.Xf("gh release create %s", []any{nextVersion}); err != nil {
+		return fmt.Errorf("failed to create release %s", nextVersion)
+	}
+
 	compressedPaths, err := releaser.buildYokeCLI(nextVersion)
 	if err != nil {
 		return fmt.Errorf("failed to build yoke cli: %w", err)
 	}
 
-	if err := x.Xf("gh release create %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
+	if err := x.Xf("gh release upload --clobber %s %s", []any{nextVersion, strings.Join(compressedPaths, " ")}); err != nil {
 		return fmt.Errorf("failed to create github release: %v", err)
 	}
 
@@ -216,8 +224,11 @@ func (releaser Releaser) buildYokeCLI(version string) ([]string, error) {
 				binaryPath += ".exe"
 			}
 
-			env := x.Env("GOOS="+target.OS, "GOARCH="+arch)
-			if err := x.Xf("go build -o %s ./cmd/yoke", []any{binaryPath}, env); err != nil {
+			var (
+				args = []any{version, binaryPath}
+				opts = x.Env("GOOS="+target.OS, "GOARCH="+arch)
+			)
+			if err := x.Xf("gostall github.com/yokecd/yoke/cmd/yoke@%s %s", args, opts); err != nil {
 				return nil, fmt.Errorf("failed to build %s: %v", binaryPath, err)
 			}
 
