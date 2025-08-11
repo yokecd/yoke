@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -12,7 +13,7 @@ import (
 
 func main() {
 	// This flight needs cross-namespace to be set in order to work and serves to test that feature.
-	json.NewEncoder(os.Stdout).Encode(flight.Resources{
+	if err := json.NewEncoder(os.Stdout).Encode(flight.Resources{
 		&corev1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -33,5 +34,7 @@ func main() {
 				Namespace: "bar",
 			},
 		},
-	})
+	}); err != nil {
+		log.Fatalf("error: %v\n", err)
+	}
 }

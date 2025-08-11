@@ -322,7 +322,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	}
 
 	if params.DryRun {
-		fmt.Fprintf(internal.Stderr(ctx), "successful dry-run takeoff of %s\n", params.Release)
+		_, _ = fmt.Fprintf(internal.Stderr(ctx), "successful dry-run takeoff of %s\n", params.Release)
 		return nil
 	}
 
@@ -361,7 +361,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 	}
 
-	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
+	_, _ = fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
 
 	return nil
 }
