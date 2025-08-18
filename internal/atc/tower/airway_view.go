@@ -53,7 +53,13 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 					return ExecMsg(func(c Commands) tea.Cmd { return c.GetAirwayList })
 				},
 			},
-			Back: nil,
+			Back: &Nav{
+				Model: func(msg tea.WindowSizeMsg) tea.Model {
+					return MakeAirwayListView(msg)
+				},
+				Cmd:  tea.Quit,
+				Desc: "exit",
+			},
 			Forward: func(airway v1alpha1.Airway) Nav {
 				gk := schema.GroupKind{
 					Group: airway.Spec.Template.Group,
