@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -64,9 +63,8 @@ func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
 
 type ControllerCache = xsync.Map[string, Controller]
 
-func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
-		airway:      airway,
 		concurrency: concurrency,
 		service:     service,
 		cleanups:    map[string]func(){},
@@ -77,7 +75,6 @@ func GetReconciler(airway schema.GroupKind, service ServiceDef, cache *wasm.Modu
 }
 
 type atc struct {
-	airway      schema.GroupKind
 	concurrency int
 
 	controllers *ControllerCache
@@ -87,14 +84,8 @@ type atc struct {
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
-	mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(atc.airway)
-	if err != nil {
-		ctrl.Client(ctx).Mapper.Reset()
-		return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for groupkind %s: %w", atc.airway, err)
-	}
-
 	var (
-		airwayIntf  = ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
+		airwayIntf  = ctrl.Client(ctx).AirwayIntf
 		webhookIntf = ctrl.Client(ctx).Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
 	)
 
@@ -105,11 +96,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to get airway %s: %w", event.Name, err)
-	}
-
-	var typedAirway v1alpha1.Airway
-	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
-		return ctrl.Result{}, err
 	}
 
 	airwayStatus := func(status metav1.ConditionStatus, reason string, msg any) {
@@ -132,12 +118,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		readyCondition := metav1.Condition{
 			Type:               "Ready",
 			Status:             status,
-			ObservedGeneration: typedAirway.Generation,
+			ObservedGeneration: airway.Generation,
 			Reason:             reason,
 			Message:            fmt.Sprintf("%v", msg),
 		}
 
-		conditions := typedAirway.Status.Conditions
+		conditions := airway.Status.Conditions
 
 		i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
 			return condition.Type == "Ready"
@@ -156,7 +142,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			conditions[i] = readyCondition
 		}
 
-		_ = unstructured.SetNestedField(airway.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
+		airway.Status.Conditions = conditions
 
 		updated, err := airwayIntf.UpdateStatus(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
@@ -168,15 +154,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 
 		airway = updated
-
-		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(updated.Object, &typedAirway); err != nil {
-			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
-			return
-		}
 	}
 
-	if typedAirway.DeletionTimestamp == nil && !slices.Contains(typedAirway.Finalizers, cleanupAirwayFinalizer) {
-		finalizers := append(typedAirway.Finalizers, cleanupAirwayFinalizer)
+	if airway.DeletionTimestamp == nil && !slices.Contains(airway.Finalizers, cleanupAirwayFinalizer) {
+		finalizers := append(airway.Finalizers, cleanupAirwayFinalizer)
 		airway.SetFinalizers(finalizers)
 		if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to add cleanup finalizer to airway: %v", err)
@@ -184,13 +165,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
-	modules := atc.moduleCache.Get(typedAirway.Name)
+	modules := atc.moduleCache.Get(airway.Name)
 
-	if typedAirway.DeletionTimestamp != nil {
+	if airway.DeletionTimestamp != nil {
 		airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 
-		if idx := slices.Index(typedAirway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
-			if err := webhookIntf.Delete(ctx, typedAirway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+		if idx := slices.Index(airway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
+			if err := webhookIntf.Delete(ctx, airway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
 			}
 
@@ -204,12 +185,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
 			}
 
-			if err := crdIntf.Delete(ctx, typedAirway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
+			if err := crdIntf.Delete(ctx, airway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
 			}
 
 			for attempt := range 10 {
-				if _, err := crdIntf.Get(ctx, typedAirway.Name, metav1.GetOptions{}); err != nil {
+				if _, err := crdIntf.Get(ctx, airway.Name, metav1.GetOptions{}); err != nil {
 					if kerrors.IsNotFound(err) {
 						break
 					}
@@ -221,7 +202,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				time.Sleep(time.Second)
 			}
 
-			if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
+			if cleanup := atc.cleanups[airway.Name]; cleanup != nil {
 				cleanup()
 			}
 
@@ -229,7 +210,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			modules.Reset()
 			modules.UnlockAll()
 
-			finalizers := slices.Delete(typedAirway.Finalizers, idx, idx+1)
+			finalizers := slices.Delete(airway.Finalizers, idx, idx+1)
 			airway.SetFinalizers(finalizers)
 
 			if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
@@ -239,16 +220,13 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
-	if cleanup := atc.cleanups[typedAirway.Name]; cleanup != nil {
+	if cleanup := atc.cleanups[airway.Name]; cleanup != nil {
 		airwayStatus(metav1.ConditionFalse, "InProgress", "Cleaning up previous flight controller")
 		cleanup()
 
 		// cleanup will cause status changes to the airway. Refresh the airway before proceeding.
 		airway, err = airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
 		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(airway.Object, &typedAirway); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -272,18 +250,18 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			Mod *wasm.Module
 		}{
 			{
-				URL: typedAirway.Spec.WasmURLs.Flight,
+				URL: airway.Spec.WasmURLs.Flight,
 				Mod: modules.Flight,
 			},
 			{
-				URL: typedAirway.Spec.WasmURLs.Converter,
+				URL: airway.Spec.WasmURLs.Converter,
 				Mod: modules.Converter,
 			},
 		} {
 			if value.URL == "" {
 				continue
 			}
-			data, err := yoke.LoadWasm(ctx, value.URL, typedAirway.Spec.Insecure)
+			data, err := yoke.LoadWasm(ctx, value.URL, airway.Spec.Insecure)
 			if err != nil {
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
@@ -312,8 +290,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	var storageVersion string
-	for i := range typedAirway.Spec.Template.Versions {
-		version := &typedAirway.Spec.Template.Versions[i]
+	for i := range airway.Spec.Template.Versions {
+		version := &airway.Spec.Template.Versions[i]
 		if version.Storage {
 			storageVersion = version.Name
 		}
@@ -357,15 +335,15 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
-	if typedAirway.Spec.WasmURLs.Converter != "" {
-		typedAirway.Spec.Template.Conversion = &apiextv1.CustomResourceConversion{
+	if airway.Spec.WasmURLs.Converter != "" {
+		airway.Spec.Template.Conversion = &apiextv1.CustomResourceConversion{
 			Strategy: apiextv1.WebhookConverter,
 			Webhook: &apiextv1.WebhookConversion{
 				ClientConfig: &apiextv1.WebhookClientConfig{
 					Service: &apiextv1.ServiceReference{
 						Name:      atc.service.Name,
 						Namespace: atc.service.Namespace,
-						Path:      ptr.To("/crdconvert/" + typedAirway.Name),
+						Path:      ptr.To("/crdconvert/" + airway.Name),
 						Port:      ptr.To(atc.service.Port),
 					},
 					CABundle: atc.service.CABundle,
@@ -375,7 +353,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 	}
 
-	crd, err := internal.ToUnstructured(typedAirway.CRD())
+	crd, err := internal.ToUnstructured(airway.CRD())
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to convert airway CRD to unstructured object: %v", err)
 	}
@@ -399,21 +377,21 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			Name: airway.GetName(),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: typedAirway.APIVersion,
-					Kind:       typedAirway.Kind,
-					Name:       typedAirway.Name,
-					UID:        typedAirway.UID,
+					APIVersion: airway.APIVersion,
+					Kind:       airway.Kind,
+					Name:       airway.Name,
+					UID:        airway.UID,
 				},
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
 			{
-				Name: typedAirway.CRGroupResource().String(),
+				Name: airway.CRGroupResource().String(),
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: atc.service.Namespace,
 						Name:      atc.service.Name,
-						Path:      ptr.To("/validations/" + typedAirway.Name),
+						Path:      ptr.To("/validations/" + airway.Name),
 						Port:      &atc.service.Port,
 					},
 					CABundle: atc.service.CABundle,
@@ -427,11 +405,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 							admissionregistrationv1.Update,
 						},
 						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{typedAirway.Spec.Template.Group},
+							APIGroups:   []string{airway.Spec.Template.Group},
 							APIVersions: []string{storageVersion},
-							Resources:   []string{typedAirway.Spec.Template.Names.Plural},
+							Resources:   []string{airway.Spec.Template.Names.Plural},
 							Scope: func() *admissionregistrationv1.ScopeType {
-								if typedAirway.Spec.Template.Scope == apiextv1.ClusterScoped {
+								if airway.Spec.Template.Scope == apiextv1.ClusterScoped {
 									return ptr.To(admissionregistrationv1.ClusterScope)
 								}
 								return ptr.To(admissionregistrationv1.NamespacedScope)
@@ -456,16 +434,16 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	done := make(chan struct{})
 
-	atc.cleanups[typedAirway.Name] = func() {
+	atc.cleanups[airway.Name] = func() {
 		cancel()
 		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
 		<-done
-		delete(atc.cleanups, typedAirway.Name)
+		delete(atc.cleanups, airway.Name)
 	}
 
 	flightGK := schema.GroupKind{
-		Group: typedAirway.Spec.Template.Group,
-		Kind:  typedAirway.Spec.Template.Names.Kind,
+		Group: airway.Spec.Template.Group,
+		Kind:  airway.Spec.Template.Names.Kind,
 	}
 
 	flightController, err := func() (Controller, error) {
@@ -475,7 +453,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			GK: flightGK,
 			Handler: atc.FlightReconciler(FlightReconcilerParams{
 				GK:      flightGK,
-				Airway:  typedAirway,
+				Airway:  *airway,
 				Version: storageVersion,
 				Flight:  modules.Flight,
 				States:  flightStates,

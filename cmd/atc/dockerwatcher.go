@@ -48,11 +48,11 @@ func WatchDockerConfig(ctx context.Context, params WatchDockerConfigParams) erro
 	}
 
 	if len(secrets.Items) > 0 {
-		configJson := secrets.Items[0].Data[keyDockerConfig]
-		if len(configJson) == 0 {
+		configJSON := secrets.Items[0].Data[keyDockerConfig]
+		if len(configJSON) == 0 {
 			return fmt.Errorf("docker config secret found but no data found under expected key %s", keyDockerConfig)
 		}
-		if err := os.WriteFile(targetPath, configJson, 0o644); err != nil {
+		if err := os.WriteFile(targetPath, configJSON, 0o644); err != nil {
 			return fmt.Errorf("failed to write docker config: %w", err)
 		}
 		params.Logger.Info("init: successfully setup docker credentials from secret", "secretName", params.SecretName)

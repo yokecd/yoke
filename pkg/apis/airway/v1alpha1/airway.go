@@ -23,6 +23,14 @@ type Airway struct {
 	Status            flight.Status `json:"status,omitzero"`
 }
 
+func AirwayGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    "yoke.cd",
+		Version:  "v1alpha1",
+		Resource: "airways",
+	}
+}
+
 type AirwayMode string
 
 func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {

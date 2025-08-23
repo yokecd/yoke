@@ -205,17 +205,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			}
 		}
 
-		airwayGVR := schema.GroupVersionResource{Group: "yoke.cd", Version: "v1alpha1", Resource: "airways"}
-
-		rawAirway, err := client.Dynamic.Resource(airwayGVR).Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
+		airway, err := client.AirwayIntf.Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get airway: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		var airway v1alpha1.Airway
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(rawAirway.Object, &airway); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 

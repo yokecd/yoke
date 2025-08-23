@@ -13,13 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal/atc/tower"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
 type ATCParams struct {
@@ -58,23 +56,10 @@ func ATC(ctx context.Context, params ATCParams) error {
 			Content: tower.MakeAirwayListView(tea.WindowSizeMsg{}),
 			Commands: tower.Commands{
 				GetAirwayList: func() tea.Msg {
-					mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Group: "yoke.cd", Kind: "Airway"})
-					if err != nil {
-						return fmt.Errorf("failed to get airway mappinng: %w", err)
-					}
-
-					list, err := client.Dynamic.Resource(mapping.Resource).List(ctx, metav1.ListOptions{})
+					airways, err := client.AirwayIntf.List(ctx, metav1.ListOptions{})
 					if err != nil {
 						return fmt.Errorf("failed to get airways: %w", err)
 					}
-
-					airways := make([]v1alpha1.Airway, len(list.Items))
-					for i, resource := range list.Items {
-						if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, &airways[i]); err != nil {
-							return fmt.Errorf("failed to parse airway: %w", err)
-						}
-					}
-
 					return tower.GetAirwayListResult(airways)
 				},
 

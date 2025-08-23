@@ -110,7 +110,7 @@ func run() (err error) {
 
 	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
 
-	reconciler, teardown := atc.GetReconciler(airwayGK, cfg.Service, moduleCache, controllers, cfg.Concurrency)
+	reconciler, teardown := atc.GetReconciler(cfg.Service, moduleCache, controllers, cfg.Concurrency)
 	defer teardown()
 
 	controller, err := ctrl.NewController(ctx, ctrl.Params{
