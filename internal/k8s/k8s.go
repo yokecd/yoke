@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 )
 
 const (
@@ -42,10 +43,11 @@ const (
 )
 
 type Client struct {
-	Dynamic   *dynamic.DynamicClient
-	Clientset *kubernetes.Clientset
-	Meta      metadata.Interface
-	Mapper    *restmapper.DeferredDiscoveryRESTMapper
+	Dynamic    *dynamic.DynamicClient
+	Clientset  *kubernetes.Clientset
+	Meta       metadata.Interface
+	Mapper     *restmapper.DeferredDiscoveryRESTMapper
+	AirwayIntf TypedIntf[v1alpha1.Airway]
 }
 
 func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {
@@ -83,11 +85,14 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to create k8 clientset: %w", err)
 	}
 
+	airwayIntf := TypedInterface[v1alpha1.Airway](dynamicClient, v1alpha1.AirwayGVR())
+
 	return &Client{
-		Dynamic:   dynamicClient,
-		Clientset: clientset,
-		Meta:      meta,
-		Mapper:    restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
+		Dynamic:    dynamicClient,
+		Clientset:  clientset,
+		Meta:       meta,
+		Mapper:     restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
+		AirwayIntf: airwayIntf,
 	}, nil
 }
 
