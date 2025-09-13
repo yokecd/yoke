@@ -30,6 +30,13 @@ type Event struct {
 	typ      string
 }
 
+func (evt Event) WithoutMeta() Event {
+	return Event{
+		Name:      evt.Name,
+		Namespace: evt.Namespace,
+	}
+}
+
 type Result struct {
 	Requeue      bool
 	RequeueAfter time.Duration

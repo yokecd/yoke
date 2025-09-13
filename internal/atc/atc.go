@@ -573,8 +573,10 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		mutex.Lock()
 		defer mutex.Unlock()
 
+		mode := cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
+
 		params.States[event.String()] = FlightState{
-			Mode:          cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard),
+			Mode:          mode,
 			Mutex:         mutex,
 			ClusterAccess: params.Airway.Spec.ClusterAccess,
 		}
@@ -768,25 +770,23 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
+		if mode == v1alpha1.AirwayModeDynamic {
+			ctx = wasi.WithExternalResourceTracking(ctx)
+			defer func() {
+				for _, evts := range params.ResourceToEventMappings.All() {
+					evts.Del(event.WithoutMeta())
+				}
+				for _, resource := range wasi.TrackedResources(ctx) {
+					evts, _ := params.ResourceToEventMappings.LoadOrStore(resource, xsync.MakeSet[ctrl.Event]())
+					evts.Add(event.WithoutMeta())
+				}
+			}()
+		}
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
 			if !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
 			}
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
-		}
-
-		trackingEvt := ctrl.Event{Name: event.Name, Namespace: event.Namespace}
-
-		for _, evts := range params.ResourceToEventMappings.All() {
-			evts.Del(trackingEvt)
-		}
-
-		if params.States[event.String()].Mode == v1alpha1.AirwayModeDynamic {
-			resources := []string{"TODO", "GET", "FROM", "TAKEOFF", "CONTEXT"}
-			for _, resource := range resources {
-				evts, _ := params.ResourceToEventMappings.LoadOrStore(resource, xsync.MakeSet[ctrl.Event]())
-				evts.Add(trackingEvt)
-			}
 		}
 
 		if identity != nil && identity.Object["status"] != nil {

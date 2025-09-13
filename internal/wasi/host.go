@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"slices"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type HostLookupResourceFunc func(ctx context.Context, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error)
@@ -60,6 +62,10 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 			return nil, kerrors.NewForbidden(schema.GroupResource{}, "", errors.New("cannot access resource outside of target release ownership"))
 		}
 
+		if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(xsync.Set[string]); ok {
+			externalResources.Add(internal.ResourceString(resource))
+		}
+
 		return resource, nil
 	}
 }
@@ -89,4 +95,18 @@ func WithClusterAccess(ctx context.Context, access ClusterAccessParams) context.
 func clusterAccessEnabled(ctx context.Context) ClusterAccessParams {
 	value, _ := ctx.Value(clusterAccessKey{}).(ClusterAccessParams)
 	return value
+}
+
+type externalResourceTrackingKey struct{}
+
+func WithExternalResourceTracking(ctx context.Context) context.Context {
+	return context.WithValue(ctx, externalResourceTrackingKey{}, xsync.MakeSet[string]())
+}
+
+func TrackedResources(ctx context.Context) []string {
+	resources, ok := ctx.Value(externalResourceTrackingKey{}).(xsync.Set[string])
+	if !ok {
+		return nil
+	}
+	return slices.Collect(resources.All())
 }

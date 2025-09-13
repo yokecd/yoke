@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -153,4 +154,8 @@ func GetAnnotation(resource unstructured.Unstructured, key string) string {
 		return annotations[key]
 	}
 	return ""
+}
+
+func ResourceString(resource *unstructured.Unstructured) string {
+	return fmt.Sprintf("%s/%s:%s", resource.GetNamespace(), resource.GetName(), resource.GroupVersionKind().GroupKind().String())
 }
