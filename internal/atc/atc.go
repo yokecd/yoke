@@ -63,13 +63,14 @@ func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
 
 type ControllerCache = xsync.Map[string, Controller]
 
-func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher EventDispatcher, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		concurrency: concurrency,
 		service:     service,
 		cleanups:    map[string]func(){},
 		moduleCache: cache,
 		controllers: controllers,
+		dispatcher:  dispatcher,
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -77,7 +78,7 @@ func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *Con
 type atc struct {
 	concurrency int
 
-	dispatcher  EventDispatcher
+	dispatcher  *EventDispatcher
 	controllers *ControllerCache
 	service     ServiceDef
 	cleanups    map[string]func()
@@ -447,20 +448,17 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		Kind:  airway.Spec.Template.Names.Kind,
 	}
 
-	resourceToEventMappings := new(xsync.Map[string, xsync.Set[ctrl.Event]])
-
 	flightController, err := func() (Controller, error) {
 		flightStates := map[string]FlightState{}
 
 		ctrl, err := ctrl.NewController(flightCtx, ctrl.Params{
 			GK: flightGK,
 			Handler: atc.FlightReconciler(FlightReconcilerParams{
-				GK:                      flightGK,
-				Airway:                  *airway,
-				Version:                 storageVersion,
-				Flight:                  modules.Flight,
-				States:                  flightStates,
-				ResourceToEventMappings: resourceToEventMappings,
+				GK:      flightGK,
+				Airway:  *airway,
+				Version: storageVersion,
+				Flight:  modules.Flight,
+				States:  flightStates,
 			}),
 			Client:      ctrl.Client(ctx),
 			Logger:      ctrl.RootLogger(ctx),
@@ -475,13 +473,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
 	atc.controllers.Store(flightGK.String(), flightController)
-	atc.dispatcher[flightController.Instance] = resourceToEventMappings
 
 	go func() {
 		defer cancel()
 		defer close(done)
 		defer atc.controllers.Delete(flightGK.String())
-		defer delete(atc.dispatcher, flightController.Instance)
+		defer atc.dispatcher.RemoveController(flightController.Instance)
 
 		airwayStatus(metav1.ConditionTrue, "Ready", "Flight-Controller launched")
 
@@ -505,12 +502,11 @@ func (atc atc) Teardown() {
 }
 
 type FlightReconcilerParams struct {
-	GK                      schema.GroupKind
-	Version                 string
-	Flight                  *wasm.Module
-	Airway                  v1alpha1.Airway
-	States                  map[string]FlightState
-	ResourceToEventMappings *xsync.Map[string, xsync.Set[ctrl.Event]]
+	GK      schema.GroupKind
+	Version string
+	Flight  *wasm.Module
+	Airway  v1alpha1.Airway
+	States  map[string]FlightState
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -773,12 +769,9 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		if mode == v1alpha1.AirwayModeDynamic {
 			ctx = wasi.WithExternalResourceTracking(ctx)
 			defer func() {
-				for _, evts := range params.ResourceToEventMappings.All() {
-					evts.Del(event.WithoutMeta())
-				}
+				atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
 				for _, resource := range wasi.TrackedResources(ctx) {
-					evts, _ := params.ResourceToEventMappings.LoadOrStore(resource, xsync.MakeSet[ctrl.Event]())
-					evts.Add(event.WithoutMeta())
+					atc.dispatcher.Register(resource, ctrl.Inst(ctx), event.WithoutMeta())
 				}
 			}()
 		}
