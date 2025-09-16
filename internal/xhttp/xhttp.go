@@ -42,11 +42,8 @@ func WithRecover(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if e := recover(); e != nil {
-				http.Error(
-					w,
-					fmt.Sprintf("recovered from panic: %v: %s", e, xruntime.CallStack(-1)),
-					http.StatusInternalServerError,
-				)
+				fmt.Println("[recovered from panic]", xruntime.CallStack(-1))
+				http.Error(w, "panic", http.StatusInternalServerError)
 				return
 			}
 		}()

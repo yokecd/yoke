@@ -29,7 +29,7 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, dispatcher atc.EventDispatcher, logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, dispatcher *atc.EventDispatcher, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	commander := yoke.FromK8Client(client)
@@ -315,6 +315,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("operation", string(review.Request.Operation)))
 
 		prev, err := UnstructuredFromRawExt(review.Request.OldObject)
 		if err != nil {
@@ -328,7 +329,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		dispatcher.Dispatch(fmt.Sprintf("%s/%s:%s", next.GetNamespace(), next.GroupVersionKind().GroupKind().String(), next.GetName()))
+		if next != nil {
+			dispatcher.Dispatch(internal.ResourceString(next))
+		} else {
+			dispatcher.Dispatch(internal.ResourceString(prev))
+		}
 
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,

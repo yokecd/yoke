@@ -161,6 +161,7 @@ func (ctrl *Instance) Run() error {
 						ctx := context.WithoutCancel(ctrl.ctx)
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
 						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
+						ctx = context.WithValue(ctx, instanceKey{}, ctrl)
 
 						logger.Info("processing event")
 
@@ -287,6 +288,13 @@ type clientKey struct{}
 func Client(ctx context.Context) *k8s.Client {
 	client, _ := ctx.Value(clientKey{}).(*k8s.Client)
 	return client
+}
+
+type instanceKey struct{}
+
+func Inst(ctx context.Context) *Instance {
+	instance, _ := ctx.Value(instanceKey{}).(*Instance)
+	return instance
 }
 
 func withJitter(duration time.Duration, percent float64) time.Duration {

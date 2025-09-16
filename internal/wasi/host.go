@@ -100,11 +100,11 @@ func clusterAccessEnabled(ctx context.Context) ClusterAccessParams {
 type externalResourceTrackingKey struct{}
 
 func WithExternalResourceTracking(ctx context.Context) context.Context {
-	return context.WithValue(ctx, externalResourceTrackingKey{}, xsync.MakeSet[string]())
+	return context.WithValue(ctx, externalResourceTrackingKey{}, new(xsync.Set[string]))
 }
 
 func TrackedResources(ctx context.Context) []string {
-	resources, ok := ctx.Value(externalResourceTrackingKey{}).(xsync.Set[string])
+	resources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string])
 	if !ok {
 		return nil
 	}
