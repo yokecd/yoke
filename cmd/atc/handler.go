@@ -329,12 +329,6 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		if next != nil {
-			dispatcher.Dispatch(internal.ResourceString(next))
-		} else {
-			dispatcher.Dispatch(internal.ResourceString(prev))
-		}
-
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
@@ -500,6 +494,51 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 	})
 
+	mux.HandleFunc("POST /validations/external-resources", func(w http.ResponseWriter, r *http.Request) {
+		var review admissionv1.AdmissionReview
+		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		prev, err := UnstructuredFromRawExt(review.Request.OldObject)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		next, err := UnstructuredFromRawExt(review.Request.Object)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		resource := func() string {
+			if next != nil {
+				return internal.ResourceString(next)
+			}
+			return internal.ResourceString(prev)
+		}()
+
+		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("operation", string(review.Request.Operation)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("resource", resource))
+
+		dispatcher.Dispatch(resource)
+
+		review.Response = &admissionv1.AdmissionResponse{
+			UID:     review.Request.UID,
+			Allowed: true,
+			Result: &metav1.Status{
+				Status:  metav1.StatusSuccess,
+				Message: "validation passed",
+			},
+		}
+		review.Request = nil
+
+		json.NewEncoder(w).Encode(review)
+	})
+
 	mux.HandleFunc("POST /validations/airways.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
 		var review admissionv1.AdmissionReview
 		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
@@ -540,7 +579,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 	})
 
 	handler := xhttp.WithRecover(mux)
-	handler = xhttp.WithLogger(logger, handler)
+	handler = xhttp.WithLogger(logger, handler, func(pattern string, attrs []slog.Attr) bool {
+		return pattern != "POST /validations/external-resources"
+	})
 
 	return handler
 }

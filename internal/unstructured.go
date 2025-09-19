@@ -157,5 +157,5 @@ func GetAnnotation(resource unstructured.Unstructured, key string) string {
 }
 
 func ResourceString(resource *unstructured.Unstructured) string {
-	return fmt.Sprintf("%s/%s:%s", resource.GetNamespace(), resource.GetName(), resource.GroupVersionKind().GroupKind().String())
+	return fmt.Sprintf("%s/%s:%s", resource.GetNamespace(), resource.GroupVersionKind().GroupKind().String(), resource.GetName())
 }

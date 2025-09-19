@@ -54,16 +54,15 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 
 		for _, matcher := range clusterAccess.ResourceMatchers {
 			if internal.MatchResource(resource, matcher) {
+				if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
+					externalResources.Add(internal.ResourceString(resource))
+				}
 				return resource, nil
 			}
 		}
 
 		if internal.GetOwner(resource) != getOwner(ctx) {
 			return nil, kerrors.NewForbidden(schema.GroupResource{}, "", errors.New("cannot access resource outside of target release ownership"))
-		}
-
-		if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(xsync.Set[string]); ok {
-			externalResources.Add(internal.ResourceString(resource))
 		}
 
 		return resource, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -187,8 +188,62 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		},
 	}
 
+	externalResourceValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "atc-external-resources",
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "external.resources.yoke.cd",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: cfg.Service.Namespace,
+						Name:      cfg.Service.Name,
+						Path:      ptr.To("/validations/external-resources"),
+						Port:      &cfg.Service.Port,
+					},
+					CABundle: cfg.Service.CABundle,
+				},
+				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				AdmissionReviewVersions: []string{"v1"},
+				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
+				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
+				MatchConditions: []admissionregistrationv1.MatchCondition{
+					{
+						Name: "all",
+						Expression: strings.Join(
+							[]string{
+								`(object.kind != "Lease" && !object.apiVersion.startsWith("coordination.k8s.io/"))`,
+								`(oldObject.kind != "Lease" && !oldObject.apiVersion.startsWith("coordination.k8s.io/"))`,
+							},
+							" || ",
+						),
+					},
+				},
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Update,
+							admissionregistrationv1.Delete,
+						},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"*"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"*/*"},
+							Scope:       ptr.To(admissionregistrationv1.AllScopes),
+						},
+					},
+				},
+			},
+		},
+	}
+
 	var webhooks []*unstructured.Unstructured
-	for _, webhook := range []*admissionregistrationv1.ValidatingWebhookConfiguration{airwayValidation, resourceValidation} {
+	for _, webhook := range []*admissionregistrationv1.ValidatingWebhookConfiguration{airwayValidation, resourceValidation, externalResourceValidation} {
 		resource, err := internal.ToUnstructured(webhook)
 		if err != nil {
 			return fmt.Errorf("failed to convert webhook configuration to unstructured representation: %s: %w", webhook.Name, err)

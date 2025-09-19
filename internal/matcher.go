@@ -14,19 +14,7 @@ func MatchResource(resource *unstructured.Unstructured, matcher string) bool {
 		return true
 	}
 
-	namespace, gk, name := func() (string, string, string) {
-		ns, gkn, ok := strings.Cut(matcher, "/")
-		if !ok {
-			gkn = ns
-			ns = "*"
-		}
-		gk, name, ok := strings.Cut(gkn, ":")
-		if !ok {
-			name = "*"
-		}
-
-		return ns, gk, name
-	}()
+	namespace, gk, name := parseMatcherExpr(matcher)
 
 	if namespace != "*" && resource.GetNamespace() != namespace {
 		return false
@@ -41,4 +29,27 @@ func MatchResource(resource *unstructured.Unstructured, matcher string) bool {
 	}
 
 	return true
+}
+
+func MatcherContains(parent, child string) bool {
+	parentNS, parentGK, parentName := parseMatcherExpr(parent)
+	childNS, childGK, childName := parseMatcherExpr(child)
+	return true &&
+		(parentNS == "*" || parentNS == childNS) &&
+		(parentGK == "*" || parentGK == childGK) &&
+		(parentName == "*" || parentName == childName)
+}
+
+func parseMatcherExpr(matcher string) (string, string, string) {
+	ns, gkn, ok := strings.Cut(matcher, "/")
+	if !ok {
+		gkn = ns
+		ns = "*"
+	}
+	gk, name, ok := strings.Cut(gkn, ":")
+	if !ok {
+		name = "*"
+	}
+
+	return ns, gk, name
 }
