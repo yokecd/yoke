@@ -127,16 +127,14 @@ func (ctrl *Instance) Run() error {
 
 						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
 						if loaded {
-							wg.Add(1)
-							go func() {
-								defer wg.Done()
+							wg.Go(func() {
 								select {
 								case <-ctrl.ctx.Done():
 									return
 								case <-done:
 									queue.Enqueue(event)
 								}
-							}()
+							})
 							return
 						}
 						defer close(done)

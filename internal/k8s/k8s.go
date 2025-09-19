@@ -358,11 +358,7 @@ func (client Client) GetReleases(ctx context.Context) ([]internal.Release, error
 	revisions := make([][]internal.Release, len(list.Items))
 
 	for i, ns := range list.Items {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			result, err := client.GetReleasesByNS(ctx, ns.Name)
 			if err != nil {
 				if kerrors.IsNotFound(err) || kerrors.IsForbidden(err) {
@@ -373,7 +369,7 @@ func (client Client) GetReleases(ctx context.Context) ([]internal.Release, error
 				return
 			}
 			revisions[i] = result
-		}()
+		})
 	}
 
 	wg.Wait()

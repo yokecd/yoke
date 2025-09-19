@@ -11,7 +11,7 @@ import (
 	"github.com/davidmdm/x/xruntime"
 )
 
-func WithLogger(logger *slog.Logger, handler http.Handler) http.Handler {
+func WithLogger(logger *slog.Logger, handler http.Handler, filter func(pattern string, attrs []slog.Attr) bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := statusWriter{ResponseWriter: w}
@@ -27,14 +27,19 @@ func WithLogger(logger *slog.Logger, handler http.Handler) http.Handler {
 			return
 		}
 
-		base := []slog.Attr{
-			slog.Int("code", sw.Code()),
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("elapsed", time.Since(start).Round(time.Millisecond).String()),
-		}
+		base := append(
+			[]slog.Attr{
+				slog.Int("code", sw.Code()),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("elapsed", time.Since(start).Round(time.Millisecond).String()),
+			},
+			attrs...,
+		)
 
-		logger.LogAttrs(r.Context(), slog.LevelInfo, "request served", append(base, attrs...)...)
+		if filter == nil || filter(r.Pattern, base) {
+			logger.LogAttrs(r.Context(), slog.LevelInfo, "request served", base...)
+		}
 	})
 }
 
