@@ -39,7 +39,7 @@ func ConfigFromEnv() (cfg Config) {
 	conf.Var(conf.Environ, &cfg.CacheTTL, "YOKECD_CACHE_TTL", conf.Default(24*time.Hour))
 	conf.Var(conf.Environ, &cfg.CacheCollectionInterval, "YOKECD_CACHE_COLLECTION_INTERVAL", conf.Default(10*time.Second))
 	conf.Environ.MustParse()
-	return
+	return cfg
 }
 
 func Run(ctx context.Context, cfg Config) (err error) {
@@ -260,7 +260,7 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 		w.WriteHeader(200)
 	})
 
-	handler := xhttp.WithLogger(logger, mux)
+	handler := xhttp.WithLogger(logger, mux, nil)
 	handler = xhttp.WithRecover(handler)
 
 	return handler
