@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/yokecd/yoke/internal"
 )
 
 type TypedIntf[T any] struct {
@@ -41,11 +42,11 @@ func (c TypedIntf[T]) Get(ctx context.Context, name string, options metav1.GetOp
 }
 
 func (c TypedIntf[T]) Create(ctx context.Context, api *T, options metav1.CreateOptions) (*T, error) {
-	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(api)
+	obj, err := internal.ToUnstructured(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
-	obj, err := c.getIntf().Create(ctx, &unstructured.Unstructured{Object: raw}, options)
+	obj, err = c.getIntf().Create(ctx, obj, options)
 	if err != nil {
 		return nil, err
 	}
@@ -57,11 +58,11 @@ func (c TypedIntf[T]) Create(ctx context.Context, api *T, options metav1.CreateO
 }
 
 func (c TypedIntf[T]) Update(ctx context.Context, api *T, options metav1.UpdateOptions) (*T, error) {
-	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(api)
+	obj, err := internal.ToUnstructured(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
-	obj, err := c.getIntf().Update(ctx, &unstructured.Unstructured{Object: raw}, options)
+	obj, err = c.getIntf().Update(ctx, obj, options)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +74,11 @@ func (c TypedIntf[T]) Update(ctx context.Context, api *T, options metav1.UpdateO
 }
 
 func (c TypedIntf[T]) UpdateStatus(ctx context.Context, api *T, options metav1.UpdateOptions) (*T, error) {
-	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(api)
+	obj, err := internal.ToUnstructured(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
-	obj, err := c.getIntf().UpdateStatus(ctx, &unstructured.Unstructured{Object: raw}, options)
+	obj, err = c.getIntf().UpdateStatus(ctx, obj, options)
 	if err != nil {
 		return nil, err
 	}

@@ -203,17 +203,7 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
 			}
 
-			results, err := module.ExportedFunction("malloc").Call(ctx, uint64(len(data)))
-			if err != nil {
-				// if we cannot malloc, let's crash with gumption.
-				panic(err)
-			}
-
-			buffer := wasm.Buffer(results[0])
-
-			module.Memory().Write(buffer.Address(), data)
-
-			return buffer
+			return Malloc(ctx, module, data)
 		},
 	} {
 		hostModule = hostModule.NewFunctionBuilder().WithFunc(fn).Export(name)
@@ -235,7 +225,9 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 
 func Error(ctx context.Context, module api.Module, ptr wasm.Ptr, state wasm.State, err string) wasm.Buffer {
 	mem := module.Memory()
-	mem.WriteUint32Le(uint32(ptr), uint32(cmp.Or(state, wasm.StateError)))
+	if !mem.WriteUint32Le(uint32(ptr), uint32(cmp.Or(state, wasm.StateError))) {
+		panic("write state error out of memory range")
+	}
 	return Malloc(ctx, module, []byte(err))
 }
 
@@ -245,7 +237,9 @@ func Malloc(ctx context.Context, module api.Module, data []byte) wasm.Buffer {
 		panic(err)
 	}
 	buffer := wasm.Buffer(results[0])
-	module.Memory().Write(buffer.Address(), data)
+	if !module.Memory().Write(buffer.Address(), data) {
+		panic("write to memory out of range")
+	}
 	return buffer
 }
 
