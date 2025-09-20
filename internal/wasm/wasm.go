@@ -62,5 +62,5 @@ func (buffer Buffer) Slice() []byte {
 }
 
 func (buffer Buffer) String() string {
-	return unsafe.String((*byte)(unsafe.Pointer(uintptr(buffer.Address()))), buffer.Length())
+	return string(buffer.Slice())
 }

@@ -3,6 +3,7 @@ package testutils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -20,6 +21,19 @@ func JsonReader(value any) io.Reader {
 	return bytes.NewReader(data)
 }
 
+type FatalError struct {
+	error
+}
+
+func Fatal(err error) FatalError {
+	return FatalError{err}
+}
+
+func (FatalError) Is(err error) bool {
+	_, ok := err.(FatalError)
+	return ok
+}
+
 func EventuallyNoErrorf(t *testing.T, fn func() error, tick time.Duration, timeout time.Duration, msg string, args ...any) {
 	t.Helper()
 
@@ -33,7 +47,7 @@ func EventuallyNoErrorf(t *testing.T, fn func() error, tick time.Duration, timeo
 		if err == nil {
 			return
 		}
-		if time.Now().After(deadline) {
+		if errors.Is(err, FatalError{}) || time.Now().After(deadline) {
 			require.NoErrorf(t, err, msg, args...)
 			return
 		}

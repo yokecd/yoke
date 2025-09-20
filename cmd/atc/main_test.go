@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -1845,6 +1847,203 @@ func TestAirwayModes(t *testing.T) {
 		time.Second,
 		30*time.Second,
 		"deployment failed to reach state as defined by configmap",
+	)
+}
+
+func TestDynamicWithExternalResource(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	secret, err := client.Clientset.CoreV1().Secrets("default").Create(
+		ctx,
+		&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "one",
+				Namespace: "default",
+			},
+			StringData: map[string]string{"key": "secret one"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Secrets("default").Delete(ctx, "one", metav1.DeleteOptions{}))
+	}()
+
+	require.NoError(t, client.EnsureNamespace(ctx, "custom"))
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(ctx, "custom", metav1.DeleteOptions{}))
+	}()
+
+	_, err = client.Clientset.CoreV1().Secrets("custom").Create(
+		ctx,
+		&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "two",
+				Namespace: "custom",
+			},
+			StringData: map[string]string{"key": "secret two"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, client.Clientset.CoreV1().Secrets("custom").Delete(ctx, "two", metav1.DeleteOptions{}))
+	}()
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "dynamic-external-resource-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "backends.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/resourceaccessmatchers.wasm",
+					},
+					Mode:                   v1alpha1.AirwayModeDynamic,
+					ClusterAccess:          true,
+					ResourceAccessMatchers: []string{"Secret"},
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "backends",
+							Singular: "backend",
+							Kind:     "Backend",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "dynamic-external-resource-airway"}))
+
+		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
+			Group:    "yoke.cd",
+			Version:  "v1alpha1",
+			Resource: "airways",
+		})
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("backends.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
+
+	configMapIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	backendIntf := k8s.
+		TypedInterface[EmptyCRD](client.Dynamic, schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "backends",
+	}).
+		Namespace("default")
+
+	be := &EmptyCRD{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Backend",
+			APIVersion: "examples.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+	}
+
+	_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	readSecretKey := func(value string) string {
+		var data struct {
+			Key string `json:"key"`
+		}
+		_ = json.Unmarshal([]byte(value), &data)
+		result, _ := base64.StdEncoding.DecodeString(data.Key)
+		return string(result)
+	}
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			cm, err := configMapIntf.Get(ctx, "cm", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			expected := "secret one"
+			if got := readSecretKey(cm.Data["one"]); got != expected {
+				return testutils.Fatal(fmt.Errorf("expected configmap.data[one] to equal %q but got %q", expected, got))
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"error asserting configmap state",
+	)
+
+	secret.Data["key"] = []byte("updated")
+
+	_, err = client.Clientset.CoreV1().Secrets("default").Update(ctx, secret, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			cm, err := configMapIntf.Get(ctx, "cm", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			expected := "updated"
+			if got := readSecretKey(cm.Data["one"]); got != expected {
+				return fmt.Errorf("expected configmap.data[one] to equal %q but got %q", expected, got)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"error asserting configmap state",
 	)
 }
 
