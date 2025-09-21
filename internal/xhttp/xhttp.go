@@ -11,7 +11,9 @@ import (
 	"github.com/davidmdm/x/xruntime"
 )
 
-func WithLogger(logger *slog.Logger, handler http.Handler, filter func(pattern string, attrs []slog.Attr) bool) http.Handler {
+type LogFilterFunc func(pattern string, attrs []slog.Attr) bool
+
+func WithLogger(logger *slog.Logger, handler http.Handler, filter LogFilterFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := statusWriter{ResponseWriter: w}

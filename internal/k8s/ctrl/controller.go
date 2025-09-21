@@ -52,6 +52,7 @@ func (event Event) String() string {
 type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
+	GK     schema.GroupKind
 	ctx    context.Context
 	events chan Event
 	mu     *sync.Mutex
@@ -77,6 +78,7 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 	params.Handler = safe(params.Handler)
 
 	instance := &Instance{
+		GK:     params.GK,
 		ctx:    ctx,
 		events: make(chan Event),
 		Params: params,

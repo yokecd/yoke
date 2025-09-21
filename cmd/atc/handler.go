@@ -347,7 +347,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			json.NewEncoder(w).Encode(review)
 		}()
 
-		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.Canonical(prev)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.ResourceString(prev)))
 
 		if next != nil && internal.GetOwner(prev) != internal.GetOwner(next) {
 			review.Response.Allowed = false
@@ -524,7 +524,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		xhttp.AddRequestAttrs(r.Context(), slog.String("operation", string(review.Request.Operation)))
 		xhttp.AddRequestAttrs(r.Context(), slog.String("resource", resource))
 
-		dispatcher.Dispatch(resource)
+		for _, value := range dispatcher.Dispatch(resource) {
+			logger.Info(
+				"external resource dispatch event",
+				"triggeringResource", resource,
+				"controller", value.GK, "eventName",
+				value.Name, "eventNamesace", value.Namespace,
+			)
+		}
 
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
