@@ -25,6 +25,11 @@ func (m *Map[K, V]) LoadOrStore(key K, value V) (V, bool) {
 	return result.(V), ok
 }
 
+func (m *Map[K, V]) LoadAndDelete(key K) (V, bool) {
+	result, ok := (*sync.Map)(m).LoadAndDelete(key)
+	return result.(V), ok
+}
+
 func (m *Map[K, V]) Delete(key K) {
 	(*sync.Map)(m).Delete(key)
 }

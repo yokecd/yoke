@@ -42,11 +42,11 @@ type Result struct {
 	RequeueAfter time.Duration
 }
 
-func (event Event) String() string {
-	if event.Namespace == "" {
-		return event.Name
+func (evt Event) String() string {
+	if evt.Namespace == "" {
+		return evt.Name
 	}
-	return event.Namespace + "-" + event.Name
+	return evt.Namespace + "-" + evt.Name
 }
 
 type HandleFunc func(context.Context, Event) (Result, error)
@@ -99,7 +99,7 @@ func (ctrl *Instance) Run() error {
 
 	var (
 		activeMap   xsync.Map[string, chan struct{}]
-		timers      sync.Map
+		timers      xsync.Map[string, *time.Timer]
 		concurrency = max(ctrl.Concurrency, 1)
 	)
 
@@ -138,7 +138,7 @@ func (ctrl *Instance) Run() error {
 						defer activeMap.Delete(event.String())
 
 						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
-							timer.(*time.Timer).Stop()
+							timer.Stop()
 						}
 
 						logger := Logger(ctrl.ctx).With(
