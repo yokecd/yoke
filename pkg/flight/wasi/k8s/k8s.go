@@ -31,20 +31,10 @@ func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 
 	switch state {
 	case wasm.StateOK:
-		var obj struct {
-			Metadata struct {
-				Labels map[string]string `json:"labels,omitempty"`
-			} `json:"metadata,omitzero"`
-		}
-		if err := json.Unmarshal(buffer.Slice(), &obj); err != nil {
-			return nil, err
-		}
-
 		var resource T
 		if err := json.Unmarshal(buffer.Slice(), &resource); err != nil {
 			return nil, err
 		}
-
 		return &resource, nil
 	case wasm.StateFeatureNotGranted:
 		return nil, ErrorClusterAccessNotGranted
