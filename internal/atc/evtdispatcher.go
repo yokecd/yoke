@@ -13,16 +13,30 @@ func (dispatcher *EventDispatcher) raw() *_dispatcher {
 	return (*_dispatcher)(dispatcher)
 }
 
-func (dispatcher *EventDispatcher) Dispatch(resource string) {
+type DispatchEvent struct {
+	GK        string
+	Name      string
+	Namespace string
+}
+
+func (dispatcher *EventDispatcher) Dispatch(resource string) (result []DispatchEvent) {
 	mapping, loaded := dispatcher.raw().Load(resource)
 	if !loaded {
-		return
+		return result
 	}
+
 	for controller, events := range mapping.All() {
 		for evt := range events.All() {
 			controller.SendEvent(evt)
+			result = append(result, DispatchEvent{
+				GK:        controller.GK.String(),
+				Name:      evt.Name,
+				Namespace: evt.Namespace,
+			})
 		}
 	}
+
+	return result
 }
 
 func (dispatcher *EventDispatcher) Register(resource string, controller *ctrl.Instance, evt ctrl.Event) {
