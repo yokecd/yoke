@@ -52,11 +52,9 @@ func (event Event) String() string {
 type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
-	GK     schema.GroupKind
 	ctx    context.Context
 	events chan Event
-	mu     *sync.Mutex
-	closed bool
+	done   chan struct{}
 	Params
 }
 
@@ -78,12 +76,10 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 	params.Handler = safe(params.Handler)
 
 	instance := &Instance{
-		GK:     params.GK,
 		ctx:    ctx,
 		events: make(chan Event),
+		done:   make(chan struct{}),
 		Params: params,
-		mu:     new(sync.Mutex),
-		closed: false,
 	}
 
 	params.Client.Mapper.Reset()
@@ -99,22 +95,21 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 }
 
 func (ctrl *Instance) Run() error {
+	defer close(ctrl.done)
+
 	var (
 		activeMap   xsync.Map[string, chan struct{}]
 		timers      sync.Map
 		concurrency = max(ctrl.Concurrency, 1)
 	)
 
-	var wg sync.WaitGroup
-	wg.Add(concurrency)
-
 	queue, stop := QueueFromChannel(ctrl.events)
 	defer stop()
 
-	for range concurrency {
-		go func() {
-			defer wg.Done()
+	var wg sync.WaitGroup
 
+	for range concurrency {
+		wg.Go(func() {
 			for {
 				select {
 				case <-ctrl.ctx.Done():
@@ -196,7 +191,7 @@ func (ctrl *Instance) Run() error {
 					}()
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -213,28 +208,26 @@ func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, resource schema.
 
 	informerHandler := func(obj any) {
 		resource := obj.(*unstructured.Unstructured)
-		events <- Event{
+		ctrl.SendEvent(Event{
 			Name:      resource.GetName(),
 			Namespace: resource.GetNamespace(),
-		}
+		})
 	}
 
 	informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
-		AddFunc: informerHandler,
+		AddFunc:    informerHandler,
+		DeleteFunc: informerHandler,
 		UpdateFunc: func(oldObj any, newObj any) {
 			prev := oldObj.(*unstructured.Unstructured)
 			next := newObj.(*unstructured.Unstructured)
-
 			if internal.ResourcesAreEqual(prev, next) {
 				return
 			}
-
-			events <- Event{
+			ctrl.SendEvent(Event{
 				Name:      next.GetName(),
 				Namespace: next.GetNamespace(),
-			}
+			})
 		},
-		DeleteFunc: informerHandler,
 	})
 
 	factory.Start(ctx.Done())
@@ -243,14 +236,10 @@ func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, resource schema.
 }
 
 func (ctrl *Instance) SendEvent(evt Event) {
-	ctrl.mu.Lock()
-	defer ctrl.mu.Unlock()
-
-	if ctrl.closed {
-		return
+	select {
+	case ctrl.events <- evt:
+	case <-ctrl.done:
 	}
-
-	ctrl.events <- evt
 }
 
 func powInt(base int, up int) int {
