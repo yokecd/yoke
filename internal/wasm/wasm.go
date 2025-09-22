@@ -57,8 +57,10 @@ func (buffer Buffer) Length() uint32 {
 	return uint32(buffer)
 }
 
+// Slice returns a copy of the data from the underlying Buffer by reading the data at the buffer address for its length.
+// Once read, the buffer is safe to be freed.
 func (buffer Buffer) Slice() []byte {
-	return unsafe.Slice((*byte)(unsafe.Pointer(uintptr(buffer.Address()))), buffer.Length())
+	return append([]byte{}, unsafe.Slice((*byte)(unsafe.Pointer(uintptr(buffer.Address()))), buffer.Length())...)
 }
 
 func (buffer Buffer) String() string {
