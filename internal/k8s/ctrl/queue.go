@@ -14,6 +14,7 @@ type Queue[T fmt.Stringer] struct {
 	lock    *sync.Mutex
 	pipe    chan T
 	C       chan T
+	Stop    func()
 }
 
 func (queue *Queue[T]) Enqueue(value T) {
@@ -52,7 +53,7 @@ func (queue *Queue[t]) tryUnshift() {
 
 // QueueFromChannel returns a queue that will dedup events based on its string representation as
 // determined by fmt.Stringer.
-func QueueFromChannel[T fmt.Stringer](c chan T) (*Queue[T], func()) {
+func QueueFromChannel[T fmt.Stringer](c chan T) *Queue[T] {
 	queue := Queue[T]{
 		barrier: &xsync.Map[string, struct{}]{},
 		buffer:  []T{},
@@ -101,10 +102,10 @@ func QueueFromChannel[T fmt.Stringer](c chan T) (*Queue[T], func()) {
 		}
 	}()
 
-	stop := func() {
+	queue.Stop = func() {
 		cancel()
 		wg.Wait()
 	}
 
-	return &queue, stop
+	return &queue
 }
