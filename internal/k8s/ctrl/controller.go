@@ -53,8 +53,7 @@ type HandleFunc func(context.Context, Event) (Result, error)
 
 type Instance struct {
 	ctx    context.Context
-	events chan Event
-	done   chan struct{}
+	events *Queue[Event]
 	Params
 }
 
@@ -75,12 +74,7 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 
 	params.Handler = safe(params.Handler)
 
-	instance := &Instance{
-		ctx:    ctx,
-		events: make(chan Event),
-		done:   make(chan struct{}),
-		Params: params,
-	}
+	instance := &Instance{ctx: ctx, Params: params}
 
 	params.Client.Mapper.Reset()
 
@@ -89,22 +83,19 @@ func NewController(ctx context.Context, params Params) (*Instance, error) {
 		return nil, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
 	}
 
-	instance.events = instance.eventsFromMetaGetter(ctx, mapping.Resource)
+	instance.events = QueueFromChannel(instance.eventsFromMetaGetter(ctx, mapping.Resource))
 
 	return instance, nil
 }
 
 func (ctrl *Instance) Run() error {
-	defer close(ctrl.done)
+	defer ctrl.events.Stop()
 
 	var (
 		activeMap   xsync.Map[string, chan struct{}]
 		timers      xsync.Map[string, *time.Timer]
 		concurrency = max(ctrl.Concurrency, 1)
 	)
-
-	queue, stop := QueueFromChannel(ctrl.events)
-	defer stop()
 
 	var wg sync.WaitGroup
 
@@ -114,7 +105,7 @@ func (ctrl *Instance) Run() error {
 				select {
 				case <-ctrl.ctx.Done():
 					return
-				case event := <-queue.C:
+				case event := <-ctrl.events.C:
 					func() {
 						defer func() {
 							if e := recover(); e != nil {
@@ -129,7 +120,7 @@ func (ctrl *Instance) Run() error {
 								case <-ctrl.ctx.Done():
 									return
 								case <-done:
-									queue.Enqueue(event)
+									ctrl.events.Enqueue(event)
 								}
 							})
 							return
@@ -179,7 +170,7 @@ func (ctrl *Instance) Run() error {
 									event.attempts = 0
 								}
 								timers.Delete(event.String())
-								queue.Enqueue(event)
+								ctrl.events.Enqueue(event)
 							}))
 						}
 
@@ -236,10 +227,7 @@ func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, resource schema.
 }
 
 func (ctrl *Instance) SendEvent(evt Event) {
-	select {
-	case ctrl.events <- evt:
-	case <-ctrl.done:
-	}
+	ctrl.events.Enqueue(evt)
 }
 
 func powInt(base int, up int) int {
