@@ -40,6 +40,19 @@ jobs:
 
           task test
 
+      - name: Dump kubectl logs
+        if: failure()
+        run: |
+          kubectl config use-context kind-atc-test
+          kubectl cluster-info dump > k8s_dump.out
+
+      - name: Upload k8s dump
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s_dump.out
+          path: k8s_dump.out
+
       - name: Build and Release Flights
         if: github.ref == 'refs/heads/main'
         shell: bash
