@@ -212,6 +212,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
+				TimeoutSeconds:          ptr.To[int32](1),
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name: "all",
