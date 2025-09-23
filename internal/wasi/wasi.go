@@ -251,7 +251,7 @@ func LoadBytes(module api.Module, value wasm.Buffer) []byte {
 	if value == 0 {
 		return nil
 	}
-	data, ok := module.Memory().Read(uint32(value>>32), uint32(value))
+	data, ok := module.Memory().Read(value.Address(), value.Length())
 	if !ok {
 		panic("memory read out of bounds")
 	}
