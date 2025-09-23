@@ -53,11 +53,11 @@ type FlightState struct {
 
 type Controller struct {
 	*ctrl.Instance
-	values map[string]FlightState
+	values *xsync.Map[string, FlightState]
 }
 
 func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
-	state, ok := controller.values[ctrl.Event{Name: name, Namespace: ns}.String()]
+	state, ok := controller.values.Load(ctrl.Event{Name: name, Namespace: ns}.String())
 	return state, ok
 }
 
@@ -449,7 +449,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	flightController, err := func() (Controller, error) {
-		flightStates := map[string]FlightState{}
+		flightStates := new(xsync.Map[string, FlightState])
 
 		ctrl, err := ctrl.NewController(flightCtx, ctrl.Params{
 			GK: flightGK,
@@ -506,7 +506,7 @@ type FlightReconcilerParams struct {
 	Version string
 	Flight  *wasm.Module
 	Airway  v1alpha1.Airway
-	States  map[string]FlightState
+	States  *xsync.Map[string, FlightState]
 }
 
 func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
@@ -558,24 +558,16 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			return override
 		}()
 
-		mutex := func() *sync.RWMutex {
-			if mutex := params.States[event.String()].Mutex; mutex != nil {
-				return mutex
-			}
-			return new(sync.RWMutex)
-		}()
+		flightState, _ := params.States.LoadOrStore(event.String(), FlightState{Mutex: new(sync.RWMutex)})
 
 		// This lock ensures that admission cannot update subresources while this control loop is running.
-		mutex.Lock()
-		defer mutex.Unlock()
+		flightState.Mutex.Lock()
+		defer flightState.Mutex.Unlock()
 
-		mode := cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
+		flightState.ClusterAccess = params.Airway.Spec.ClusterAccess
+		flightState.Mode = cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
 
-		params.States[event.String()] = FlightState{
-			Mode:          mode,
-			Mutex:         mutex,
-			ClusterAccess: params.Airway.Spec.ClusterAccess,
-		}
+		params.States.Store(event.String(), flightState)
 
 		flightStatus := func(status metav1.ConditionStatus, reason string, msg any) {
 			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
@@ -695,7 +687,8 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 				}
 			}
 
-			delete(params.States, event.String())
+			params.States.Delete(event.String())
+			atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
 
 			return ctrl.Result{}, nil
 		}
@@ -766,15 +759,25 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
-		if mode == v1alpha1.AirwayModeDynamic {
+		if flightState.Mode == v1alpha1.AirwayModeDynamic {
 			ctx = wasi.WithExternalResourceTracking(ctx)
 			defer func() {
-				atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+				if err == nil {
+					// Takeoff succeeded, hence we want to drop all previous references to TrackedResources
+					// and build a new fresh list. If there is an error, we are in a dirty state and we can keep the old resource
+					// references as well as track whatever else was registered.
+					atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+				}
 				for _, resource := range wasi.TrackedResources(ctx) {
 					atc.dispatcher.Register(resource, ctrl.Inst(ctx), event.WithoutMeta())
 				}
 			}()
+		} else {
+			// if we are not in dynamic mode, either via an update to the Airway or a removed annotation,
+			// we need to stop EventDispatcher events to this controller.
+			atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
 		}
+
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
 			if !internal.IsWarning(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
