@@ -696,22 +696,34 @@ func TestRestarts(t *testing.T) {
 		_, err = client.Clientset.AppsV1().Deployments("atc").Update(ctx, atc, metav1.UpdateOptions{FieldManager: "yoke"})
 		require.NoError(t, err)
 
+		start := time.Now()
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
+				atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, atc.Name, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get atc deployment: %w", err)
+				}
+				if replicas := atc.Spec.Replicas; replicas == nil || *replicas != scale {
+					return fmt.Errorf("unexpected replicas on atc deployment: wanted %d got %v", scale, replicas)
+				}
 				pods, err := client.Clientset.CoreV1().Pods("atc").List(ctx, metav1.ListOptions{
 					LabelSelector: "yoke.cd/app=atc",
 				})
 				if err != nil {
 					return err
 				}
+				for _, pod := range pods.Items {
+					t.Log(pod.Name, pod.DeletionTimestamp)
+				}
 				if count := len(pods.Items); count != int(scale) {
 					return fmt.Errorf("expected %d pods but got %d", scale, count)
 				}
+				t.Log("Scale Event Timer:", scale, time.Since(start).String())
 				return nil
 			},
-			time.Second,
-			30*time.Second,
+			time.Second/2,
+			time.Minute,
 			"pods did not scale to 0",
 		)
 	}
