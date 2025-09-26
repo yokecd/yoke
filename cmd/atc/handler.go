@@ -520,11 +520,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return internal.ResourceString(prev)
 		}()
 
-		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
-		xhttp.AddRequestAttrs(r.Context(), slog.String("operation", string(review.Request.Operation)))
-		xhttp.AddRequestAttrs(r.Context(), slog.String("resource", resource))
+		dispatches := dispatcher.Dispatch(resource)
 
-		for _, value := range dispatcher.Dispatch(resource) {
+		for _, value := range dispatches {
 			logger.Info(
 				"external resource dispatch event",
 				"triggeringResource", resource,
@@ -532,6 +530,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				value.Name, "eventNamesace", value.Namespace,
 			)
 		}
+
+		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("operation", string(review.Request.Operation)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("resource", resource))
+		xhttp.AddRequestAttrs(r.Context(), slog.Int("dispatchCount", len(dispatches)))
 
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
@@ -543,7 +546,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 		review.Request = nil
 
-		json.NewEncoder(w).Encode(review)
+		if err := json.NewEncoder(w).Encode(review); err != nil {
+			logger.Error("unexpected: failed to write response to connection", "error", err)
+		}
 	})
 
 	mux.HandleFunc("POST /validations/airways.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
@@ -586,9 +591,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 	})
 
 	handler := xhttp.WithRecover(mux)
-	handler = xhttp.WithLogger(logger, handler, func(pattern string, attrs []slog.Attr) bool {
-		return pattern != "POST /validations/external-resources"
-	})
+	handler = xhttp.WithLogger(logger, handler, nil)
 
 	return handler
 }

@@ -216,12 +216,15 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name: "all",
-						Expression: strings.Join(
-							[]string{
-								`(object.kind != "Lease" && !object.apiVersion.startsWith("coordination.k8s.io/"))`,
-								`(oldObject.kind != "Lease" && !oldObject.apiVersion.startsWith("coordination.k8s.io/"))`,
-							},
-							" || ",
+						Expression: And(
+							Or(
+								`object.kind != "Lease" && !object.apiVersion.startsWith("coordination.k8s.io/")`,
+								`oldObject.kind != "Lease" && !oldObject.apiVersion.startsWith("coordination.k8s.io/")`,
+							),
+							Or(
+								`object.kind != "Node" && object.apiVersion != ""`,
+								`oldObject.kind != "Node" && oldObject.apiVersion != ""`,
+							),
 						),
 					},
 				},
@@ -257,4 +260,12 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 	}
 
 	return nil
+}
+
+func And(expressions ...string) string {
+	return fmt.Sprintf("(%s)", strings.Join(expressions, " && "))
+}
+
+func Or(expressions ...string) string {
+	return fmt.Sprintf("(%s)", strings.Join(expressions, " || "))
 }
