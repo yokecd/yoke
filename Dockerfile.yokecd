@@ -1,4 +1,7 @@
-FROM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /cmp
 
@@ -10,7 +13,7 @@ COPY ./cmd/yokecd ./cmd/yokecd
 COPY ./internal ./internal
 COPY ./pkg ./pkg
 
-RUN go build -o /bin/yokecd ./cmd/yokecd
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/yokecd ./cmd/yokecd
 
 FROM golang:1.25-alpine
 
