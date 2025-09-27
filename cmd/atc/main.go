@@ -34,7 +34,12 @@ func main() {
 }
 
 func run() (err error) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := func() *slog.Logger {
+		if os.Getenv("LOG_FORMAT") == "text" {
+			return slog.New(slog.NewTextHandler(os.Stdout, nil))
+		}
+		return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	}()
 	defer func() {
 		if err != nil {
 			logger.Error("program exiting with error", "error", err.Error())
@@ -144,6 +149,7 @@ func run() (err error) {
 
 		go func() {
 			defer close(serverErr)
+			logger.Info("ATC Admission Control Server starting")
 			if err := svr.ListenAndServeTLS(cfg.TLS.ServerCert.Path, cfg.TLS.ServerKey.Path); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				serverErr <- err
 			}

@@ -33,6 +33,7 @@ type Config struct {
 	ImagePullPolicy        corev1.PullPolicy `json:"ImagePullPolicy"`
 	GenerateTLS            bool              `json:"generateTLS"`
 	DockerConfigSecretName string            `json:"dockerConfigSecretName"`
+	LogFormat              string            `json:"logFormat"`
 }
 
 var (
@@ -226,6 +227,7 @@ func Run(cfg Config) (flight.Resources, error) {
 								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
 								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
 								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
+								{Name: "LOG_FORMAT", Value: cfg.LogFormat},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
