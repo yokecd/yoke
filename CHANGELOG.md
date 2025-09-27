@@ -4,6 +4,53 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-09-27) atc/v0.15.8 - latest - yokecd/v0.15.7
+
+- ci: split tests and build-release processes ([a737ab0](https://github.com/yokecd/yoke/commit/a737ab0fa244e246854edc9cd5da2f37542dad5b))
+- dockerbuild: use cross-compilation strategy over emulation ([f7609fc](https://github.com/yokecd/yoke/commit/f7609fcd7b17bf8412a8b8e9f18b623b5e58047e))
+
+## (2025-09-26) atc-installer/v0.14.3 - v0.16.8 - yokecd-installer/v0.15.4
+
+<details>
+<summary>20 commits</summary>
+
+- deps: update deps ([d9c0e7c](https://github.com/yokecd/yoke/commit/d9c0e7cd5155a3b9148c53758c026c9e6bdae768))
+- atc: external resource validation ignores Node and Lease heartbeats ([a1d9e81](https://github.com/yokecd/yoke/commit/a1d9e81380d7750461a48b99b82161bae86ec5ec))
+- atc: drop events from dispatcher when resource is removed or mode is not dynamic ([f4f44b8](https://github.com/yokecd/yoke/commit/f4f44b889c108a217047f6fb763ef96aa8a2262b))
+- internal/wasi: refactor to use wasm.Buffer methods instead of manual bit shifts ([2ce9ca3](https://github.com/yokecd/yoke/commit/2ce9ca3b8101028aaa9cc31f893193abb6c6bb2a))
+- atc: reduce external validation webhook timeout to 1 second ([6cab333](https://github.com/yokecd/yoke/commit/6cab3334ebb0192d1f08842437092b280e7dffd4))
+- atc: increase timeout on atc deployment scale events ([44bb836](https://github.com/yokecd/yoke/commit/44bb83654ada492742c6f52e5892db8e30afebb7))
+- ci: dump kubectl cluster info to github artifact on failure ([39cf875](https://github.com/yokecd/yoke/commit/39cf875de147448828ebb45eb59b795d56121052))
+- pkg/wasi: introduce free mechanism for releasing host-malloc-ed memory ([175df32](https://github.com/yokecd/yoke/commit/175df3283ab4e13f31de9dbebda00a5d2ddea217))
+- internal/k8s/ctrl: make sure ctrl.SendEvent is non blocking when no routines are available to read events ([5fff93a](https://github.com/yokecd/yoke/commit/5fff93ad3aa7b53f8661aa56b932a5cbaf66df84))
+- internal/xsync: fix map.LoadAndDelete panic on type conversion when cache miss ([e5cfc48](https://github.com/yokecd/yoke/commit/e5cfc4898b28911ba530d99b2a6714048e465343))
+- pkg/flight/wasi: capture reference to malloc-ed memory so that GC cannot overwrite returned buffers ([8149767](https://github.com/yokecd/yoke/commit/8149767bba3c33b9ca108cd4f407a39610ed525c))
+- internal/k8s/ctrl: refactor timers to use internal xsync.Map for stronger typing ([c002627](https://github.com/yokecd/yoke/commit/c002627cff4c65098103f8efa8b4096cf2ff6122))
+- internal/k8s/ctrl: fix ctrl.Instance close potentially leaking go routines trying to send events ([2f2f254](https://github.com/yokecd/yoke/commit/2f2f254d60ffbbf26c81c2c9ef65839933dc96e2))
+- atc: add log for external-resource dispatched events ([365719e](https://github.com/yokecd/yoke/commit/365719e8a2db9dd634c9f4a2e79b7ba9410ccf95))
+- yokecd/svr: fix changed function signature ([fcf3f55](https://github.com/yokecd/yoke/commit/fcf3f556f855e90f7835b4ad6ad88621b56bfb8f))
+- atc: add dynamic external resources test ([fcfcfa4](https://github.com/yokecd/yoke/commit/fcfcfa48909dbfc3f049ec777b6efb366dade1f0))
+- atc: add external-resource validation webhook ([68061ee](https://github.com/yokecd/yoke/commit/68061ee84e3bd4f654151013875b530b40e21ade))
+- atc: refactor event dispatcher to be keyed by resource ([951a881](https://github.com/yokecd/yoke/commit/951a8811f159780adb08ed4a9112d5c02ff99d0e))
+- internal/wasi: add resource tracking mechanism via context ([ec682db](https://github.com/yokecd/yoke/commit/ec682dbf525add1ffab9f93b7700e256d74a4f00))
+- atc: build event dispatcher ([1454b06](https://github.com/yokecd/yoke/commit/1454b06e84935dfdb5db335ee2417bbffbc72511))
+
+</details>
+
+## (2025-08-27) atc/v0.15.7 - atc-installer/v0.14.2 - v0.16.7 - yokecd/v0.15.6 - yokecd-installer/v0.15.3
+
+- deps: update Go to v1.25.0 and update dependencies ([a7d1c49](https://github.com/yokecd/yoke/commit/a7d1c49d0884a64f9e0fbe0b0ca39194f1b426ce))
+- refactor: introduce typed generic wrapper for unstructured client ([582471c](https://github.com/yokecd/yoke/commit/582471c10de5307a8fba5ad2c97b9848f581d276))
+
+## (2025-08-23) v0.16.6
+
+- feat: add functionality to quit atc when pressing esc on top level ([c3a33a5](https://github.com/yokecd/yoke/commit/c3a33a522764a6900194538474009264cce4eea9))
+
+## (2025-08-10) atc/v0.15.6 - v0.16.5 - yokecd/v0.15.5 - yokecd-installer/v0.15.2
+
+- internal/releaser: release yoke cli built with vcs information instead of local ([5645e38](https://github.com/yokecd/yoke/commit/5645e381040e3ed4de559baccc64892ce3772671))
+- yoke/version: include go toolchain in version output ([194c187](https://github.com/yokecd/yoke/commit/194c187efafc1b063c105470b30da28a775b930d))
+
 ## (2025-08-09) atc/v0.15.5
 
 - atc: apply Airway CRD with forceful options on startup ([8237363](https://github.com/yokecd/yoke/commit/823736382cc8704873e913dc7ba81f84df1abe21))
@@ -22,7 +69,7 @@
 
 - yoke/takeoff: move all resource mutations after exports ([5b1c0e7](https://github.com/yokecd/yoke/commit/5b1c0e7d0b9407e2e0b5735120a8469eacf3ff74))
 
-## (2025-07-23) atc/v0.15.1 - latest - v0.16.1 - yokecd/v0.15.1
+## (2025-07-23) atc/v0.15.1 - v0.16.1 - yokecd/v0.15.1
 
 - yokecd: support cluster access and resource matching ([702919d](https://github.com/yokecd/yoke/commit/702919d5bbc9d509942ffb3d8bebdd291f2623a4))
 - internal/wasi: refactor to make cluster-access contextual to the host module ([8ed3204](https://github.com/yokecd/yoke/commit/8ed3204cf46fd68df3434e24e87d5aae9730e95e))
