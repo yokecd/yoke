@@ -54,6 +54,7 @@ jobs:
           path: k8s_dump.out
 
   build-binaries:
+    if: github.ref == 'refs/heads/main'
     needs:
       - test
     permissions:
@@ -75,8 +76,7 @@ jobs:
           cache-dependency-path: go.sum
           cache: true
 
-      - name: Build and Release Flights
-        if: github.ref == 'refs/heads/main'
+      - name: Build and publish binaries
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
@@ -89,6 +89,7 @@ jobs:
             -wasm atc-installer
 
   build-docker-images:
+    if: github.ref == 'refs/heads/main'
     needs:
       - test
     permissions:
@@ -110,8 +111,7 @@ jobs:
           cache-dependency-path: go.sum
           cache: true
 
-      - name: Build and Release Flights
-        if: github.ref == 'refs/heads/main'
+      - name: Build and publish docker images
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
