@@ -12,7 +12,7 @@ on:
       - main
 
 jobs:
-  build-and-release:
+  test:
     permissions:
       contents: write
       packages: write
@@ -53,6 +53,28 @@ jobs:
           name: k8s_dump.out
           path: k8s_dump.out
 
+  build-binaries:
+    needs:
+      - test
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+          cache: true
+
       - name: Build and Release Flights
         if: github.ref == 'refs/heads/main'
         shell: bash
@@ -64,6 +86,37 @@ jobs:
             -latest \
             -cli \
             -wasm yokecd-installer \
-            -wasm atc-installer \
+            -wasm atc-installer
+
+  build-docker-images:
+    needs:
+      - test
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+          cache: true
+
+      - name: Build and Release Flights
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          GITHUB_ACTOR: davidmdm
+        run: |
+          go run ./cmd/internal/releaser \
             -docker atc \
             -docker yokecd
