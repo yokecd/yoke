@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +35,9 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 			return nil, err
 		}
 
-		mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Group: gv.Group, Kind: kind}, gv.Version)
+		gk := schema.GroupKind{Group: gv.Group, Kind: kind}
+
+		mapping, err := client.Mapper.RESTMapping(gk, gv.Version)
 		if err != nil {
 			return nil, err
 		}
@@ -49,16 +52,24 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 
 		resource, err := intf.Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
+			resourceID := fmt.Sprintf("%s/%s:%s", namespace, gk.String(), name)
+			if kerrors.IsNotFound(err) && slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
+				return internal.MatcherContains(matcher, resourceID)
+			}) {
+				if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
+					externalResources.Add(resourceID)
+				}
+			}
 			return nil, err
 		}
 
-		for _, matcher := range clusterAccess.ResourceMatchers {
-			if internal.MatchResource(resource, matcher) {
-				if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
-					externalResources.Add(internal.ResourceString(resource))
-				}
-				return resource, nil
+		if slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
+			return internal.MatchResource(resource, matcher)
+		}) {
+			if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
+				externalResources.Add(internal.ResourceString(resource))
 			}
+			return resource, nil
 		}
 
 		if internal.GetOwner(resource) != getOwner(ctx) {
