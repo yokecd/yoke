@@ -217,6 +217,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 					{
 						Name: "all",
 						Expression: And(
+							Or(`object.metadata.name != ""`, `oldObject.metadata.name != ""`),
 							Or(
 								`object.kind != "Lease" && !object.apiVersion.startsWith("coordination.k8s.io/")`,
 								`oldObject.kind != "Lease" && !oldObject.apiVersion.startsWith("coordination.k8s.io/")`,
@@ -231,6 +232,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Create,
 							admissionregistrationv1.Update,
 							admissionregistrationv1.Delete,
 						},

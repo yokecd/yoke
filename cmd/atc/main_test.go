@@ -2059,6 +2059,167 @@ func TestDynamicWithExternalResource(t *testing.T) {
 	)
 }
 
+func TestExternalDynamicCreateEvent(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	type Spec struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+	}
+
+	type Status struct {
+		Msg string `json:"msg"`
+	}
+
+	type CopyJob struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+		Spec              Spec   `json:"spec"`
+		Status            Status `json:"status"`
+	}
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "dynamic-external-creation-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "clones.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/externalcreation.wasm",
+					},
+					Mode:                   v1alpha1.AirwayModeDynamic,
+					ClusterAccess:          true,
+					ResourceAccessMatchers: []string{"default/ConfigMap"},
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "clones",
+							Singular: "clone",
+							Kind:     "Clone",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CopyJob]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "dynamic-external-creation-airway"}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := client.AirwayIntf.Get(ctx, "clones.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("clones.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
+
+	configmapIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	cloneIntf := k8s.
+		TypedInterface[CopyJob](client.Dynamic, schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "clones",
+	}).
+		Namespace("default")
+
+	be := &CopyJob{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Clone",
+			APIVersion: "examples.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: Spec{
+			Source: "source",
+			Target: "target",
+		},
+	}
+
+	_, err = configmapIntf.Get(ctx, "target", metav1.GetOptions{})
+	require.True(t, kerrors.IsNotFound(err))
+
+	_, err = cloneIntf.Create(ctx, be, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			cm, err := cloneIntf.Get(ctx, "test", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			expected := "source does not exist: waiting for it to be created."
+			if actual := cm.Status.Msg; actual != expected {
+				return fmt.Errorf("expected status.msg to be %q but got %q", expected, actual)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"error asserting Clone state",
+	)
+
+	_, err = configmapIntf.Create(
+		ctx,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "source"},
+			Data:       map[string]string{"test": "data"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			target, err := configmapIntf.Get(ctx, "target", metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if target.Data["test"] != "data" {
+				return fmt.Errorf("expected target.data.test to be data but got: %v", target.Data["test"])
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"error asserting target configmap state",
+	)
+}
+
 func TestStatusUpdates(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
