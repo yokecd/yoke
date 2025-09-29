@@ -216,6 +216,8 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		return err
 	}
 
+	dropUndesiredMetaProps(stages.Flatten())
+
 	if params.DiffOnly {
 		release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 		if err != nil {
@@ -420,6 +422,21 @@ func toUnstructuredNS(ns string) *unstructured.Unstructured {
 			"kind":       "Namespace",
 			"metadata":   map[string]any{"name": ns},
 		},
+	}
+}
+
+// dropUndesiredMetaProps removes properties that may be provided to yoke via some resource lookup
+// but that do not belong in a server-side apply. These include resource version, managedFields, creationtimestamp,
+// and possibly more.
+func dropUndesiredMetaProps(resources []*unstructured.Unstructured) {
+	for _, resource := range resources {
+		if resource == nil {
+			continue
+		}
+		unstructured.RemoveNestedField(resource.Object, "metadata", "resourceVersion")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "creationTimestamp")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "uid")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "managedFields")
 	}
 }
 
