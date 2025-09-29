@@ -8,6 +8,7 @@ import (
 
 	// Make sure to include wasi as it contains necessary "malloc" export that will be needed
 	// for the host to allocate a wasm.Buffer. IE: any wasm module that uses this package exports wasi.malloc
+	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/flight/wasi"
 )
 
@@ -16,6 +17,20 @@ type ResourceIdentifier struct {
 	Namespace  string
 	Kind       string
 	ApiVersion string
+}
+
+type object[T any] interface {
+	*T
+	flight.Resource
+}
+
+func LookupResource[T any, P object[T]](value P) (P, error) {
+	return Lookup[T](ResourceIdentifier{
+		Name:       value.GetName(),
+		Namespace:  value.GetNamespace(),
+		Kind:       value.GroupVersionKind().Kind,
+		ApiVersion: value.GroupVersionKind().GroupVersion().Identifier(),
+	})
 }
 
 func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
