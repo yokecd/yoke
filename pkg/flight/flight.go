@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -46,6 +47,7 @@ const (
 //
 // Having this type allows us to not fallback to using `any` when building our flight implementations.
 type Resource interface {
+	metav1.Object
 	GroupVersionKind() schema.GroupVersionKind
 }
 
