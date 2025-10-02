@@ -34,6 +34,7 @@ type Config struct {
 	GenerateTLS            bool              `json:"generateTLS"`
 	DockerConfigSecretName string            `json:"dockerConfigSecretName"`
 	LogFormat              string            `json:"logFormat"`
+	Verbose                bool              `json:"verbose"`
 }
 
 var (
@@ -228,6 +229,7 @@ func Run(cfg Config) (flight.Resources, error) {
 								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
 								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
 								{Name: "LOG_FORMAT", Value: cfg.LogFormat},
+								{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{

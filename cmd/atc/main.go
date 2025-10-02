@@ -22,6 +22,7 @@ import (
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/xhttp"
 )
 
 func main() {
@@ -140,8 +141,17 @@ func run() (err error) {
 	go func() {
 		defer wg.Done()
 
+		filter := func() xhttp.LogFilterFunc {
+			if cfg.Verbose {
+				return nil
+			}
+			return func(pattern string, attrs []slog.Attr) bool {
+				return pattern != "POST /validations/external-resources"
+			}
+		}()
+
 		svr := http.Server{
-			Handler: Handler(client, moduleCache, controllers, eventDispatcher, logger.With("component", "server")),
+			Handler: Handler(client, moduleCache, controllers, eventDispatcher, logger.With("component", "server"), filter),
 			Addr:    fmt.Sprintf(":%d", cfg.Port),
 		}
 
