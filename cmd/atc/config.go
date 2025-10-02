@@ -18,6 +18,8 @@ type Config struct {
 
 	DockerConfigSecretName string
 
+	Verbose bool
+
 	TLS TLSConfig
 }
 
@@ -50,6 +52,8 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Service.Port, "SVC_PORT", conf.RequiredNonEmpty[int32]())
 
 	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
+
+	conf.Var(parser, &cfg.Verbose, "VERBOSE")
 
 	if err := parser.Parse(); err != nil {
 		return nil, err

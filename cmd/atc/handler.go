@@ -29,7 +29,7 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, dispatcher *atc.EventDispatcher, logger *slog.Logger) http.Handler {
+func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, dispatcher *atc.EventDispatcher, logger *slog.Logger, filter xhttp.LogFilterFunc) http.Handler {
 	mux := http.NewServeMux()
 
 	commander := yoke.FromK8Client(client)
@@ -591,7 +591,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 	})
 
 	handler := xhttp.WithRecover(mux)
-	handler = xhttp.WithLogger(logger, handler, nil)
+	handler = xhttp.WithLogger(logger, handler, filter)
 
 	return handler
 }
