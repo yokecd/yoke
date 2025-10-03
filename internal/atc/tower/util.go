@@ -11,6 +11,9 @@ import (
 func maxLenRow(rows []table.Row, index int, minLim, maxLim int) int {
 	var longest int
 	for _, row := range rows {
+		if index >= len(row) {
+			continue
+		}
 		if length := lipgloss.Width(row[index]); length > longest {
 			longest = length
 		}
