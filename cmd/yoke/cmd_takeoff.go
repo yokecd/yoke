@@ -63,6 +63,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.CrossNamespace, "cross-namespace", false, "allows releases to create resources in other namespaces than the target namespace")
 	flagset.BoolVar(&params.ClusterAccess.Enabled, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
 	flagset.BoolVar(&params.Flight.Insecure, "insecure", false, "allows image references to be fetched without TLS (only applies to oci urls)")
+	flagset.Uint64Var(&params.Flight.MaxMemoryMib, "max-memory-mib", 128, "max memory a flight is allowed to allocate at runtime. Max is 4096.")
 
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "use colored output in diffs")

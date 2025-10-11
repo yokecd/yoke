@@ -1666,3 +1666,36 @@ func TestOptimisticLocking(t *testing.T) {
 
 	commander.Mayday(background, yoke.MaydayParams{Release: "foo"})
 }
+
+func TestMaxMemoryMib(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/memory.wasm ./internal/testing/flights/memory", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	err = commander.Takeoff(background, yoke.TakeoffParams{
+		Release: "memory",
+		Flight: yoke.FlightParams{
+			Path:         "./test_output/memory.wasm",
+			Args:         []string{"-mb", "2"},
+			MaxMemoryMib: 10,
+		},
+	})
+	if err != nil {
+		require.True(t, internal.IsWarning(err), err.Error())
+	}
+	require.ErrorContains(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release: "memory",
+			Flight: yoke.FlightParams{
+				Path:         "./test_output/memory.wasm",
+				Args:         []string{"-mb", "10"},
+				MaxMemoryMib: 10,
+			},
+		}),
+		"out of memory",
+	)
+}

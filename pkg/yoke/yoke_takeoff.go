@@ -42,6 +42,10 @@ type FlightParams struct {
 	Args                []string
 	CompilationCacheDir string
 
+	// MaxMemoryMib is the maximum amount of memory a flight can allocate. If this is not set, the flight can use the maximum amount of memory available.
+	// The maximum memory abailable is 4gb or 4096mb
+	MaxMemoryMib uint64
+
 	// Env specifies user-defined envvars to be added to the flight execution.
 	// Standard yoke envvars will take precendence.
 	Env map[string]string

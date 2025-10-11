@@ -144,15 +144,18 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 	ctx = wasi.WithClusterAccess(ctx, params.ClusterAccess)
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
-		Wasm:           wasm,
-		Module:         params.Flight.Module.Instance,
-		Release:        params.Release,
-		Stdin:          params.Flight.Input,
-		Stderr:         params.Flight.Stderr,
-		Args:           params.Flight.Args,
-		Env:            env,
-		CacheDir:       params.Flight.CompilationCacheDir,
-		LookupResource: wasi.HostLookupResource(params.Client),
+		Module:  params.Flight.Module.Instance,
+		Release: params.Release,
+		Stdin:   params.Flight.Input,
+		Stderr:  params.Flight.Stderr,
+		Args:    params.Flight.Args,
+		Env:     env,
+		CompileParams: wasi.CompileParams{
+			Wasm:           wasm,
+			CacheDir:       params.Flight.CompilationCacheDir,
+			LookupResource: wasi.HostLookupResource(params.Client),
+			MaxMemoryMib:   uint32(params.Flight.MaxMemoryMib),
+		},
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
