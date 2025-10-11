@@ -23,15 +23,14 @@ import (
 )
 
 type ExecParams struct {
-	Wasm           []byte
-	Module         *Module
-	Release        string
-	Stdin          io.Reader
-	Stderr         io.Writer
-	Args           []string
-	Env            map[string]string
-	CacheDir       string
-	LookupResource HostLookupResourceFunc
+	Module  *Module
+	Release string
+	Stdin   io.Reader
+	Stderr  io.Writer
+	Args    []string
+	Env     map[string]string
+
+	CompileParams
 }
 
 func Execute(ctx context.Context, params ExecParams) (output []byte, err error) {
@@ -41,11 +40,7 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 			return params.Module, func(context.Context) error { return nil }, nil
 		}
 
-		mod, err := Compile(ctx, CompileParams{
-			Wasm:           params.Wasm,
-			CacheDir:       params.CacheDir,
-			LookupResource: params.LookupResource,
-		})
+		mod, err := Compile(ctx, params.CompileParams)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
 		}
@@ -115,6 +110,7 @@ type CompileParams struct {
 	Wasm           []byte
 	CacheDir       string
 	LookupResource HostLookupResourceFunc
+	MaxMemoryMib   uint32
 }
 
 type Module struct {
@@ -152,12 +148,21 @@ func (mod Module) Close(ctx context.Context) error {
 	)
 }
 
+const (
+	maxPages = 1 << 16
+	mibPages = 16
+)
+
 func Compile(ctx context.Context, params CompileParams) (Module, error) {
 	defer internal.DebugTimer(ctx, "wasm compile")()
 
 	cfg := wazero.
 		NewRuntimeConfig().
 		WithCloseOnContextDone(true)
+
+	if params.MaxMemoryMib > 0 {
+		cfg = cfg.WithMemoryLimitPages(min(mibPages*params.MaxMemoryMib, maxPages))
+	}
 
 	if params.CacheDir != "" {
 		cache, err := wazero.NewCompilationCacheWithDir(params.CacheDir)
