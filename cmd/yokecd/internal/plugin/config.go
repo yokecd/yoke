@@ -33,6 +33,7 @@ type Parameters struct {
 	Args             []string
 	ResourceMatchers []string
 	ClusterAccess    bool
+	MaxMemoryMib     uint32
 }
 
 // structure of individual CMP parameters
@@ -99,6 +100,24 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 
 	clusterAccess, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "clusterAccess" })
 	parameters.ClusterAccess, _ = strconv.ParseBool(clusterAccess.String)
+
+	parameters.MaxMemoryMib, err = func() (uint32, error) {
+		param, ok := internal.Find(elems, func(param CmpParam) bool { return param.Name == "maxMemoryMib" })
+		if !ok {
+			return 0, nil
+		}
+		maxMemoryMib, err := strconv.Atoi(param.String)
+		if err != nil {
+			return 0, err
+		}
+		if maxMemoryMib < 0 || maxMemoryMib > 4096 {
+			return 0, nil
+		}
+		return uint32(maxMemoryMib), nil
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to parse parameter maxMemoryMib: %w", err)
+	}
 
 	return nil
 }
@@ -215,5 +234,5 @@ func ConfigFromEnv() (cfg Config) {
 
 	conf.Environ.MustParse()
 
-	return
+	return cfg
 }
