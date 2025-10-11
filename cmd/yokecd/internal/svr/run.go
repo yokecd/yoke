@@ -151,6 +151,7 @@ type ExecuteReq struct {
 	Args          []string
 	Env           map[string]string
 	Input         string
+	MaxMemoryMib  uint32
 }
 
 type ExecResponse struct {
@@ -184,7 +185,7 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				mod.RLock()
 				defer mod.RUnlock()
 
-				if mod.Instance == nil || (ttl > 0 && time.Now().After(mod.Deadline)) {
+				if mod.Instance == nil || mod.Instance.MaxMemoryMib() != ex.MaxMemoryMib || (ttl > 0 && time.Now().After(mod.Deadline)) {
 					return nil, nil
 				}
 
@@ -219,7 +220,7 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				mod.Lock()
 				defer mod.Unlock()
 
-				if mod.Instance != nil && time.Now().Before(mod.Deadline) {
+				if mod.Instance != nil && mod.Instance.MaxMemoryMib() == ex.MaxMemoryMib && time.Now().Before(mod.Deadline) {
 					return nil
 				}
 
@@ -240,6 +241,7 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				instance, err := wasi.Compile(r.Context(), wasi.CompileParams{
 					Wasm:           wasm,
 					LookupResource: wasi.HostLookupResource(client),
+					MaxMemoryMib:   ex.MaxMemoryMib,
 				})
 				if err != nil {
 					return fmt.Errorf("failed to compile wasm: %w", err)

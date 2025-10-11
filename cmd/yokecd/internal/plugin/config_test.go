@@ -100,6 +100,47 @@ func TestConfigUnmarshalling(t *testing.T) {
 				ResourceMatchers: []string{"ConfigMap", "default/apps.Deployment"},
 			},
 		},
+		{
+			Name: "set max memory in range",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: maxMemoryMib, string: '128' },
+			]`,
+			Expected: Parameters{
+				Build:        true,
+				MaxMemoryMib: 128,
+			},
+		},
+		{
+			Name: "set max memory below range",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: maxMemoryMib, string: '-5' },
+			]`,
+			Expected: Parameters{
+				Build:        true,
+				MaxMemoryMib: 0,
+			},
+		},
+		{
+			Name: "set max memory above range",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: maxMemoryMib, string: '5000' },
+			]`,
+			Expected: Parameters{
+				Build:        true,
+				MaxMemoryMib: 0,
+			},
+		},
+		{
+			Name: "set invalid memory string",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: maxMemoryMib, string: 'a lot of memory' },
+			]`,
+			Error: `invalid config: failed to parse parameter maxMemoryMib: strconv.Atoi: parsing "a lot of memory": invalid syntax`,
+		},
 	}
 
 	for _, tc := range cases {
