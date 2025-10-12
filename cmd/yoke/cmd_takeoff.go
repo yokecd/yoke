@@ -64,6 +64,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.ClusterAccess.Enabled, "cluster-access", false, "allows flight access to the cluster during takeoff. Only applies when not directing output to stdout or to a local destination.")
 	flagset.BoolVar(&params.Flight.Insecure, "insecure", false, "allows image references to be fetched without TLS (only applies to oci urls)")
 	flagset.Uint64Var(&params.Flight.MaxMemoryMib, "max-memory-mib", 128, "max memory a flight is allowed to allocate at runtime. Max is 4096.")
+	flagset.DurationVar(&params.Flight.Timeout, "timeout", 10*time.Second, "timeout for flight execution. Setting to 0 keeps the default 10 seconds. To remove timeouts completely use a negative duration")
 
 	flagset.BoolVar(&params.DiffOnly, "diff-only", false, "show diff between current revision and would be applied state. Does not apply anything to cluster")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "use colored output in diffs")
