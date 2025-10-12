@@ -1699,3 +1699,22 @@ func TestMaxMemoryMib(t *testing.T) {
 		"out of memory",
 	)
 }
+
+func TestTimeout(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/halt.wasm ./internal/testing/flights/halt", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	require.ErrorContains(
+		t,
+		yoke.FromK8Client(client).Takeoff(background, yoke.TakeoffParams{
+			Release: "halt",
+			Flight: yoke.FlightParams{
+				Path:    "./test_output/halt.wasm",
+				Timeout: 10 * time.Millisecond,
+			},
+		}),
+		"failed to evaluate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (10ms) exceeded",
+	)
+}

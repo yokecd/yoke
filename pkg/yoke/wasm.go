@@ -149,6 +149,7 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		Stdin:   params.Flight.Input,
 		Stderr:  params.Flight.Stderr,
 		Args:    params.Flight.Args,
+		Timeout: params.Flight.Timeout,
 		Env:     env,
 		CompileParams: wasi.CompileParams{
 			Wasm:           wasm,

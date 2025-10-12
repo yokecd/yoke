@@ -46,6 +46,11 @@ type FlightParams struct {
 	// The maximum memory abailable is 4gb or 4096mb
 	MaxMemoryMib uint64
 
+	// Timeout sets a custom timeout flight run time. If exceeded, execution will fail with a Deadline Exceeded error.
+	// By default flights have a max runtime of 10 seconds. Setting this to a negative duration removes all timeouts.
+	// Running without timeouts is not recommended but you do you.
+	Timeout time.Duration
+
 	// Env specifies user-defined envvars to be added to the flight execution.
 	// Standard yoke envvars will take precendence.
 	Env map[string]string

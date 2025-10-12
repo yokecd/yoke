@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -28,6 +29,7 @@ type ExecParams struct {
 	Stdin   io.Reader
 	Stderr  io.Writer
 	Args    []string
+	Timeout time.Duration
 	Env     map[string]string
 
 	CompileParams
@@ -92,7 +94,26 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 
 	defer internal.DebugTimer(ctx, "execute wasm module")()
 
+	ctx, cancel := func() (context.Context, context.CancelFunc) {
+		if params.Timeout < 0 {
+			return ctx, func() {}
+		}
+		timeout := cmp.Or(params.Timeout, 10*time.Second)
+		return context.WithTimeoutCause(
+			ctx,
+			timeout,
+			fmt.Errorf("execution timeout (%s) exceeded", timeout.Abs().Round(time.Millisecond)),
+		)
+	}()
+	defer cancel()
+
 	if err := mod.Instantiate(ctx, moduleCfg); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			if cause := context.Cause(ctx); !errors.Is(cause, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("%v: %w", err, cause)
+			}
+			return nil, err
+		}
 		if params.Stderr != nil {
 			return nil, fmt.Errorf("failed to instantiate module: %w", err)
 		}
