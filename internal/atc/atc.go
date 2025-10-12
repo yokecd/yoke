@@ -270,6 +270,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
 				Wasm:           data,
 				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx)),
+				MaxMemoryMib:   airway.Spec.MaxMemoryMib,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)

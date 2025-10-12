@@ -27,6 +27,10 @@
         "insecure": {
           "type": "boolean"
         },
+        "maxMemoryMib": {
+          "type": "integer",
+          "minimum": 0
+        },
         "mode": {
           "type": "string",
           "default": "standard",
@@ -92,7 +96,8 @@
                         "caBundle": {
                           "type": "array",
                           "items": {
-                            "type": "integer"
+                            "type": "integer",
+                            "minimum": 0
                           }
                         },
                         "service": {
