@@ -138,6 +138,11 @@ type AirwaySpec struct {
 
 	// Prune enables pruning for resources that are not automatically pruned between updates or on deletion.
 	Prune PruneOptions `json:"prune,omitzero"`
+
+	// MaxMemoryMib sets the maximum amount of memory an Airway instance's flight execution can allocate.
+	// Leaving it unset will allow the maximum amount of memory which is 4Gib. It is recommended to set a reasonable maximum
+	// when working with third party flights.
+	MaxMemoryMib uint32 `json:"maxMemoryMib,omitzero"`
 }
 
 // PruneOptions describes the resources we wish to enable pruning for.

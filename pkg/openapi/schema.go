@@ -49,8 +49,10 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 	case reflect.String:
 		return &apiext.JSONSchemaProps{Type: "string"}
 
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		return &apiext.JSONSchemaProps{Type: "integer"}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return &apiext.JSONSchemaProps{Type: "integer", Minimum: ptr.To[float64](0)}
 	case reflect.Float32, reflect.Float64:
 		return &apiext.JSONSchemaProps{Type: "number"}
 	case reflect.Bool:
