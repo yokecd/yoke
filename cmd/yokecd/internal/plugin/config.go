@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"dario.cat/mergo"
 	"github.com/tidwall/sjson"
@@ -34,6 +35,7 @@ type Parameters struct {
 	ResourceMatchers []string
 	ClusterAccess    bool
 	MaxMemoryMib     uint32
+	Timeout          time.Duration
 }
 
 // structure of individual CMP parameters
@@ -117,6 +119,17 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to parse parameter maxMemoryMib: %w", err)
+	}
+
+	parameters.Timeout, err = func() (time.Duration, error) {
+		param, ok := internal.Find(elems, func(param CmpParam) bool { return param.Name == "timeout" })
+		if !ok {
+			return 0, nil
+		}
+		return time.ParseDuration(param.String)
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to parse parameter timeout: %w", err)
 	}
 
 	return nil

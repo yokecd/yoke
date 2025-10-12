@@ -152,6 +152,7 @@ type ExecuteReq struct {
 	Env           map[string]string
 	Input         string
 	MaxMemoryMib  uint32
+	Timeout       time.Duration
 }
 
 type ExecResponse struct {
@@ -195,10 +196,11 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 					Release:       ex.Release,
 					Namespace:     ex.Namespace,
 					Flight: yoke.FlightParams{
-						Module: yoke.Module{Instance: mod.Instance},
-						Args:   ex.Args,
-						Env:    ex.Env,
-						Input:  strings.NewReader(ex.Input),
+						Module:  yoke.Module{Instance: mod.Instance},
+						Args:    ex.Args,
+						Env:     ex.Env,
+						Input:   strings.NewReader(ex.Input),
+						Timeout: ex.Timeout,
 					},
 				})
 				return output, err

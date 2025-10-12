@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -140,6 +141,25 @@ func TestConfigUnmarshalling(t *testing.T) {
 				{ name: maxMemoryMib, string: 'a lot of memory' },
 			]`,
 			Error: `invalid config: failed to parse parameter maxMemoryMib: strconv.Atoi: parsing "a lot of memory": invalid syntax`,
+		},
+		{
+			Name: "with timeout",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: timeout, string: '5s' },
+			]`,
+			Expected: Parameters{
+				Build:   true,
+				Timeout: 5 * time.Second,
+			},
+		},
+		{
+			Name: "invalid duration",
+			Input: `[
+				{ name: build, string: 'true' },
+				{ name: timeout, string: '5 seconds' },
+			]`,
+			Error: `invalid config: failed to parse parameter timeout: time: unknown unit " seconds" in duration "5 seconds"`,
 		},
 	}
 
