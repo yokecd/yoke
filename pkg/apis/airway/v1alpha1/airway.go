@@ -143,6 +143,9 @@ type AirwaySpec struct {
 	// Leaving it unset will allow the maximum amount of memory which is 4Gib. It is recommended to set a reasonable maximum
 	// when working with third party flights.
 	MaxMemoryMib uint32 `json:"maxMemoryMib,omitzero"`
+
+	// Timeout is the timeout for the airway instance's flight execution. Default setting is 10s.
+	Timeout metav1.Duration `json:"timeout,omitzero"`
 }
 
 // PruneOptions describes the resources we wish to enable pruning for.

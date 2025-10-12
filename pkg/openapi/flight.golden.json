@@ -552,6 +552,9 @@
             }
           }
         },
+        "timeout": {
+          "type": "string"
+        },
         "wasmUrls": {
           "type": "object",
           "required": [

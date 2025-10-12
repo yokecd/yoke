@@ -251,7 +251,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				Enabled:          airway.Spec.ClusterAccess,
 				ResourceMatchers: airway.Spec.ResourceAccessMatchers,
 			},
-			Flight:         yoke.FlightParams{Input: bytes.NewReader(data)},
+			Flight: yoke.FlightParams{
+				Input:        bytes.NewReader(data),
+				MaxMemoryMib: uint64(airway.Spec.MaxMemoryMib),
+				Timeout:      airway.Spec.Timeout.Duration,
+			},
 			DryRun:         true,
 			ForceOwnership: true,
 			ForceConflicts: true,
