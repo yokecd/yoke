@@ -127,13 +127,15 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		}
 
 		return svr.Exec(ctx, svr.ExecuteReq{
-			Source:    source,
-			Path:      wasmPath,
-			Release:   cfg.Application.Name,
-			Namespace: cfg.Application.Namespace,
-			Args:      cfg.Flight.Args,
-			Env:       cfg.Env,
-			Input:     cfg.Flight.Input,
+			Source:       source,
+			Path:         wasmPath,
+			Release:      cfg.Application.Name,
+			Namespace:    cfg.Application.Namespace,
+			Args:         cfg.Flight.Args,
+			Env:          cfg.Env,
+			Input:        cfg.Flight.Input,
+			MaxMemoryMib: cfg.Flight.MaxMemoryMib,
+			Timeout:      cfg.Flight.Timeout,
 		})
 	}()
 	if err != nil {
