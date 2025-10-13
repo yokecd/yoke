@@ -2947,12 +2947,7 @@ func TestOverridePermissions(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
-					Group:    "yoke.cd",
-					Version:  "v1alpha1",
-					Resource: "airways",
-				})
-				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -3003,4 +2998,94 @@ func TestOverridePermissions(t *testing.T) {
 
 	_, err = beIntf.Update(ctx, be, metav1.UpdateOptions{})
 	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: user does not have permissions to create or update override annotations`)
+}
+
+func TestTimeout(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "timeout-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "timeouts.examples.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/timeout.wasm",
+					},
+					Timeout: metav1.Duration{Duration: 30 * time.Millisecond},
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "examples.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Plural:   "timeouts",
+							Singular: "timeout",
+							Kind:     "Timeout",
+						},
+						Scope: apiextv1.NamespaceScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Wait: 30 * time.Second,
+		Poll: time.Second,
+	}))
+
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "timeout-airway"}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := client.AirwayIntf.Get(ctx, "timeouts.examples.com", metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("timeouts.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to test resources",
+		)
+	}()
+
+	timeoutIntf := k8s.
+		TypedInterface[EmptyCRD](client.Dynamic, schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "timeouts",
+	}).
+		Namespace("default")
+
+	instance := EmptyCRD{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Timeout",
+			APIVersion: "examples.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+	}
+
+	_, err = timeoutIntf.Create(ctx, &instance, metav1.CreateOptions{})
+	require.ErrorContains(t, err, "valuate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (30ms) exceeded")
 }
