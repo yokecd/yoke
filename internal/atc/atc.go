@@ -32,6 +32,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
@@ -268,9 +269,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				return fmt.Errorf("failed to load wasm: %w", err)
 			}
 			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm:           data,
-				LookupResource: wasi.HostLookupResource(ctrl.Client(ctx)),
-				MaxMemoryMib:   airway.Spec.MaxMemoryMib,
+				Wasm:            data,
+				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to compile wasm: %w", err)
@@ -764,7 +765,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
 		if flightState.Mode == v1alpha1.AirwayModeDynamic {
-			ctx = wasi.WithExternalResourceTracking(ctx)
+			ctx = host.WithExternalResourceTracking(ctx)
 			defer func() {
 				if err == nil {
 					// Takeoff succeeded, hence we want to drop all previous references to TrackedResources
@@ -772,7 +773,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 					// references as well as track whatever else was registered.
 					atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
 				}
-				for _, resource := range wasi.TrackedResources(ctx) {
+				for _, resource := range host.TrackedResources(ctx) {
 					atc.dispatcher.Register(resource, ctrl.Inst(ctx), event.WithoutMeta())
 				}
 			}()

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,8 +17,6 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/davidmdm/x/xerr"
-
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/wasm"
@@ -128,10 +127,10 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 }
 
 type CompileParams struct {
-	Wasm           []byte
-	CacheDir       string
-	LookupResource HostLookupResourceFunc
-	MaxMemoryMib   uint32
+	Wasm            []byte
+	CacheDir        string
+	MaxMemoryMib    uint32
+	HostFunctionMap map[string]any
 }
 
 type Module struct {
@@ -198,41 +197,7 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 
 	hostModule := runtime.NewHostModuleBuilder("host")
 
-	for name, fn := range map[string]any{
-		"k8s_lookup": func(ctx context.Context, module api.Module, stateRef wasm.Ptr, name, namespace, kind, apiVersion wasm.String) wasm.Buffer {
-			resource, err := params.LookupResource(
-				ctx,
-				LoadString(module, name),
-				LoadString(module, namespace),
-				LoadString(module, kind),
-				LoadString(module, apiVersion),
-			)
-			if err != nil {
-				errState := func() wasm.State {
-					switch {
-					case errors.Is(err, ErrFeatureNotGranted):
-						return wasm.StateFeatureNotGranted
-					case kerrors.IsNotFound(err):
-						return wasm.StateNotFound
-					case kerrors.IsForbidden(err):
-						return wasm.StateForbidden
-					case kerrors.IsUnauthorized(err):
-						return wasm.StateUnauthenticated
-					default:
-						return wasm.StateError
-					}
-				}()
-				return Error(ctx, module, stateRef, errState, err.Error())
-			}
-
-			data, err := resource.MarshalJSON()
-			if err != nil {
-				return Error(ctx, module, stateRef, wasm.StateError, err.Error())
-			}
-
-			return Malloc(ctx, module, data)
-		},
-	} {
+	for name, fn := range params.HostFunctionMap {
 		hostModule = hostModule.NewFunctionBuilder().WithFunc(fn).Export(name)
 	}
 
@@ -276,6 +241,14 @@ func Malloc(ctx context.Context, module api.Module, data []byte) wasm.Buffer {
 		panic("write to memory out of range")
 	}
 	return buffer
+}
+
+func MallocJSON(ctx context.Context, module api.Module, ref wasm.Ptr, value any) wasm.Buffer {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return Error(ctx, module, ref, wasm.StateError, err.Error())
+	}
+	return Malloc(ctx, module, data)
 }
 
 func LoadString(module api.Module, value wasm.String) string {

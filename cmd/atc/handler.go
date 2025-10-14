@@ -23,6 +23,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
@@ -247,7 +248,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			Release:        atc.ReleaseName(&cr),
 			Namespace:      cmp.Or(cr.GetNamespace(), "default"),
 			CrossNamespace: airway.Spec.CrossNamespace,
-			ClusterAccess: wasi.ClusterAccessParams{
+			ClusterAccess: host.ClusterAccessParams{
 				Enabled:          airway.Spec.ClusterAccess,
 				ResourceMatchers: airway.Spec.ResourceAccessMatchers,
 			},
