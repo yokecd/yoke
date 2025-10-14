@@ -120,7 +120,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) (e
 		return fmt.Errorf("failed to prune release diff: %w", err)
 	}
 
-	fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s from revision %d to %d\n", params.Release, previousID, params.RevisionID)
+	_, _ = fmt.Fprintf(internal.Stderr(ctx), "successful descent of %s from revision %d to %d\n", params.Release, previousID, params.RevisionID)
 
 	return nil
 }
@@ -235,7 +235,7 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 			if err := commander.k8s.ApplyResource(ctx, desired, forceConflicts); err != nil {
 				errs = append(errs, fmt.Errorf("%s: %w", name, err))
 			}
-			fmt.Fprintf(internal.Stderr(ctx), "fixed drift for: %s\n", name)
+			_, _ = fmt.Fprintf(internal.Stderr(ctx), "fixed drift for: %s\n", name)
 		}
 
 		return xerr.MultiErrOrderedFrom("failed to apply desired state to drift", errs...)
@@ -295,7 +295,7 @@ func Stow(ctx context.Context, params StowParams) error {
 		return fmt.Errorf("failed to stow wasm artifact: %w", err)
 	}
 
-	fmt.Fprintf(internal.Stderr(ctx), "stowed wasm artifact at %s\n", digestURL)
+	_, _ = fmt.Fprintf(internal.Stderr(ctx), "stowed wasm artifact at %s\n", digestURL)
 
 	return nil
 }

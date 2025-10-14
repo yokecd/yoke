@@ -513,7 +513,7 @@ func getTagVersions(repo *git.Repository) (map[string]TagVersion, error) {
 
 	versions := map[string]TagVersion{}
 
-	iter.ForEach(func(r *plumbing.Reference) error {
+	if err := iter.ForEach(func(r *plumbing.Reference) error {
 		release, version := path.Split(r.Name()[len("refs/tags/"):].String())
 		if !semver.IsValid(version) {
 			return nil
@@ -526,7 +526,9 @@ func getTagVersions(repo *git.Repository) (map[string]TagVersion, error) {
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return versions, nil
 }

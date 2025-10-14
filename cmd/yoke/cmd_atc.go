@@ -34,7 +34,7 @@ func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
 
 	flagset.StringVar(&params.Debug, "debug-file", "", "debug file")
 
-	flagset.Parse(args)
+	_ = flagset.Parse(args)
 
 	return params
 }

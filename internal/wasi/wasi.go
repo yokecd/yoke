@@ -68,7 +68,10 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		if params.Stderr == nil || len(stderr.Bytes()) == 0 {
 			return
 		}
-		params.Stderr.Write([]byte("---\n"))
+		_, err := params.Stderr.Write([]byte("---\n"))
+		if err != nil {
+			return
+		}
 	}()
 
 	moduleCfg := wazero.

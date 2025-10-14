@@ -62,7 +62,7 @@ func run() error {
 
 	var changelog Changelog
 
-	commits.ForEach(func(c *object.Commit) error {
+	if err := commits.ForEach(func(c *object.Commit) error {
 		if tags := tags[c.Hash.String()]; len(tags) > 0 {
 			changelog = append(changelog, Entry{Tags: tags, Date: tags[0].CreatedAt})
 		}
@@ -82,7 +82,9 @@ func run() error {
 			Sha: c.Hash.String(),
 		})
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	if *out == "-" {
 		fmt.Println(changelog)

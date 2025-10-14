@@ -231,6 +231,9 @@ func MustParseInt(value string) int {
 
 func RandomString() string {
 	buf := make([]byte, 6)
-	rand.Read(buf)
+	_, err := rand.Read(buf)
+	if err != nil {
+		panic(err)
+	}
 	return fmt.Sprintf("%x", buf)
 }

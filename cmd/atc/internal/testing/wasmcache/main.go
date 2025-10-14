@@ -19,7 +19,7 @@ func main() {
 
 	logger.Info("booting up server", "port", port)
 
-	http.ListenAndServe(port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	if err := http.ListenAndServe(port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := "wasm/" + strings.TrimLeft(r.URL.Path, "/")
 
 		data, err := wasm.ReadFile(path)
@@ -39,5 +39,7 @@ func main() {
 			return
 		}
 		logger.Info("successfully served wasm asset")
-	}))
+	})); err != nil {
+		logger.Error("error in listening", "error", err.Error())
+	}
 }

@@ -18,6 +18,8 @@ func Free(buffer wasm.Buffer) {
 	delete(heap, buffer)
 }
 
+// import "github.com/yokecd/yoke/internal/wasm"
+
 //go:wasmexport malloc
 func malloc(size uint32) wasm.Buffer {
 	memory := make([]byte, size)

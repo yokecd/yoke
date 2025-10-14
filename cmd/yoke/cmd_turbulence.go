@@ -30,7 +30,7 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 	flagset := flag.NewFlagSet("turbulence", flag.ExitOnError)
 
 	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), turbulenceHelp)
+		_, _ = fmt.Fprintln(flagset.Output(), turbulenceHelp)
 		flagset.PrintDefaults()
 	}
 
@@ -52,7 +52,9 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "outputs diff with color")
 	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release")
 
-	flagset.Parse(args)
+	if err := flagset.Parse(args); err != nil {
+		return nil, err
+	}
 
 	params.Release = flagset.Arg(0)
 	if params.Release == "" {
