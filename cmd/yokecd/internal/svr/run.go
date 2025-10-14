@@ -25,6 +25,7 @@ import (
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/yoke"
@@ -241,9 +242,9 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 				}
 
 				instance, err := wasi.Compile(r.Context(), wasi.CompileParams{
-					Wasm:           wasm,
-					LookupResource: wasi.HostLookupResource(client),
-					MaxMemoryMib:   ex.MaxMemoryMib,
+					Wasm:            wasm,
+					MaxMemoryMib:    ex.MaxMemoryMib,
+					HostFunctionMap: host.BuildFunctionMap(client),
 				})
 				if err != nil {
 					return fmt.Errorf("failed to compile wasm: %w", err)

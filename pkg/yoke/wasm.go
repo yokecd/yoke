@@ -20,6 +20,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/oci"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/host"
 )
 
 func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err error) {
@@ -102,7 +103,7 @@ func gzipReader(r io.Reader) io.Reader {
 	return pr
 }
 
-type ClusterAccessParams = wasi.ClusterAccessParams
+type ClusterAccessParams = host.ClusterAccessParams
 
 type EvalParams struct {
 	Client        *k8s.Client
@@ -140,8 +141,8 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		maps.Copy(env, vars)
 	}
 
-	ctx = wasi.WithOwner(ctx, internal.OwnerFrom(params.Release, params.Namespace))
-	ctx = wasi.WithClusterAccess(ctx, params.ClusterAccess)
+	ctx = host.WithOwner(ctx, internal.OwnerFrom(params.Release, params.Namespace))
+	ctx = host.WithClusterAccess(ctx, params.ClusterAccess)
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
 		Module:  params.Flight.Module.Instance,
@@ -152,10 +153,10 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		Timeout: params.Flight.Timeout,
 		Env:     env,
 		CompileParams: wasi.CompileParams{
-			Wasm:           wasm,
-			CacheDir:       params.Flight.CompilationCacheDir,
-			LookupResource: wasi.HostLookupResource(params.Client),
-			MaxMemoryMib:   uint32(params.Flight.MaxMemoryMib),
+			Wasm:            wasm,
+			CacheDir:        params.Flight.CompilationCacheDir,
+			HostFunctionMap: host.BuildFunctionMap(params.Client),
+			MaxMemoryMib:    uint32(params.Flight.MaxMemoryMib),
 		},
 	})
 	if err != nil {
