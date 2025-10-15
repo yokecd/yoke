@@ -45,24 +45,60 @@ func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 	)
 	defer wasi.Free(buffer)
 
-	switch state {
-	case wasm.StateOK:
-		var resource T
-		if err := json.Unmarshal(buffer.Slice(), &resource); err != nil {
-			return nil, err
-		}
-		return &resource, nil
-	case wasm.StateFeatureNotGranted:
-		return nil, ErrorClusterAccessNotGranted
-	case wasm.StateError:
-		return nil, errors.New(buffer.String())
-	case wasm.StateForbidden:
-		return nil, ErrorForbidden(buffer.String())
-	case wasm.StateNotFound:
-		return nil, ErrorNotFound(buffer.String())
-	case wasm.StateUnauthenticated:
-		return nil, ErrorUnauthenticated(buffer.String())
+	if state != wasm.StateOK {
+		return nil, errorMapping(state, buffer)
+	}
 
+	var resource T
+	if err := json.Unmarshal(buffer.Slice(), &resource); err != nil {
+		return nil, err
+	}
+
+	return &resource, nil
+}
+
+type RestMapping struct {
+	Group      string
+	Version    string
+	Kind       string
+	Resource   string
+	Namespaced bool
+}
+
+func GetRestMapping(groupOrAPIVersion, kind string) (*RestMapping, error) {
+	var state wasm.State
+
+	buffer := getRestMapping(
+		wasm.PtrTo(&state),
+		wasm.FromString(groupOrAPIVersion),
+		wasm.FromString(kind),
+	)
+	defer wasi.Free(buffer)
+
+	if state != wasm.StateOK {
+		return nil, errorMapping(state, buffer)
+	}
+
+	var mapping RestMapping
+	if err := json.Unmarshal(buffer.Slice(), &mapping); err != nil {
+		return nil, err
+	}
+
+	return &mapping, nil
+}
+
+func errorMapping(state wasm.State, buffer wasm.Buffer) error {
+	switch state {
+	case wasm.StateFeatureNotGranted:
+		return ErrorClusterAccessNotGranted
+	case wasm.StateError:
+		return errors.New(buffer.String())
+	case wasm.StateForbidden:
+		return ErrorForbidden(buffer.String())
+	case wasm.StateNotFound:
+		return ErrorNotFound(buffer.String())
+	case wasm.StateUnauthenticated:
+		return ErrorUnauthenticated(buffer.String())
 	default:
 		panic("unknown state")
 	}
