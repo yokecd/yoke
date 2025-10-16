@@ -119,7 +119,7 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 			return internal.MatchResource(resource, matcher)
 		}) {
 			if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
-				externalResources.Add(internal.ResourceString(resource))
+				externalResources.Add(internal.ResourceRef(resource))
 			}
 			return resource, nil
 		}

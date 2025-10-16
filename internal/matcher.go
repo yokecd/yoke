@@ -50,6 +50,5 @@ func parseMatcherExpr(matcher string) (string, string, string) {
 	if !ok {
 		name = "*"
 	}
-
 	return ns, gk, name
 }

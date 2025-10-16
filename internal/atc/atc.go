@@ -44,6 +44,9 @@ const (
 	fieldManager           = "yoke.cd/atc"
 	cleanupFinalizer       = "yoke.cd/mayday.flight"
 	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
+	LabelInstanceGroupKind = "instance.atc.yoke.cd/groupKind"
+	LabelInstanceName      = "instance.atc.yoke.cd/name"
+	LabelInstanceNamespace = "instance.atc.yoke.cd/namespace"
 )
 
 type FlightState struct {
@@ -726,6 +729,11 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			ClusterAccess: yoke.ClusterAccessParams{
 				Enabled:          params.Airway.Spec.ClusterAccess,
 				ResourceMatchers: params.Airway.Spec.ResourceAccessMatchers,
+			},
+			ExtraLabels: map[string]string{
+				LabelInstanceName:      resource.GetName(),
+				LabelInstanceNamespace: resource.GetNamespace(),
+				LabelInstanceGroupKind: resource.GroupVersionKind().GroupKind().String(),
 			},
 			CrossNamespace: params.Airway.Spec.CrossNamespace,
 			PruneOpts: k8s.PruneOpts{

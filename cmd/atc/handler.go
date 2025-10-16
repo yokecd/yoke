@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/davidmdm/x/xerr"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/atc/wasm"
@@ -352,16 +354,32 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			json.NewEncoder(w).Encode(review)
 		}()
 
-		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.ResourceString(prev)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.ResourceRef(prev)))
 
-		if next != nil && internal.GetOwner(prev) != internal.GetOwner(next) {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
-				Message: "cannot modify yoke labels",
-				Status:  metav1.StatusFailure,
-				Reason:  metav1.StatusReasonBadRequest,
+		if next != nil {
+			atcLabels := []string{
+				internal.LabelYokeRelease,
+				internal.LabelYokeReleaseNS,
+				atc.LabelInstanceName,
+				atc.LabelInstanceNamespace,
+				atc.LabelInstanceGroupKind,
 			}
-			return
+
+			var errs []error
+			for _, label := range atcLabels {
+				if internal.GetLabel(prev, label) != internal.GetLabel(next, label) {
+					errs = append(errs, fmt.Errorf("%s", label))
+				}
+			}
+			if err := xerr.MultiErrFrom("cannot modify yoke labels", errs...); err != nil {
+				review.Response.Allowed = false
+				review.Response.Result = &metav1.Status{
+					Message: err.Error(),
+					Status:  metav1.StatusFailure,
+					Reason:  metav1.StatusReasonBadRequest,
+				}
+				return
+			}
 		}
 
 		if next != nil && internal.ResourcesAreEqualWithStatus(prev, next) {
@@ -369,30 +387,17 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		owners := prev.GetOwnerReferences()
-		if len(owners) == 0 {
-			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no owner references"))
-			return
-		}
+		var (
+			instanceName      = internal.GetLabel(prev, atc.LabelInstanceName)
+			instanceNamespace = internal.GetLabel(prev, atc.LabelInstanceNamespace)
+			instanceGK        = internal.GetLabel(prev, atc.LabelInstanceGroupKind)
+		)
 
-		owner := owners[0]
-
-		gv, err := schema.ParseGroupVersion(owner.APIVersion)
-		if err != nil {
-			xhttp.AddRequestAttrs(
-				r.Context(),
-				slog.String("skipReason", "failed to parse owner apiVersion"),
-				slog.String("error", err.Error()),
-			)
-			return
-		}
-
-		ownerGroupKind := schema.GroupKind{Group: gv.Group, Kind: owner.Kind}.String()
-		controller, ok := controllers.Load(ownerGroupKind)
+		controller, ok := controllers.Load(instanceGK)
 
 		xhttp.AddRequestAttrs(
 			r.Context(),
-			slog.String("ownerGroupKind", ownerGroupKind),
+			slog.String("instanceGroupKind", instanceGK),
 			slog.Bool("matchedController", ok),
 		)
 
@@ -401,11 +406,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		labels := prev.GetLabels()
-		release := labels[internal.LabelYokeRelease]
-		namespace := labels[internal.LabelYokeReleaseNS]
-
-		flightState, ok := controller.FlightState(prev.GetName(), namespace)
+		flightState, ok := controller.FlightState(instanceName, instanceNamespace)
 		if !ok {
 			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 			return
@@ -442,7 +443,11 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				return
 			}
 
-			release, err := client.GetRelease(r.Context(), release, namespace)
+			release, err := client.GetRelease(
+				r.Context(),
+				internal.GetLabel(prev, internal.LabelYokeRelease),
+				internal.GetLabel(prev, internal.LabelYokeReleaseNS),
+			)
 			if err != nil {
 				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release: %v", err)))
 				return
@@ -483,12 +488,8 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		case v1alpha1.AirwayModeDynamic:
 			evt := ctrl.Event{
-				Name: owner.Name,
-				// TODO: will this always be the same namespace as the flight?
-				// Ownership will always be in the same namespace...
-				// Perhaps support for cluster scope owners needs to be thought of?
-				// Also crossNamespace deployments?
-				Namespace: namespace,
+				Name:      instanceName,
+				Namespace: instanceNamespace,
 			}
 
 			xhttp.AddRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
@@ -520,9 +521,9 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		resource := func() string {
 			if next != nil {
-				return internal.ResourceString(next)
+				return internal.ResourceRef(next)
 			}
-			return internal.ResourceString(prev)
+			return internal.ResourceRef(prev)
 		}()
 
 		dispatches := dispatcher.Dispatch(resource)
