@@ -59,7 +59,7 @@ func SourceFrom(ref string, wasm []byte) (src Source) {
 		}
 	}
 
-	return
+	return src
 }
 
 func (release *Release) Add(revision Revision) {

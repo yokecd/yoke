@@ -1718,3 +1718,47 @@ func TestTimeout(t *testing.T) {
 		"failed to evaluate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (10ms) exceeded",
 	)
 }
+
+func TestGetRestMapping(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/restmapping.wasm ./internal/testing/flights/restmapping", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	require.ErrorContains(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release: "test",
+			Flight: yoke.FlightParams{
+				Path:  "./test_output/restmapping.wasm",
+				Input: strings.NewReader(`{ APIVersion: apps/v1, Kind: Deployment }`),
+			},
+			// OOPS forgot cluster access!
+			ClusterAccess: yoke.ClusterAccessParams{Enabled: false},
+		}),
+		"failed to get rest mapping: access to the cluster has not been granted for this flight invocation",
+	)
+
+	require.NoError(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release: "test",
+			Flight: yoke.FlightParams{
+				Path:  "./test_output/restmapping.wasm",
+				Input: strings.NewReader(`{ APIVersion: apps/v1, Kind: Deployment }`),
+			},
+			ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		}),
+	)
+	defer func() {
+		require.NoError(t, yoke.FromK8Client(client).Mayday(background, yoke.MaydayParams{Release: "test"}))
+	}()
+
+	cm, err := client.Clientset.CoreV1().ConfigMaps("default").Get(background, "test", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, "deployments", cm.Data["resource"])
+	require.Equal(t, "true", cm.Data["namespaced"])
+}

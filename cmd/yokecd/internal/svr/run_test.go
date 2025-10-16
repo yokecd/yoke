@@ -46,7 +46,7 @@ func TestPluginServer(t *testing.T) {
 		for range mods.All() {
 			count++
 		}
-		return
+		return count
 	}
 
 	svr := httptest.NewUnstartedServer(Handler(time.Second, mods, logger, nil))
