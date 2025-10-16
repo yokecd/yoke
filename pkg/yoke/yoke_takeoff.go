@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -129,6 +130,10 @@ type TakeoffParams struct {
 	// If the IdentityFunc is passed any resources that match the predicate should be removed from the stages.
 	IdentityFunc func(*unstructured.Unstructured) bool
 
+	// ExtraLabels adds extra labels to resources deployed by yoke.
+	// Example: used by the ATC to add Instance metadata
+	ExtraLabels map[string]string
+
 	// ManagedBy is the value used in the yoke managed-by label. If left empty will default to `yoke`.
 	ManagedBy string
 
@@ -218,6 +223,17 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	if len(params.OwnerReferences) > 0 {
 		for _, resource := range stages.Flatten() {
 			resource.SetOwnerReferences(append(resource.GetOwnerReferences(), params.OwnerReferences...))
+		}
+	}
+
+	if len(params.ExtraLabels) > 0 {
+		for _, resource := range stages.Flatten() {
+			labels := resource.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			maps.Copy(labels, params.ExtraLabels)
+			resource.SetLabels(labels)
 		}
 	}
 

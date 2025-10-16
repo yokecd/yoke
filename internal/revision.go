@@ -113,22 +113,28 @@ func RemoveYokeMetadata(resources []*unstructured.Unstructured) {
 	}
 }
 
+func GetLabel(resource *unstructured.Unstructured, label string) string {
+	if resource == nil {
+		return ""
+	}
+	labels := resource.GetLabels()
+	if labels == nil {
+		return ""
+	}
+	return labels[label]
+}
+
 func GetOwner(resource *unstructured.Unstructured) string {
 	if resource == nil {
 		return ""
 	}
 
-	labels := resource.GetLabels()
-	if labels == nil {
-		return ""
-	}
+	release := GetLabel(resource, LabelYokeRelease)
+	namespace := GetLabel(resource, LabelYokeReleaseNS)
 
-	release := labels[LabelYokeRelease]
-	namespace := labels[LabelYokeReleaseNS]
 	if release == "" || namespace == "" {
 		return ""
 	}
-
 	return namespace + "/" + release
 }
 
