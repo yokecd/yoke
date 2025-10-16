@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/tetratelabs/wazero/api"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
