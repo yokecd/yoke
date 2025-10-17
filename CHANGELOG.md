@@ -4,7 +4,55 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-09-27) atc/v0.15.8 - latest - yokecd/v0.15.7
+## (2025-10-16) atc/v0.16.0 - atc-installer/v0.15.0 - latest - v0.17.0 - yokecd/v0.16.0 - yokecd-installer/v0.16.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+<details>
+<summary>15 commits</summary>
+
+- refactor: reformat imports again ([a56668f](https://github.com/yokecd/yoke/commit/a56668f84acc4ac1877f2d148b6bed6a57b69bc5))
+- atc: test cluster scope dynamic airway ([3c5a97e](https://github.com/yokecd/yoke/commit/3c5a97e0d52388ed1f201703dbe1dff9a6c79562))
+- atc: update dynamic mode internals to depend on atc labels instead of ownership that fails crossnamespace ([02a3561](https://github.com/yokecd/yoke/commit/02a35616328ad52ce5977eef99f0d421fb17ccfb))
+- wasi/k8s: fixed panic message for get rest mapping in non wasip1 setting ([9e40d66](https://github.com/yokecd/yoke/commit/9e40d66bc1a00a7d5fb303213f5426c38b73eb96))
+- chore: format repo and fix import order ([58193ae](https://github.com/yokecd/yoke/commit/58193aec8471bc1836da2a009577064e0c398a30))
+- yoke: add get rest mapping test ([670801c](https://github.com/yokecd/yoke/commit/670801cc380d833c6c57e4f49047249569905b41))
+- pkg/flight/wasi/k8s: add GetRestMapping to SDK ([d1b8f44](https://github.com/yokecd/yoke/commit/d1b8f4421a6ea4094f36e0c71535b7eae9686b28))
+- yoke: add new wasi/host function k8s_rest_mapping ([478bf74](https://github.com/yokecd/yoke/commit/478bf74ae9caf3ec95f7fd1b9f61077534a2d463))
+- atc/tests: add a test for an airway that timeouts ([2535966](https://github.com/yokecd/yoke/commit/253596628e1c24454599045765f69dbac3233977))
+- yokecd: add timeout support to argocd applications using yokecd plugin ([b159eab](https://github.com/yokecd/yoke/commit/b159eab5b8b2125a138c96ad36e33c1649fc55fd))
+- atc: add timeout to airway.spec and respect in within atc ([76faae3](https://github.com/yokecd/yoke/commit/76faae3be8b8c876d6e4fad42c07a4dc92c99ca5))
+- atc: add maxMemoryMib to Airway spec ([a0f1317](https://github.com/yokecd/yoke/commit/a0f13173cfc76087624129345d703802ba97d5d6))
+- yoke: breaking change: introduce flight execution timeouts with default timeout of 10 seconds ([53a66ae](https://github.com/yokecd/yoke/commit/53a66ae6c240504040c84a7f4d82207e49d0e966))
+- yokecd: support maxMemoryMib application parameter ([bc31d4b](https://github.com/yokecd/yoke/commit/bc31d4b4cb0e637bb3dedca4e1b20cdc4f5a3e73))
+- yoke: introduce memory limits ([3dfd1f0](https://github.com/yokecd/yoke/commit/3dfd1f05ebfc835de73c297076547328a3e0d274))
+
+</details>
+
+## (2025-10-03) v0.16.11
+
+- yoke: fix index out of bound in yoke atc command ([d346dc5](https://github.com/yokecd/yoke/commit/d346dc566f5881ad940a88e0fe4169fe7a3f8680))
+
+## (2025-10-02) atc/v0.15.12 - atc-installer/v0.14.6
+
+- atc: reduce logging noise of the external-resource validating webhook logs by putting them behind a verbose flag ([de5cb0b](https://github.com/yokecd/yoke/commit/de5cb0b7d6b6f7a25e3cf109c972512e8dd306b5))
+
+## (2025-09-29) atc/v0.15.11 - atc-installer/v0.14.5 - v0.16.10 - yokecd/v0.15.9 - yokecd-installer/v0.15.5
+
+- yoke: ignore metadata fields that should not be part of a server-side apply to be compatible with resource lookups ([1337bbe](https://github.com/yokecd/yoke/commit/1337bbe0c421def876bda9b712d62e78770400ce))
+- flight/wasi/k8s: add LookupResource func to lookup live state for a flight.Resource ([6baaad9](https://github.com/yokecd/yoke/commit/6baaad95c687fc1127d2ee5e680bff8b394bb8fc))
+
+## (2025-09-28) atc/v0.15.10 - v0.16.9 - yokecd/v0.15.8
+
+- atc: keep of track of external resources that are not found so we can wait for their creation ([e38648b](https://github.com/yokecd/yoke/commit/e38648b600506df4901c9d4193f3eb6170a8a225))
+
+## (2025-09-27) atc/v0.15.9 - atc-installer/v0.14.4
+
+- ci: only run build jobs if on main ([c88c6f6](https://github.com/yokecd/yoke/commit/c88c6f68a38d9236f8f44dff1db77e5ce33fe918))
+- atc: support logging in slog text format ([9907fb3](https://github.com/yokecd/yoke/commit/9907fb3e59acd7af6b0f99f248555bcd65fc1783))
+
+## (2025-09-27) atc/v0.15.8 - yokecd/v0.15.7
 
 - ci: split tests and build-release processes ([a737ab0](https://github.com/yokecd/yoke/commit/a737ab0fa244e246854edc9cd5da2f37542dad5b))
 - dockerbuild: use cross-compilation strategy over emulation ([f7609fc](https://github.com/yokecd/yoke/commit/f7609fcd7b17bf8412a8b8e9f18b623b5e58047e))
