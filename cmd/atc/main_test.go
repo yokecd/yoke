@@ -904,6 +904,132 @@ func TestCrossNamespace(t *testing.T) {
 	)
 }
 
+func TestClusterScopeDynamicAirway(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	airway := v1alpha1.Airway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "tests.examples.com",
+		},
+		Spec: v1alpha1.AirwaySpec{
+			WasmURLs: v1alpha1.WasmURLs{
+				Flight: "http://wasmcache/crossnamespace.wasm",
+			},
+			CrossNamespace: true,
+			Mode:           v1alpha1.AirwayModeDynamic,
+			Template: apiextv1.CustomResourceDefinitionSpec{
+				Group: "examples.com",
+				Names: apiextv1.CustomResourceDefinitionNames{
+					Plural:   "tests",
+					Singular: "test",
+					Kind:     "Test",
+				},
+				Scope: apiextv1.ClusterScoped,
+				Versions: []apiextv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextv1.CustomResourceValidation{
+							OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "cluster-airway",
+		Flight:  yoke.FlightParams{Input: testutils.JsonReader(airway)},
+		Wait:    30 * time.Second,
+		Poll:    time.Second,
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "cluster-airway"}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := client.AirwayIntf.Get(ctx, "tests.examples.com", metav1.GetOptions{}); err == nil {
+					return fmt.Errorf("tests.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to cleanup cluster test resources",
+		)
+	}()
+
+	for _, ns := range []string{"foo", "bar"} {
+		require.NoError(t, client.EnsureNamespace(context.Background(), ns))
+	}
+
+	testIntf := k8s.TypedInterface[EmptyCRD](client.Dynamic, schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "tests",
+	})
+
+	emptyTest := EmptyCRD{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "examples.com/v1",
+			Kind:       "Test",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+	}
+	_, err = testIntf.Create(ctx, &emptyTest, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			for _, ns := range []string{"foo", "bar"} {
+				if _, err := client.Clientset.CoreV1().ConfigMaps(ns).Get(context.Background(), "cm", metav1.GetOptions{}); err != nil {
+					return fmt.Errorf("failed to find expected configmap in namespace %s: %w", ns, err)
+				}
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"failed to create subresources",
+	)
+
+	for _, ns := range []string{"foo", "bar"} {
+		require.NoError(t, client.Clientset.CoreV1().ConfigMaps(ns).Delete(context.Background(), "cm", metav1.DeleteOptions{}))
+	}
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			for _, ns := range []string{"foo", "bar"} {
+				cm, err := client.Clientset.CoreV1().ConfigMaps(ns).Get(context.Background(), "cm", metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to find expected configmap in namespace %s: %w", ns, err)
+				}
+				if cm.DeletionTimestamp != nil {
+					return fmt.Errorf("cm in namespace %s has deletion timestamp and expected none", ns)
+				}
+			}
+			return nil
+		},
+		time.Second,
+		10*time.Second,
+		"failed to create subresources",
+	)
+}
+
 func TestHistoryCap(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
