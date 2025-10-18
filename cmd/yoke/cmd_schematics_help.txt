@@ -1,0 +1,27 @@
+!yellow yoke schematics
+
+!magenta ** Authentication with private registries is done via your local keychain -> docker login <registry> **
+
+!cyan Usage:
+  yoke schematics -wasm <wasmURL> <subcmd> [..args]
+
+!cyan Aliases:
+  meta
+
+!cyan Examples:
+  # List all yoke schematic (metadata) properties in a module
+  yoke schematics --wasm module.wasm ls
+
+  # Print the data for a schematic property by name
+  # In this example "docs" is the schematic property name but it can be any property supported by the module. 
+  yoke schematics --wasm module.wasm get docs
+
+  # Set the value of a property on a local wasm module. Remote wasm modules are not supported for this sub-command.
+  # The data can only be passed via STDIN
+  yoke schematics --wasm module.wasm set docs < ./docs.txt
+
+  # Setting the --cmd boolean flag will set command args for your schematics property.
+  # The input must be an array of strings (JSON or YAML). When getting this property, the module will be exited with these args.
+  yoke schematics --wasm module.wasm set --cmd docs <<< '[--docs]'
+
+!cyan Flags:

@@ -24,7 +24,7 @@ import (
 
 type ExecParams struct {
 	Module  *Module
-	Release string
+	BinName string
 	Stdin   io.Reader
 	Stderr  io.Writer
 	Args    []string
@@ -81,7 +81,7 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		WithSysNanosleep().
 		WithSysNanotime().
 		WithSysWalltime().
-		WithArgs(append([]string{params.Release}, params.Args...)...)
+		WithArgs(append([]string{params.BinName}, params.Args...)...)
 
 	if stdin := params.Stdin; stdin != nil {
 		moduleCfg = moduleCfg.WithStdin(stdin)
