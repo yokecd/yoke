@@ -50,9 +50,10 @@ const (
 )
 
 type FlightState struct {
-	Mode          v1alpha1.AirwayMode
-	Mutex         *sync.RWMutex
-	ClusterAccess bool
+	Mode             v1alpha1.AirwayMode
+	Mutex            *sync.RWMutex
+	ClusterAccess    bool
+	TrackedResources *xsync.Set[string]
 }
 
 type Controller struct {
@@ -569,10 +570,12 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		flightState.Mutex.Lock()
 		defer flightState.Mutex.Unlock()
 
+		defer func() {
+			params.States.Store(event.String(), flightState)
+		}()
+
 		flightState.ClusterAccess = params.Airway.Spec.ClusterAccess
 		flightState.Mode = cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
-
-		params.States.Store(event.String(), flightState)
 
 		flightStatus := func(status metav1.ConditionStatus, reason string, msg any) {
 			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
@@ -773,7 +776,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
 		if flightState.Mode == v1alpha1.AirwayModeDynamic {
-			ctx = host.WithExternalResourceTracking(ctx)
+			ctx = host.WithResourceTracking(ctx)
 			defer func() {
 				if err == nil {
 					// Takeoff succeeded, hence we want to drop all previous references to TrackedResources
@@ -781,7 +784,7 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 					// references as well as track whatever else was registered.
 					atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
 				}
-				for _, resource := range host.TrackedResources(ctx) {
+				for _, resource := range host.ExternalResources(ctx) {
 					atc.dispatcher.Register(resource, ctrl.Inst(ctx), event.WithoutMeta())
 				}
 			}()
@@ -789,6 +792,20 @@ func (atc atc) FlightReconciler(params FlightReconcilerParams) ctrl.HandleFunc {
 			// if we are not in dynamic mode, either via an update to the Airway or a removed annotation,
 			// we need to stop EventDispatcher events to this controller.
 			atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+		}
+
+		if flightState.Mode == v1alpha1.AirwayModeSubscription {
+			ctx = host.WithResourceTracking(ctx)
+			ctx = host.WithReleaseTracking(ctx)
+			defer func() {
+				if err != nil {
+					flightState.TrackedResources = flightState.TrackedResources.Union(host.InternalResources(ctx))
+				} else {
+					flightState.TrackedResources = host.InternalResources(ctx).Union(host.CandidateResources(ctx).Intersection(host.ReleaseResources(ctx)))
+				}
+			}()
+		} else {
+			flightState.TrackedResources = nil
 		}
 
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil {

@@ -412,7 +412,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		if flightState.ClusterAccess {
+		if flightState.Mode == v1alpha1.AirwayModeDynamic || flightState.Mode == v1alpha1.AirwayModeSubscription {
 			// We do not want to be sending resource update events to the controller if it is currently mutating state
 			// as we want to avoid race conditions on admission.
 			// Example:
@@ -427,6 +427,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			defer flightState.Mutex.RUnlock()
 
 			xhttp.AddRequestAttrs(r.Context(), slog.Bool("admissionLocked", true))
+
+			// Refresh flight state. It may have changed while we were waiting for the lock.
+			// ie:
+			flightState, ok = controller.FlightState(instanceName, instanceNamespace)
+			if !ok {
+				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
+				return
+			}
 		}
 
 		xhttp.AddRequestAttrs(r.Context(), slog.String("airwayMode", string(flightState.Mode)))
@@ -486,7 +494,14 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				}
 			}
 
-		case v1alpha1.AirwayModeDynamic:
+		case v1alpha1.AirwayModeDynamic, v1alpha1.AirwayModeSubscription:
+			if flightState.Mode == v1alpha1.AirwayModeSubscription {
+				if ref := internal.ResourceRef(prev); !flightState.TrackedResources.Has(ref) {
+					xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("resource %q ref not tracked", ref)))
+					return
+				}
+			}
+
 			evt := ctrl.Event{
 				Name:      instanceName,
 				Namespace: instanceNamespace,

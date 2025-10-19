@@ -27,6 +27,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/text"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/host"
 )
 
 type ModuleSourcetadata = internal.Source
@@ -387,6 +388,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 			return internal.Warning(fmt.Sprintf("failed to cap release history after successful takeoff of %s: %v", params.Release, err))
 		}
 	}
+
+	// If the context of ReleaseTracking from the ATC, we may want to capture the resources that were deployed.
+	// This is only used in SubscriptionMode for airways. Otherwise has no effect.
+	host.SetReleaseResources(ctx, stages.Flatten())
 
 	fmt.Fprintf(internal.Stderr(ctx), "successful takeoff of %s\n", params.Release)
 

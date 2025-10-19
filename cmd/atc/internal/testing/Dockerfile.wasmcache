@@ -22,6 +22,7 @@ RUN \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/prune.wasm ./cmd/atc/internal/testing/flights/prune && \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/externalcreation.wasm ./cmd/atc/internal/testing/flights/externalcreation && \
   GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/timeout.wasm ./cmd/atc/internal/testing/flights/timeout && \
+  GOOS=wasip1 GOARCH=wasm go build -o ./cmd/atc/internal/testing/wasmcache/wasm/subscriptions.wasm ./cmd/atc/internal/testing/flights/subscriptions && \
   go build -o ./bin/server ./cmd/atc/internal/testing/wasmcache
 
 FROM alpine

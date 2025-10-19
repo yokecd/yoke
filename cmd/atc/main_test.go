@@ -112,7 +112,8 @@ func TestMain(m *testing.M) {
 			Path: "./test_output/atc-installer.wasm",
 			Input: strings.NewReader(`{
         "image": "yokecd/atc",
-        "version": "test"
+        "version": "test",
+				"logFormat": "text",
       }`),
 			Args: []string{"--skip-version-check"},
 		},
@@ -3214,4 +3215,144 @@ func TestTimeout(t *testing.T) {
 
 	_, err = timeoutIntf.Create(ctx, &instance, metav1.CreateOptions{})
 	require.ErrorContains(t, err, "valuate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (30ms) exceeded")
+}
+
+func TestSubscriptionMode(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+
+	commander := yoke.FromK8Client(client)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release: "subscription-airway",
+		Flight: yoke.FlightParams{
+			Input: testutils.JsonReader(v1alpha1.Airway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "subscriptions.example.com",
+				},
+				Spec: v1alpha1.AirwaySpec{
+					WasmURLs: v1alpha1.WasmURLs{
+						Flight: "http://wasmcache/subscriptions.wasm",
+					},
+					Mode:          v1alpha1.AirwayModeSubscription,
+					ClusterAccess: true,
+					Template: apiextv1.CustomResourceDefinitionSpec{
+						Group: "example.com",
+						Names: apiextv1.CustomResourceDefinitionNames{
+							Kind:     "Subscription",
+							Plural:   "subscriptions",
+							Singular: "subscription",
+						},
+						Scope: apiextv1.ClusterScoped,
+						Versions: []apiextv1.CustomResourceDefinitionVersion{
+							{
+								Name:    "v1",
+								Served:  true,
+								Storage: true,
+								Schema: &apiextv1.CustomResourceValidation{
+									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+								},
+							},
+						},
+					},
+				},
+			}),
+		},
+		Poll: time.Second,
+		Wait: 30 * time.Second,
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "subscription-airway"}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := client.AirwayIntf.Get(ctx, "subscriptions.examples.com", metav1.GetOptions{}); err == nil {
+					return fmt.Errorf("subscriptions.examples.com has not been removed")
+				}
+				if !kerrors.IsNotFound(err) {
+					return err
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"failed to remove subscription-airway",
+		)
+	}()
+
+	subIntf := k8s.TypedInterface[EmptyCRD](client.Dynamic, schema.GroupVersionResource{
+		Group:    "example.com",
+		Version:  "v1",
+		Resource: "subscriptions",
+	})
+
+	sub := &EmptyCRD{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "example.com/v1",
+			Kind:       "Subscription",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+	}
+
+	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	_, err = subIntf.Create(ctx, sub, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			for _, name := range []string{"subscribed", "standard"} {
+				if _, err := cmIntf.Get(ctx, name, metav1.GetOptions{}); err != nil {
+					return fmt.Errorf("failed to get configmap %s: %w", name, err)
+				}
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected configmaps to be created",
+	)
+
+	require.NoError(t, cmIntf.Delete(ctx, "standard", metav1.DeleteOptions{}))
+
+	var seen int
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if _, err := cmIntf.Get(ctx, "standard", metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+				return fmt.Errorf("expected standard to be missing but got: %w", err)
+			}
+			seen++
+			if seen < 5 {
+				return fmt.Errorf("expected standard to be missing for at least 5 seconds")
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected standard to be deleted.",
+	)
+
+	require.NoError(t, cmIntf.Delete(ctx, "subscribed", metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			for _, name := range []string{"subscribed", "standard"} {
+				if _, err := cmIntf.Get(ctx, name, metav1.GetOptions{}); err != nil {
+					return fmt.Errorf("failed to get configmap %s: %w", name, err)
+				}
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected configmaps to be resynced",
+	)
 }
