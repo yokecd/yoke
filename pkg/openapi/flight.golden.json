@@ -37,7 +37,8 @@
           "enum": [
             "standard",
             "static",
-            "dynamic"
+            "dynamic",
+            "subscription"
           ]
         },
         "objectPath": {

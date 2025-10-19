@@ -56,14 +56,15 @@ func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 }
 
 const (
-	AirwayModeStandard AirwayMode = "standard"
-	AirwayModeStatic   AirwayMode = "static"
-	AirwayModeDynamic  AirwayMode = "dynamic"
+	AirwayModeStandard     AirwayMode = "standard"
+	AirwayModeStatic       AirwayMode = "static"
+	AirwayModeDynamic      AirwayMode = "dynamic"
+	AirwayModeSubscription AirwayMode = "subscription"
 )
 
 // Modes returns the list of known Airway modes.
 func Modes() []AirwayMode {
-	return []AirwayMode{AirwayModeStandard, AirwayModeStatic, AirwayModeDynamic}
+	return []AirwayMode{AirwayModeStandard, AirwayModeStatic, AirwayModeDynamic, AirwayModeSubscription}
 }
 
 type AirwaySpec struct {

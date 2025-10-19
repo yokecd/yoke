@@ -21,7 +21,6 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/wasm"
-	"github.com/yokecd/yoke/internal/xsync"
 )
 
 var ErrFeatureNotGranted = errors.New("feature not granted")
@@ -94,39 +93,44 @@ func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 			return nil, err
 		}
 
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			namespace = cmp.Or(namespace, "default")
+		}
+
 		intf := func() dynamic.ResourceInterface {
 			intf := client.Dynamic.Resource(mapping.Resource)
-			if mapping.Scope == meta.RESTScopeNamespace {
-				return intf.Namespace(cmp.Or(namespace, "default"))
+			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+				return intf.Namespace(namespace)
 			}
 			return intf
 		}()
 
 		resource, err := intf.Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			resourceID := fmt.Sprintf("%s/%s:%s", namespace, gk.String(), name)
-			if kerrors.IsNotFound(err) && slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
-				return internal.MatcherContains(matcher, resourceID)
-			}) {
-				if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
-					externalResources.Add(resourceID)
+			ref := fmt.Sprintf("%s/%s:%s", namespace, gk.String(), name)
+			if kerrors.IsNotFound(err) {
+				if slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
+					return internal.MatcherContains(matcher, ref)
+				}) {
+					trackExternalRef(ctx, ref)
+				} else {
+					trackCandidateRef(ctx, ref)
 				}
 			}
 			return nil, err
 		}
 
-		if slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
-			return internal.MatchResource(resource, matcher)
-		}) {
-			if externalResources, ok := ctx.Value(externalResourceTrackingKey{}).(*xsync.Set[string]); ok {
-				externalResources.Add(internal.ResourceRef(resource))
-			}
-			return resource, nil
-		}
-
 		if internal.GetOwner(resource) != getOwner(ctx) {
+			if slices.ContainsFunc(clusterAccess.ResourceMatchers, func(matcher string) bool {
+				return internal.MatchResource(resource, matcher)
+			}) {
+				trackExternalRef(ctx, internal.ResourceRef(resource))
+				return resource, nil
+			}
 			return nil, kerrors.NewForbidden(schema.GroupResource{}, "", errors.New("cannot access resource outside of target release ownership"))
 		}
+
+		trackInternalRef(ctx, internal.ResourceRef(resource))
 
 		return resource, nil
 	}
