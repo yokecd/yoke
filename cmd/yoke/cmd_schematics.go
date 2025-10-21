@@ -38,7 +38,7 @@ func SchematicsCommand(ctx context.Context, args []string) error {
 	}
 
 	var wasmPath string
-	flagset.StringVar(&wasmPath, "wasm", "", "path to wasm file file, http(s), and oci filepaths are supported")
+	flagset.StringVar(&wasmPath, "wsm", "", "path to wasm file. http(s), and oci urls are supported")
 
 	flagset.Parse(args)
 
