@@ -37,6 +37,9 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 		OpenAPISchema() *apiext.JSONSchemaProps
 	}
 
+	// This prevents all trees from having the same history.
+	cache = maps.Clone(cache)
+
 	if value, ok := reflect.New(typ).Elem().Interface().(OpenAPISchemer); ok {
 		return value.OpenAPISchema()
 	}
@@ -101,7 +104,23 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 			Properties: apiext.JSONSchemaDefinitions{},
 		}
 
+		exportedIndices := make([]int, 0, typ.NumField())
 		for i := range typ.NumField() {
+			if typ.Field(i).IsExported() {
+				exportedIndices = append(exportedIndices, i)
+			}
+		}
+
+		// Special case for single embedded prop in struct.
+		if len(exportedIndices) == 1 {
+			f := typ.Field(exportedIndices[0])
+			jname, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+			if f.Anonymous && jname == "" {
+				return generateSchema(f.Type, false, cache)
+			}
+		}
+
+		for _, i := range exportedIndices {
 			f := typ.Field(i)
 
 			jTag := f.Tag.Get("json")
@@ -170,6 +189,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 				"ExclusiveMinimum",
 				"MultipleOf",
 				"Format",
+				"Description",
 			} {
 				tag, ok := f.Tag.Lookup(name)
 				if !ok {
@@ -178,9 +198,6 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 
 				fv := fieldValue.FieldByName(name)
 				ft := fv.Type()
-				if ft == nil {
-					continue
-				}
 
 				for ft.Kind() == reflect.Pointer {
 					if fv.IsNil() {
