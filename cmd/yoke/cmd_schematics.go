@@ -38,7 +38,7 @@ func SchematicsCommand(ctx context.Context, args []string) error {
 	}
 
 	var wasmPath string
-	flagset.StringVar(&wasmPath, "wsm", "", "path to wasm file. http(s), and oci urls are supported")
+	flagset.StringVar(&wasmPath, "wasm", "", "path to wasm file. http(s), and oci urls are supported")
 
 	flagset.Parse(args)
 
@@ -60,7 +60,7 @@ func SchematicsCommand(ctx context.Context, args []string) error {
 	case "get":
 		return GetSchematicsCMD(ctx, wasmPath, subargs)
 	case "set":
-		return SetSchematicsCMD(ctx, wasmPath, subargs)
+		return SetSchematicsCMD(ctx, flagset.Usage, wasmPath, subargs)
 	default:
 		return fmt.Errorf("unknown schematics subcommand: %q", subcmd)
 	}
@@ -127,9 +127,13 @@ func ListSchematicsCommand(ctx context.Context, wasmURL string) error {
 	return nil
 }
 
-func SetSchematicsCMD(ctx context.Context, wasmPath string, args []string) error {
+func SetSchematicsCMD(ctx context.Context, usage func(), wasmPath string, args []string) error {
 	flagset := flag.NewFlagSet("schematics set", flag.ExitOnError)
 	cmd := flagset.Bool("cmd", false, "marks the input as command args to be executed to generate the schematic data")
+	flagset.Usage = func() {
+		usage()
+		flagset.PrintDefaults()
+	}
 	flagset.Parse(args)
 
 	name := flagset.Arg(0)
