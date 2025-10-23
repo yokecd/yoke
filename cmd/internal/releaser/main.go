@@ -463,6 +463,11 @@ func buildCompressedWasm(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	if err := x.Xf("go run ./cmd/yoke schematics -wasm %s set schema", []any{path}, x.Input(strings.NewReader("[-schema]"))); err != nil {
+		return "", fmt.Errorf("failed to add schema to schematics: %w", err)
+	}
+
 	return compressFile(path)
 }
 

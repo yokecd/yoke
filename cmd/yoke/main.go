@@ -130,6 +130,11 @@ func run() error {
 			}
 			return Unlatch(ctx, *params)
 		}
+	case "schematics", "meta":
+		{
+			return SchematicsCommand(ctx, subcmdArgs)
+		}
+
 	case "version":
 		{
 			return Version()

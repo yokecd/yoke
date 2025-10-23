@@ -242,9 +242,20 @@
                             "type": "string"
                           },
                           "additionalItems": {
-                            "description": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1:JSONSchemaPropsOrBool",
                             "type": "object",
-                            "x-kubernetes-preserve-unknown-fields": true
+                            "required": [
+                              "Allows"
+                            ],
+                            "properties": {
+                              "Allows": {
+                                "type": "boolean"
+                              },
+                              "Schema": {
+                                "description": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1:JSONSchemaProps",
+                                "type": "object",
+                                "x-kubernetes-preserve-unknown-fields": true
+                              }
+                            }
                           },
                           "additionalProperties": {
                             "type": "object",
@@ -317,15 +328,11 @@
                           "enum": {
                             "type": "array",
                             "items": {
-                              "description": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1:JSON",
-                              "type": "object",
-                              "x-kubernetes-preserve-unknown-fields": true
+                              "type": "object"
                             }
                           },
                           "example": {
-                            "description": "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1:JSON",
-                            "type": "object",
-                            "x-kubernetes-preserve-unknown-fields": true
+                            "type": "object"
                           },
                           "exclusiveMaximum": {
                             "type": "boolean"

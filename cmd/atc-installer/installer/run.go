@@ -14,7 +14,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
@@ -24,27 +23,18 @@ import (
 )
 
 type Config struct {
-	Labels                 map[string]string `json:"labels"`
-	Annotations            map[string]string `json:"annotations"`
-	Image                  string            `json:"image"`
-	Version                string            `json:"version"`
-	Port                   int               `json:"port"`
-	ServiceAccountName     string            `json:"serviceAccountName"`
-	ImagePullPolicy        corev1.PullPolicy `json:"ImagePullPolicy"`
-	GenerateTLS            bool              `json:"generateTLS"`
-	DockerConfigSecretName string            `json:"dockerConfigSecretName"`
-	LogFormat              string            `json:"logFormat"`
-	Verbose                bool              `json:"verbose"`
+	Labels                 map[string]string `json:"labels,omitempty"`
+	Annotations            map[string]string `json:"annotations,omitempty"`
+	Image                  string            `json:"image,omitzero" Description:"set the image you want to deploy"`
+	Version                string            `json:"version,omitzero" Description:"version of the deployed image"`
+	Port                   int               `json:"port,omitzero"`
+	ServiceAccountName     string            `json:"serviceAccountName,omitzero"`
+	ImagePullPolicy        corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
+	GenerateTLS            bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
+	DockerConfigSecretName string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
+	LogFormat              string            `json:"logFormat,omitzero" Enum:"json,text"`
+	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
 }
-
-var (
-	group = "yoke.cd"
-	names = apiextensionsv1.CustomResourceDefinitionNames{
-		Plural:   "airways",
-		Singular: "airway",
-		Kind:     "Airway",
-	}
-)
 
 func Run(cfg Config) (flight.Resources, error) {
 	account, binding := func() (*corev1.ServiceAccount, *rbacv1.ClusterRoleBinding) {

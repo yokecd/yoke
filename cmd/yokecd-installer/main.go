@@ -4,9 +4,13 @@ import (
 	"cmp"
 	_ "embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+
+	"go.yaml.in/yaml/v3"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -14,10 +18,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	jyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/cmd/yokecd-installer/argocd"
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 func main() {
@@ -28,31 +34,38 @@ func main() {
 }
 
 type ContainerOpts struct {
-	Resources corev1.ResourceRequirements `json:"resources"`
+	Resources corev1.ResourceRequirements `json:"resources,omitzero"`
 }
 
 type YokeCDServer struct {
 	ContainerOpts
-	CacheTTL                *metav1.Duration `json:"cacheTTL"`
-	CacheCollectionInterval *metav1.Duration `json:"cacheCollectionInterval"`
+	CacheTTL                *metav1.Duration `json:"cacheTTL,omitzero"`
+	CacheCollectionInterval *metav1.Duration `json:"cacheCollectionInterval,omitzero"`
 }
 
 type Values struct {
-	Image                string         `json:"image"`
-	Version              string         `json:"version"`
-	YokeCDPlugin         ContainerOpts  `json:"yokecd"`
-	YokeCDServer         YokeCDServer   `json:"yokecdServer"`
-	DockerAuthSecretName string         `json:"dockerAuthSecretName"`
-	ArgoCD               map[string]any `json:"argocd"`
+	Image                string         `json:"image,omitzero" Description:"yokecd image"`
+	Version              string         `json:"version,omitzero" Description:"yokecd image version"`
+	YokeCDPlugin         ContainerOpts  `json:"yokecd,omitzero"`
+	YokeCDServer         YokeCDServer   `json:"yokecdServer,omitzero"`
+	DockerAuthSecretName string         `json:"dockerAuthSecretName,omitzero" Description:"dockerconfig secret for pulling wasm modules from private oci registries"`
+	ArgoCD               map[string]any `json:"argocd,omitzero" Description:"arguments passed to ArgoCD helm chart"`
 }
 
 func run() error {
+	schema := flag.Bool("schema", false, "show input schema")
+	flag.Parse()
+
+	if *schema {
+		return encodeAsYaml(os.Stdout, openapi.SchemaFrom(reflect.TypeFor[Values]()))
+	}
+
 	values := Values{
 		Image:   "ghcr.io/yokecd/yokecd",
 		Version: "latest",
 	}
 
-	if err := yaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&values); err != nil && err != io.EOF {
+	if err := jyaml.NewYAMLToJSONDecoder(os.Stdin).Decode(&values); err != nil && err != io.EOF {
 		return fmt.Errorf("failed to decode values: %w", err)
 	}
 
@@ -110,8 +123,8 @@ func run() error {
 		},
 
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: ptr(true),
-			RunAsUser:    ptr[int64](999),
+			RunAsNonRoot: ptr.To(true),
+			RunAsUser:    ptr.To[int64](999),
 		},
 	}
 
@@ -192,4 +205,14 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode(resources)
 }
 
-func ptr[T any](value T) *T { return &value }
+func encodeAsYaml(dst io.Writer, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	return yaml.NewEncoder(dst).Encode(obj)
+}

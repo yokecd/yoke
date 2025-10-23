@@ -83,7 +83,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
 			Module:  converter.Instance,
 			Stdin:   bytes.NewReader(data),
-			Release: "converter",
+			BinName: "converter",
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

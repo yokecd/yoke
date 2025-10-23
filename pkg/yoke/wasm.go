@@ -146,7 +146,7 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
 		Module:  params.Flight.Module.Instance,
-		Release: params.Release,
+		BinName: params.Release,
 		Stdin:   params.Flight.Input,
 		Stderr:  params.Flight.Stderr,
 		Args:    params.Flight.Args,

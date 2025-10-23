@@ -4,9 +4,10 @@ import (
 	"context"
 	"slices"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/xsync"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type ownerKey struct{}
