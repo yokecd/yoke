@@ -137,7 +137,7 @@ func run() error {
 
 	case "version":
 		{
-			return Version()
+			return Version(ctx)
 		}
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
