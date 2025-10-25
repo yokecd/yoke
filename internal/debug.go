@@ -31,3 +31,16 @@ func DebugTimer(ctx context.Context, msg string) func() {
 }
 
 var Info, _ = debug.ReadBuildInfo()
+
+func GetYokeVersion() string {
+	const path = "github.com/yokecd/yoke"
+	if Info.Main.Path == path {
+		return Info.Main.Version
+	}
+	for _, dep := range Info.Deps {
+		if dep.Path == path {
+			return dep.Version
+		}
+	}
+	return "(unknown?)"
+}
