@@ -23,6 +23,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/xhttp"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
 func main() {
@@ -115,9 +116,9 @@ func run() (err error) {
 		}
 	}()
 
-	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
+	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindAirway}
 
-	reconciler, teardown := atc.GetReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
+	reconciler, teardown := atc.GetAirwayReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
 	defer teardown()
 
 	controller, err := ctrl.NewController(ctx, ctrl.Params{
