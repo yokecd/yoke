@@ -14,7 +14,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
