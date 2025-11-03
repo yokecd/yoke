@@ -18,6 +18,8 @@ import (
 
 	"github.com/davidmdm/conf"
 
+	units "github.com/docker/go-units"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -57,7 +59,13 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	cfg.CacheCollectionInterval = max(cfg.CacheCollectionInterval, 1*time.Second)
 
-	logger.Info("debug config", "cacheTTL", cfg.CacheTTL.String(), "cacheCollectionInterval", cfg.CacheCollectionInterval.String())
+	const addr = ":3666"
+
+	logger.Info("debug config",
+		"cacheTTL", cfg.CacheTTL.String(),
+		"cacheCollectionInterval", cfg.CacheCollectionInterval.String(),
+		"addr", addr,
+	)
 
 	mods := xsync.Map[string, *Mod]{}
 
@@ -109,7 +117,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	}()
 
 	svr := http.Server{
-		Addr:    ":3666",
+		Addr:    addr,
 		Handler: Handler(cfg.CacheTTL, &mods, logger, client),
 	}
 
@@ -161,8 +169,39 @@ type ExecResponse struct {
 	Stderr string
 }
 
+type HumanMemStats struct {
+	TotalAlloc string
+	Sys        string
+	HeapAlloc  string
+	HeapSys    string
+	HeapIdle   string
+	HeapInuse  string
+	NextGC     string
+}
+
+func humanSize(value uint64) string {
+	return units.HumanSize(float64(value))
+}
+
 func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logger, client *k8s.Client) http.Handler {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /memstats", func(w http.ResponseWriter, r *http.Request) {
+		runtime.GC()
+
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+
+		json.NewEncoder(w).Encode(HumanMemStats{
+			TotalAlloc: humanSize(stats.TotalAlloc),
+			Sys:        humanSize(stats.Sys),
+			HeapAlloc:  humanSize(stats.HeapAlloc),
+			HeapSys:    humanSize(stats.HeapSys),
+			HeapIdle:   humanSize(stats.HeapIdle),
+			HeapInuse:  humanSize(stats.HeapInuse),
+			NextGC:     humanSize(stats.NextGC),
+		})
+	})
 
 	mux.HandleFunc("POST /exec", func(w http.ResponseWriter, r *http.Request) {
 		var ex ExecuteReq
