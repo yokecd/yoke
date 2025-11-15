@@ -32,10 +32,15 @@ func TestPluginE2E(t *testing.T) {
 	wasm, err := os.ReadFile("./test_output/flight.wasm")
 	require.NoError(t, err)
 
-	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(wasm)
+	sourceServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(wasm)
 	}))
 	defer sourceServer.Close()
+
+	sourceServer.Listener, err = net.Listen("tcp", ":6663")
+	require.NoError(t, err)
+
+	sourceServer.Start()
 
 	done := make(chan struct{})
 	defer func() { <-done }()
@@ -45,7 +50,7 @@ func TestPluginE2E(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		if err := svr.Run(ctx, svr.Config{}); err != nil && !errors.Is(err, context.Canceled) {
+		if err := svr.Run(ctx, svr.Config{CacheFS: "./test_output"}); err != nil && !errors.Is(err, context.Canceled) {
 			require.FailNow(t, "unexpected error running server", err.Error())
 		}
 	}()
