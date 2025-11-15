@@ -14,7 +14,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -39,8 +38,7 @@ type ContainerOpts struct {
 
 type YokeCDServer struct {
 	ContainerOpts
-	CacheTTL                *metav1.Duration `json:"cacheTTL,omitzero"`
-	CacheCollectionInterval *metav1.Duration `json:"cacheCollectionInterval,omitzero"`
+	CacheFS string `json:"cacheFS,omitzero"`
 }
 
 type Values struct {
@@ -128,27 +126,19 @@ func run() error {
 		},
 	}
 
+	cacheFS := cmp.Or(values.YokeCDServer.CacheFS, "/tmp")
+
 	server := corev1.Container{
 		Name:            "yokecd-svr",
 		Command:         []string{"yokecd", "-svr"},
 		Image:           values.Image + ":" + values.Version,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Env: func() []corev1.EnvVar {
-			var result []corev1.EnvVar
-			if values.YokeCDServer.CacheTTL != nil {
-				result = append(result, corev1.EnvVar{
-					Name:  "YOKECD_CACHE_TTL",
-					Value: values.YokeCDServer.CacheTTL.Duration.String(),
-				})
-			}
-			if values.YokeCDServer.CacheCollectionInterval != nil {
-				result = append(result, corev1.EnvVar{
-					Name:  "YOKECD_CACHE_COLLECTION_INTERVAL",
-					Value: values.YokeCDServer.CacheCollectionInterval.Duration.String(),
-				})
-			}
-			return result
-		}(),
+		Env: []corev1.EnvVar{
+			{
+				Name:  "YOKECD_CACHE_FS",
+				Value: cacheFS,
+			},
+		},
 		Resources: values.YokeCDServer.Resources,
 		LivenessProbe: &corev1.Probe{
 			PeriodSeconds:  10,
@@ -160,11 +150,23 @@ func run() error {
 				},
 			},
 		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "yokecd-cache",
+				MountPath: cacheFS,
+			},
+		},
 	}
 
 	volumes := []corev1.Volume{
 		{
 			Name: "cmp-tmp",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "yokecd-cache",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
