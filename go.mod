@@ -11,7 +11,7 @@ require (
 	github.com/davidmdm/ansi v0.0.7
 	github.com/davidmdm/conf v0.0.10
 	github.com/davidmdm/x/xcontext v0.0.3
-	github.com/davidmdm/x/xerr v0.0.4
+	github.com/davidmdm/x/xerr v0.0.5
 	github.com/davidmdm/x/xruntime v0.0.5
 	github.com/docker/go-units v0.5.0
 	github.com/go-git/go-git/v5 v5.16.2
