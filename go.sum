@@ -73,6 +73,8 @@ github.com/davidmdm/x/xcontext v0.0.3 h1:PuqBczX15qx/4128vRVyK+xbLi2ffCWG6JT8rCK
 github.com/davidmdm/x/xcontext v0.0.3/go.mod h1:ER3jrDtsl/eNmxrGpbO0/7Ep+0waYnohBR1vKznub1U=
 github.com/davidmdm/x/xerr v0.0.4 h1:F0/eoMvc8Yzp/pzSO22vuWs1yZ1yxYuF5z8ot3jZSnM=
 github.com/davidmdm/x/xerr v0.0.4/go.mod h1:hc6jkeZgOLVV46vf3JPTSSLtOSsx4S4reDbTNz7CjwQ=
+github.com/davidmdm/x/xerr v0.0.5 h1:ujuZnokjAfD1bJvnfj31lV3c0QnJ0BEyr01ah5JK++Y=
+github.com/davidmdm/x/xerr v0.0.5/go.mod h1:hc6jkeZgOLVV46vf3JPTSSLtOSsx4S4reDbTNz7CjwQ=
 github.com/davidmdm/x/xruntime v0.0.5 h1:qIL9l5vHae7IDbSRTAAmjb1Tsldespr0uMMYqxpproI=
 github.com/davidmdm/x/xruntime v0.0.5/go.mod h1:kWVLaIS0EKxZ5NkeSytIDmKBlZjDrAnqbClPhdmUDu4=
 github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZQ=

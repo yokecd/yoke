@@ -52,7 +52,7 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		return nil, err
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, closeModule(ctx))
+		err = xerr.Join(err, closeModule(ctx))
 	}()
 
 	var (
@@ -153,7 +153,7 @@ func (mod Module) Instantiate(ctx context.Context, cfg wazero.ModuleConfig) erro
 }
 
 func (mod Module) Close(ctx context.Context) error {
-	return xerr.MultiErrFrom("",
+	return xerr.Join(
 		func() error {
 			if mod.CompiledModule == nil {
 				return nil
