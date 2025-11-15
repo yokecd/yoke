@@ -71,7 +71,7 @@ func (commander Commander) Descent(ctx context.Context, params DescentParams) (e
 		}
 		defer func() {
 			if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
-				err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+				err = xerr.Join(err, fmt.Errorf("failed to unlock release: %w", unlockErr))
 			}
 		}()
 	}
