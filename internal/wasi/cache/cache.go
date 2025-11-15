@@ -134,7 +134,12 @@ func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byt
 
 func (cache *ModuleCache) FromURL(ctx context.Context, url string, attrs ModuleAttrs) (*wasi.Module, error) {
 	if cachedMod, _ := cache.mods.Load(url); cachedMod != nil {
-		if instance := cachedMod.Instance.Value(); instance != nil && instance.MaxMemoryMib() == attrs.MaxMemoryMib {
+		instance := func() *wasi.Module {
+			cachedMod.mutex.RLock()
+			defer cachedMod.mutex.RUnlock()
+			return cachedMod.Instance.Value()
+		}()
+		if instance != nil && instance.MaxMemoryMib() == attrs.MaxMemoryMib {
 			return instance, nil
 		}
 	}
