@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
 // isReady checks for readiness of workload resources, namespaces, and CRDs

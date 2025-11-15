@@ -111,7 +111,7 @@ func run() error {
 		}
 	}
 
-	return xerr.MultiErrOrderedFrom("", errs...)
+	return xerr.JoinOrdered(errs...)
 }
 
 type Releaser struct {
@@ -479,7 +479,7 @@ func compressFile(path string) (out string, err error) {
 		return "", err
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, destination.Close())
+		err = xerr.Join(err, destination.Close())
 	}()
 
 	compressor, err := gzip.NewWriterLevel(destination, gzip.BestCompression)
@@ -487,7 +487,7 @@ func compressFile(path string) (out string, err error) {
 		return "", fmt.Errorf("could not create gzip writer: %w", err)
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, compressor.Close())
+		err = xerr.Join(err, compressor.Close())
 	}()
 
 	source, err := os.Open(path)
@@ -495,7 +495,7 @@ func compressFile(path string) (out string, err error) {
 		return "", err
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, source.Close())
+		err = xerr.Join(err, source.Close())
 	}()
 
 	if _, err := io.Copy(compressor, source); err != nil {

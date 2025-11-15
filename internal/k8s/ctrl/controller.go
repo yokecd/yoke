@@ -284,7 +284,7 @@ func safe(handler HandleFunc) HandleFunc {
 	return func(ctx context.Context, event Event) (result Result, err error) {
 		defer func() {
 			if e := recover(); e != nil {
-				err = xerr.MultiErrFrom("", err, fmt.Errorf("%v", e))
+				err = xerr.Join(err, fmt.Errorf("%v", e))
 				Logger(ctx).Error("Caught Panic", "error", err, "stack", xruntime.CallStack(-1).String())
 			}
 		}()
