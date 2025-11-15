@@ -3,10 +3,15 @@ package xhttp
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"runtime"
+	"strconv"
 	"time"
+
+	"github.com/docker/go-units"
 
 	"github.com/davidmdm/x/xruntime"
 )
@@ -84,4 +89,38 @@ func AddRequestAttrs(ctx context.Context, attrs ...slog.Attr) {
 		return
 	}
 	*reqAttrs = append(*reqAttrs, attrs...)
+}
+
+type HumanMemStats struct {
+	TotalAlloc string
+	Sys        string
+	HeapAlloc  string
+	HeapSys    string
+	HeapIdle   string
+	HeapInuse  string
+	NextGC     string
+}
+
+func humanSize(value uint64) string {
+	return units.HumanSize(float64(value))
+}
+
+func MemStatHandler(w http.ResponseWriter, r *http.Request) {
+	runGC, _ := strconv.ParseBool(r.URL.Query().Get("runGC"))
+	if runGC {
+		runtime.GC()
+	}
+
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+
+	_ = json.NewEncoder(w).Encode(HumanMemStats{
+		TotalAlloc: humanSize(stats.TotalAlloc),
+		Sys:        humanSize(stats.Sys),
+		HeapAlloc:  humanSize(stats.HeapAlloc),
+		HeapSys:    humanSize(stats.HeapSys),
+		HeapIdle:   humanSize(stats.HeapIdle),
+		HeapInuse:  humanSize(stats.HeapInuse),
+		NextGC:     humanSize(stats.NextGC),
+	})
 }
