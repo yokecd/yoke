@@ -79,7 +79,7 @@ type TakeoffParams struct {
 	// ForceConflicts applies the path request with force. It will take ownership of fields owned by other fieldManagers.
 	ForceConflicts bool
 
-	// ForceOwnership allows yoke releases to take over ownership of previously existing resources, as long as they were not owned by a different release.
+	// ForceOwnership allows yoke releases to take over ownership of previously existing resources.
 	ForceOwnership bool
 
 	// CrossNamespace allows for a release to create resources in a namespace other than the release's own namespace.
@@ -295,7 +295,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 		defer func() {
 			if unlockErr := commander.k8s.UnlockRelease(ctx, *release); unlockErr != nil {
-				err = xerr.MultiErrFrom("", err, fmt.Errorf("failed to unlock release: %w", unlockErr))
+				err = xerr.Join(err, fmt.Errorf("failed to unlock release: %w", unlockErr))
 			}
 		}()
 	}

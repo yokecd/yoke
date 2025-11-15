@@ -23,6 +23,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/xhttp"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
 func main() {
@@ -90,7 +91,7 @@ func run() (err error) {
 
 	defer wg.Wait()
 
-	e := make(chan error, 3)
+	e := make(chan error, 4)
 
 	go func() {
 		wg.Wait()
@@ -115,26 +116,51 @@ func run() (err error) {
 		}
 	}()
 
-	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
+	go func() {
+		defer wg.Done()
 
-	reconciler, teardown := atc.GetReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
-	defer teardown()
+		airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindAirway}
 
-	controller, err := ctrl.NewController(ctx, ctrl.Params{
-		GK:          airwayGK,
-		Handler:     reconciler,
-		Client:      client,
-		Logger:      logger.With("component", "controller"),
-		Concurrency: cfg.Concurrency,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create controller: %w", err)
-	}
+		reconciler, teardown := atc.GetAirwayReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
+		defer teardown()
+
+		controller, err := ctrl.NewController(ctx, ctrl.Params{
+			GK:          airwayGK,
+			Handler:     reconciler,
+			Client:      client,
+			Logger:      logger.With("component", "controller"),
+			Concurrency: cfg.Concurrency,
+		})
+		if err != nil {
+			e <- fmt.Errorf("failed to create controller: %w", err)
+			return
+		}
+		if err := controller.Run(); err != nil {
+			e <- fmt.Errorf("error running the airway controller: %s: %w", airwayGK, err)
+		}
+	}()
 
 	go func() {
 		defer wg.Done()
+
+		flightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindFlight}
+
+		reconciler, teardown := atc.FlightReconciler()
+		defer teardown()
+
+		controller, err := ctrl.NewController(ctx, ctrl.Params{
+			GK:          flightGK,
+			Handler:     reconciler,
+			Client:      client,
+			Logger:      logger.With("component", "controller"),
+			Concurrency: cfg.Concurrency,
+		})
+		if err != nil {
+			e <- fmt.Errorf("failed to create flight controller: %w", err)
+			return
+		}
 		if err := controller.Run(); err != nil {
-			e <- fmt.Errorf("error running the controller: %s: %w", airwayGK, err)
+			e <- fmt.Errorf("error running the controller: %s: %w", flightGK, err)
 		}
 	}()
 
