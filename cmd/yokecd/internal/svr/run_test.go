@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -20,8 +19,8 @@ import (
 
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/x"
-	"github.com/yokecd/yoke/internal/xsync"
 	wasik8s "github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -32,15 +31,20 @@ func TestPluginServer(t *testing.T) {
 	wasm, err := os.ReadFile("./test_output/echo.wasm")
 	require.NoError(t, err)
 
-	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(wasm)
+	sourceServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(wasm)
 	}))
 	defer sourceServer.Close()
+
+	sourceServer.Listener, err = net.Listen("tcp", ":6663")
+	require.NoError(t, err)
+
+	sourceServer.Start()
 
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
 
-	mods := &xsync.Map[string, *Mod]{}
+	mods := cache.NewModuleCache("./test_output")
 
 	modCount := func() (count int) {
 		for range mods.All() {
@@ -49,14 +53,13 @@ func TestPluginServer(t *testing.T) {
 		return count
 	}
 
-	svr := httptest.NewUnstartedServer(Handler(time.Second, mods, logger, nil))
+	svr := httptest.NewUnstartedServer(Handler(mods, logger, nil))
 	defer svr.Close()
 
-	listener, err := net.Listen("tcp", ":3666")
+	// Match Exec's hardcoded default.
+	svr.Listener, err = net.Listen("tcp", ":3666")
 	require.NoError(t, err)
 
-	// Match Exec's hardcoded default.
-	svr.Listener = listener
 	svr.Start()
 
 	echo, err := Exec(context.Background(), ExecuteReq{
@@ -98,20 +101,8 @@ func TestPluginServer(t *testing.T) {
 
 	require.Equal(t, 1, modCount())
 
-	mods.Delete(sourceServer.URL)
-
-	require.Equal(t, 0, modCount())
-
-	_, err = Exec(context.Background(), ExecuteReq{
-		Path:      sourceServer.URL,
-		Release:   "baz",
-		Namespace: "default",
-	})
-	require.NoError(t, err)
-
 	type Log struct {
-		CacheHit bool            `json:"cacheHit"`
-		Elapsed  metav1.Duration `json:"elapsed"`
+		Elapsed metav1.Duration `json:"elapsed"`
 	}
 
 	var logs []Log
@@ -122,14 +113,12 @@ func TestPluginServer(t *testing.T) {
 			break
 		}
 		logs = append(logs, log)
+
+		// for debugging purposes
+		_ = json.NewEncoder(t.Output()).Encode(log)
 	}
 
-	require.Len(t, logs, 3)
-
-	require.False(t, logs[0].CacheHit)
-	require.True(t, logs[1].CacheHit)
-	require.False(t, logs[2].CacheHit)
-
+	require.Len(t, logs, 2)
 	require.True(t, logs[0].Elapsed.Duration > logs[1].Elapsed.Duration, "expected compile time to be greater than cache time")
 }
 
@@ -143,19 +132,19 @@ func TestPluginServerLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(wasm)
+		_, _ = w.Write(wasm)
 	}))
 	defer sourceServer.Close()
 
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
 
-	mods := &xsync.Map[string, *Mod]{}
+	mods := cache.NewModuleCache("./test_output")
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	svr := httptest.NewUnstartedServer(Handler(time.Second, mods, logger, client))
+	svr := httptest.NewUnstartedServer(Handler(mods, logger, client))
 	defer svr.Close()
 
 	listener, err := net.Listen("tcp", ":3666")

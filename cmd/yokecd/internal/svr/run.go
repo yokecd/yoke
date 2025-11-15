@@ -2,7 +2,6 @@ package svr
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,20 +26,18 @@ import (
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 type Config struct {
-	CacheTTL                time.Duration
-	CacheCollectionInterval time.Duration
+	CacheFS string
 }
 
 func ConfigFromEnv() (cfg Config) {
-	conf.Var(conf.Environ, &cfg.CacheTTL, "YOKECD_CACHE_TTL", conf.Default(24*time.Hour))
-	conf.Var(conf.Environ, &cfg.CacheCollectionInterval, "YOKECD_CACHE_COLLECTION_INTERVAL", conf.Default(10*time.Second))
+	conf.Var(conf.Environ, &cfg.CacheFS, "YOKECD_CACHE_FS", conf.Default(os.TempDir()))
 	conf.Environ.MustParse()
 	return cfg
 }
@@ -57,17 +54,12 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	cfg.CacheCollectionInterval = max(cfg.CacheCollectionInterval, 1*time.Second)
-
 	const addr = ":3666"
 
 	logger.Info("debug config",
-		"cacheTTL", cfg.CacheTTL.String(),
-		"cacheCollectionInterval", cfg.CacheCollectionInterval.String(),
+		"cacheFS", cfg.CacheFS,
 		"addr", addr,
 	)
-
-	mods := xsync.Map[string, *Mod]{}
 
 	restCfg, err := func() (*rest.Config, error) {
 		restcfg, err := rest.InClusterConfig()
@@ -88,37 +80,11 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	go func() {
-		for range time.NewTicker(cfg.CacheCollectionInterval).C {
-			var count int
-			for key, mod := range mods.All() {
-				func() {
-					mod.Lock()
-					defer mod.Unlock()
-					if mod.Instance != nil && time.Now().After(mod.Deadline) {
-						_ = mod.Instance.Close(ctx)
-						mod.Instance = nil
-						mods.Delete(key)
-						count++
-					}
-				}()
-			}
-			if count > 0 {
-				// Modules can consume a lot of ram. The Go runtime will not necessarily release the memory as soon as we stop referencing it.
-				// In the interest of keeping RAM usage as low as possible as quick as possible, this is a good time to **hint** to the runtime
-				// that this is a good time to release some memory.
-				//
-				// It may pause the world a couple milliseconds but that's an okay tradeoff.
-				runtime.GC()
-
-				logger.Info("cleared expired modules from cache", "count", count)
-			}
-		}
-	}()
+	mods := cache.NewModuleCache(cfg.CacheFS)
 
 	svr := http.Server{
 		Addr:    addr,
-		Handler: Handler(cfg.CacheTTL, &mods, logger, client),
+		Handler: Handler(mods, logger, client),
 	}
 
 	serverErr := make(chan error, 1)
@@ -183,7 +149,7 @@ func humanSize(value uint64) string {
 	return units.HumanSize(float64(value))
 }
 
-func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logger, client *k8s.Client) http.Handler {
+func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /memstats", func(w http.ResponseWriter, r *http.Request) {
@@ -192,7 +158,7 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 		var stats runtime.MemStats
 		runtime.ReadMemStats(&stats)
 
-		json.NewEncoder(w).Encode(HumanMemStats{
+		_ = json.NewEncoder(w).Encode(HumanMemStats{
 			TotalAlloc: humanSize(stats.TotalAlloc),
 			Sys:        humanSize(stats.Sys),
 			HeapAlloc:  humanSize(stats.HeapAlloc),
@@ -210,94 +176,40 @@ func Handler(ttl time.Duration, mods *xsync.Map[string, *Mod], logger *slog.Logg
 			return
 		}
 
-		key := func() string {
+		mod, err := func() (*wasi.Module, error) {
+			attrs := cache.ModuleAttrs{
+				MaxMemoryMib:    ex.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(client),
+			}
 			if len(ex.Source) > 0 {
-				return internal.SHA1HexString(ex.Source)
+				return mods.FromSource(r.Context(), ex.Source, attrs)
 			}
-			return ex.Path
+			return mods.FromURL(r.Context(), ex.Path, attrs)
 		}()
-
-		mod, _ := mods.LoadOrStore(key, new(Mod))
-
-		cacheHit := true
-
-		for {
-			output, err := func() ([]byte, error) {
-				mod.RLock()
-				defer mod.RUnlock()
-
-				if mod.Instance == nil || mod.Instance.MaxMemoryMib() != ex.MaxMemoryMib || (ttl > 0 && time.Now().After(mod.Deadline)) {
-					return nil, nil
-				}
-
-				output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
-					Client:        client,
-					ClusterAccess: ex.ClusterAccess,
-					Release:       ex.Release,
-					Namespace:     ex.Namespace,
-					Flight: yoke.FlightParams{
-						Module:  yoke.Module{Instance: mod.Instance},
-						Args:    ex.Args,
-						Env:     ex.Env,
-						Input:   strings.NewReader(ex.Input),
-						Timeout: ex.Timeout,
-					},
-				})
-				return output, err
-			}()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			if len(output) > 0 {
-				xhttp.AddRequestAttrs(r.Context(), slog.Bool("cacheHit", cacheHit))
-				json.NewEncoder(w).Encode(json.RawMessage(output))
-				return
-			}
-
-			cacheHit = false
-
-			if err := func() error {
-				mod.Lock()
-				defer mod.Unlock()
-
-				if mod.Instance != nil && mod.Instance.MaxMemoryMib() == ex.MaxMemoryMib && time.Now().Before(mod.Deadline) {
-					return nil
-				}
-
-				wasm, err := func() ([]byte, error) {
-					if len(ex.Source) == 0 {
-						return yoke.LoadWasm(r.Context(), ex.Path, false)
-					}
-					r, err := gzip.NewReader(bytes.NewReader(ex.Source))
-					if err != nil {
-						return nil, fmt.Errorf("invalid source: %w", err)
-					}
-					return io.ReadAll(r)
-				}()
-				if err != nil {
-					return fmt.Errorf("failed to load wasm: %w", err)
-				}
-
-				instance, err := wasi.Compile(r.Context(), wasi.CompileParams{
-					Wasm:            wasm,
-					MaxMemoryMib:    ex.MaxMemoryMib,
-					HostFunctionMap: host.BuildFunctionMap(client),
-				})
-				if err != nil {
-					return fmt.Errorf("failed to compile wasm: %w", err)
-				}
-
-				mod.Instance = &instance
-				mod.Deadline = time.Now().Add(ttl)
-
-				return nil
-			}(); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+
+		output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
+			Client:        client,
+			ClusterAccess: ex.ClusterAccess,
+			Release:       ex.Release,
+			Namespace:     ex.Namespace,
+			Flight: yoke.FlightParams{
+				Module:  yoke.Module{Instance: mod},
+				Args:    ex.Args,
+				Env:     ex.Env,
+				Input:   strings.NewReader(ex.Input),
+				Timeout: ex.Timeout,
+			},
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(json.RawMessage(output))
 	})
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
