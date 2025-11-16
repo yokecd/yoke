@@ -18,7 +18,21 @@ import (
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
-func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error {
+func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err error) {
+	// I don't generally approve of the panic/recover setup for returning errors.
+	// But I am trying it because converting between typed and unstructured apis is too painful
+	// in this function.
+	defer func() {
+		if err != nil {
+			return
+		}
+		if recovered, ok := recover().(error); ok {
+			err = recovered
+		} else if recovered != nil {
+			panic(recovered)
+		}
+	}()
+
 	var (
 		group       = "yoke.cd"
 		airwayNames = apiextensionsv1.CustomResourceDefinitionNames{
@@ -32,7 +46,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		}
 	)
 
-	airwayDef := &apiextensionsv1.CustomResourceDefinition{
+	airwayResource := internal.Must2(internal.ToUnstructured(&apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
@@ -81,69 +95,79 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				},
 			},
 		},
-	}
+	}))
 
-	airwayResource, err := internal.ToUnstructured(airwayDef)
-	if err != nil {
-		return fmt.Errorf("failed to convert airway crd to its unstructured representation: %w", err)
-	}
-
-	flightDef := &apiextensionsv1.CustomResourceDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CustomResourceDefinition",
-			APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "flights.yoke.cd",
-		},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: group,
-			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Plural:   "flights",
-				Singular: "flight",
-				Kind:     "Flight",
+	flightResources := func() (resources []*unstructured.Unstructured) {
+		type Def struct {
+			apiextensionsv1.CustomResourceDefinitionNames
+			Scope apiextensionsv1.ResourceScope
+		}
+		for _, def := range []Def{
+			{
+				CustomResourceDefinitionNames: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural:   "flights",
+					Singular: "flight",
+					Kind:     "Flight",
+				},
+				Scope: apiextensionsv1.NamespaceScoped,
 			},
-			Scope: apiextensionsv1.NamespaceScoped,
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
-				{
-					Name:         "v1alpha1",
-					Served:       true,
-					Storage:      true,
-					Subresources: &apiextensionsv1.CustomResourceSubresources{Status: &apiextensionsv1.CustomResourceSubresourceStatus{}},
-					Schema:       &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Flight]())},
-					AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{
-						{
-							Name:     "flight",
-							Type:     "string",
-							JSONPath: ".spec.wasmUrl",
-						},
-						{
-							Name:     "cluster_access",
-							Type:     "boolean",
-							JSONPath: ".spec.clusterAccess",
-						},
-						{
-							Name:     "fix_drift_interval",
-							Type:     "string",
-							Format:   "date",
-							JSONPath: ".spec.fixDriftInterval",
+			{
+				CustomResourceDefinitionNames: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural:   "clusterflights",
+					Singular: "clusterflight",
+					Kind:     "ClusterFlight",
+				},
+				Scope: apiextensionsv1.ClusterScoped,
+			},
+		} {
+			resources = append(resources, internal.Must2(internal.ToUnstructured(
+				&apiextensionsv1.CustomResourceDefinition{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "CustomResourceDefinition",
+						APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: def.Plural + ".yoke.cd",
+					},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: group,
+						Names: def.CustomResourceDefinitionNames,
+						Scope: def.Scope,
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+							{
+								Name:         "v1alpha1",
+								Served:       true,
+								Storage:      true,
+								Subresources: &apiextensionsv1.CustomResourceSubresources{Status: &apiextensionsv1.CustomResourceSubresourceStatus{}},
+								Schema:       &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Flight]())},
+								AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{
+									{
+										Name:     "flight",
+										Type:     "string",
+										JSONPath: ".spec.wasmUrl",
+									},
+									{
+										Name:     "cluster_access",
+										Type:     "boolean",
+										JSONPath: ".spec.clusterAccess",
+									},
+									{
+										Name:     "fix_drift_interval",
+										Type:     "string",
+										Format:   "date",
+										JSONPath: ".spec.fixDriftInterval",
+									},
+								},
+							},
 						},
 					},
 				},
-			},
-		},
-	}
+			)))
+		}
+		return
+	}()
 
-	flightResource, err := internal.ToUnstructured(flightDef)
-	if err != nil {
-		return fmt.Errorf("failed to convert airway crd to its unstructured representation: %w", err)
-	}
-
-	if err := client.ApplyResources(
-		ctx,
-		[]*unstructured.Unstructured{flightResource, airwayResource},
-		k8s.ApplyResourcesOpts{ApplyOpts: forceful},
-	); err != nil {
+	if err := client.ApplyResources(ctx, append(flightResources, airwayResource), k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
 		return fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 

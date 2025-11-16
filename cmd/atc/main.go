@@ -88,11 +88,11 @@ func run() (err error) {
 	eventDispatcher := new(atc.EventDispatcher)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(5)
 
 	defer wg.Wait()
 
-	e := make(chan error, 4)
+	e := make(chan error, 5)
 
 	go func() {
 		wg.Wait()
@@ -141,12 +141,14 @@ func run() (err error) {
 		}
 	}()
 
+	modulecachev2 := cache.NewModuleCache(cfg.CacheFS)
+
 	go func() {
 		defer wg.Done()
 
 		flightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindFlight}
 
-		reconciler, teardown := atc.FlightReconciler(cache.NewModuleCache(cfg.CacheFS))
+		reconciler, teardown := atc.FlightReconciler(modulecachev2)
 		defer teardown()
 
 		controller, err := ctrl.NewController(ctx, ctrl.Params{
@@ -162,6 +164,30 @@ func run() (err error) {
 		}
 		if err := controller.Run(); err != nil {
 			e <- fmt.Errorf("error running the controller: %s: %w", flightGK, err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		clusterFlightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}
+
+		reconciler, teardown := atc.FlightReconciler(modulecachev2)
+		defer teardown()
+
+		controller, err := ctrl.NewController(ctx, ctrl.Params{
+			GK:          clusterFlightGK,
+			Handler:     reconciler,
+			Client:      client,
+			Logger:      logger.With("component", "controller"),
+			Concurrency: cfg.Concurrency,
+		})
+		if err != nil {
+			e <- fmt.Errorf("failed to create flight controller: %w", err)
+			return
+		}
+		if err := controller.Run(); err != nil {
+			e <- fmt.Errorf("error running the controller: %s: %w", clusterFlightGK, err)
 		}
 	}()
 
