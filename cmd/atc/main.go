@@ -22,6 +22,7 @@ import (
 	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
@@ -145,7 +146,7 @@ func run() (err error) {
 
 		flightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindFlight}
 
-		reconciler, teardown := atc.FlightReconciler()
+		reconciler, teardown := atc.FlightReconciler(cache.NewModuleCache(cfg.CacheFS))
 		defer teardown()
 
 		controller, err := ctrl.NewController(ctx, ctrl.Params{

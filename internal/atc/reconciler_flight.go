@@ -15,11 +15,13 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/wasi/cache"
+	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func FlightReconciler() (ctrl.HandleFunc, func()) {
+func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, func()) {
 	cleanups := map[string]func(){}
 
 	reconciler := func(ctx context.Context, evt ctrl.Event) (result ctrl.Result, err error) {
@@ -112,7 +114,7 @@ func FlightReconciler() (ctrl.HandleFunc, func()) {
 		if !flight.DeletionTimestamp.IsZero() {
 			setReadyCondition(metav1.ConditionFalse, "Terminating", "mayday is being performed")
 			if err := commander.Mayday(ctx, yoke.MaydayParams{
-				Release:   flight.Name,
+				Release:   "flight." + flight.Name,
 				Namespace: flight.Namespace,
 				PruneOpts: yoke.PruneOpts{
 					RemoveCRDs:       flight.Spec.Prune.CRDs,
@@ -130,16 +132,33 @@ func FlightReconciler() (ctrl.HandleFunc, func()) {
 			return ctrl.Result{}, nil
 		}
 
+		setReadyCondition(metav1.ConditionFalse, "InProgress", "fetching flight wasm module")
+
+		mod, err := modules.FromURL(ctx, flight.Spec.WasmURL, cache.ModuleAttrs{
+			MaxMemoryMib:    flight.Spec.MaxMemoryMib,
+			HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+		})
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get wasm module: %w", err)
+		}
+
 		setReadyCondition(metav1.ConditionFalse, "InProgress", "performing takeoff")
 
 		if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 			ForceConflicts: true,
 			ForceOwnership: false,
 			CrossNamespace: false,
-			Release:        flight.Name,
+			Release:        "flight." + flight.Name,
 			Namespace:      flight.Namespace,
 			Flight: yoke.FlightParams{
-				Path:         flight.Spec.WasmURL,
+				Module: yoke.Module{
+					Instance: mod,
+					SourceMetadata: internal.Source{
+						Ref: flight.Spec.WasmURL,
+						// TODO get checkum on wasi.Module?
+						Checksum: "",
+					},
+				},
 				Args:         flight.Spec.Args,
 				MaxMemoryMib: uint64(flight.Spec.MaxMemoryMib),
 				Timeout:      flight.Spec.Timeout.Duration,
