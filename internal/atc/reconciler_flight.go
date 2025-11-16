@@ -11,6 +11,7 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -21,14 +22,31 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, func()) {
+type TeardownFunc func()
+
+func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, TeardownFunc) {
+	return flightReconciler(modules, false)
+}
+
+func ClusterFlightReconsiler(modules *cache.ModuleCache) (ctrl.HandleFunc, TeardownFunc) {
+	return flightReconciler(modules, true)
+}
+
+func flightReconciler(modules *cache.ModuleCache, clusterScope bool) (ctrl.HandleFunc, func()) {
 	cleanups := map[string]func(){}
+
+	gvr := func() schema.GroupVersionResource {
+		if clusterScope {
+			return v1alpha1.ClusterFlightGVR()
+		}
+		return v1alpha1.FlightGVR()
+	}()
 
 	reconciler := func(ctx context.Context, evt ctrl.Event) (result ctrl.Result, err error) {
 		var (
 			client     = ctrl.Client(ctx)
 			commander  = yoke.FromK8Client(client)
-			flightIntf = k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace(evt.Namespace)
+			flightIntf = k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, gvr).Namespace(evt.Namespace)
 		)
 
 		if cleanup := cleanups[evt.String()]; cleanup != nil {
@@ -114,7 +132,7 @@ func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, func()) {
 		if !flight.DeletionTimestamp.IsZero() {
 			setReadyCondition(metav1.ConditionFalse, "Terminating", "mayday is being performed")
 			if err := commander.Mayday(ctx, yoke.MaydayParams{
-				Release:   "flight." + flight.Name,
+				Release:   flight.Name,
 				Namespace: flight.Namespace,
 				PruneOpts: yoke.PruneOpts{
 					RemoveCRDs:       flight.Spec.Prune.CRDs,
@@ -147,8 +165,8 @@ func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, func()) {
 		if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 			ForceConflicts: true,
 			ForceOwnership: false,
-			CrossNamespace: false,
-			Release:        "flight." + flight.Name,
+			CrossNamespace: clusterScope,
+			Release:        flight.Name,
 			Namespace:      flight.Namespace,
 			Flight: yoke.FlightParams{
 				Module: yoke.Module{

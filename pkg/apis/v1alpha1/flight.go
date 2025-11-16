@@ -29,6 +29,14 @@ func FlightGVR() schema.GroupVersionResource {
 	}
 }
 
+func ClusterFlightGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    "yoke.cd",
+		Version:  "v1alpha1",
+		Resource: "clusterflights",
+	}
+}
+
 type FlightSpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
 	WasmURL string `json:"wasmUrl"`
