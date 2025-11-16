@@ -14,6 +14,8 @@ type Config struct {
 	Concurrency int
 	Port        int
 
+	CacheFS string
+
 	Service atc.ServiceDef
 
 	DockerConfigSecretName string
@@ -54,6 +56,8 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
 
 	conf.Var(parser, &cfg.Verbose, "VERBOSE")
+
+	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
 
 	if err := parser.Parse(); err != nil {
 		return nil, err
