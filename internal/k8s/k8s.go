@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
 const (
@@ -118,7 +118,7 @@ func (client Client) ApplyResources(ctx context.Context, resources []*unstructur
 		}
 	}
 
-	return xerr.MultiErrOrderedFrom("", client.applyMany(ctx, resources, applyOpts)...)
+	return xerr.JoinOrdered(client.applyMany(ctx, resources, applyOpts)...)
 }
 
 func (client Client) applyMany(ctx context.Context, resources []*unstructured.Unstructured, opts ApplyOpts) []error {
@@ -781,7 +781,7 @@ func (client Client) PatchMany(ctx context.Context, resources []*unstructured.Un
 
 	wg.Wait()
 
-	return xerr.MultiErrFrom("", errs...)
+	return xerr.Join(errs...)
 }
 
 func (client Client) OrhpanResource(ctx context.Context, resource *unstructured.Unstructured) error {
