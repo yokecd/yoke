@@ -3,7 +3,6 @@ package atc
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -26,7 +25,6 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/wasi/host"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 	"github.com/yokecd/yoke/pkg/yoke"
@@ -380,65 +378,36 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to create validation webhook: %w", err)
 	}
 
-	flightCtx, cancel := context.WithCancel(ctx)
-
-	done := make(chan struct{})
-
-	atc.cleanups[airway.Name] = func() {
-		cancel()
-		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
-		<-done
-		delete(atc.cleanups, airway.Name)
-	}
-
 	flightGK := schema.GroupKind{
 		Group: airway.Spec.Template.Group,
 		Kind:  airway.Spec.Template.Names.Kind,
 	}
 
-	flightController, err := func() (Controller, error) {
-		flightStates := new(xsync.Map[string, InstanceState])
-
-		ctrl, err := ctrl.NewController(flightCtx, ctrl.Params{
-			GK: flightGK,
-			Handler: atc.InstanceReconciler(InstanceReconcilerParams{
-				GK:      flightGK,
-				Airway:  *airway,
-				Version: storageVersion,
-				Flight:  modules.Flight,
-				States:  flightStates,
-			}),
-			Client:      ctrl.Client(ctx),
-			Logger:      ctrl.RootLogger(ctx),
-			Concurrency: atc.concurrency,
-		})
-		return Controller{Instance: ctrl, values: flightStates}, err
-	}()
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create flight controller: %w", err)
+	atc.cleanups[airway.Name] = func() {
+		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown in progress.")
+		ctrl.Inst(ctx).ShutdownGK(flightGK)
+		ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.")
+		delete(atc.cleanups, airway.Name)
 	}
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
-	atc.controllers.Store(flightGK.String(), flightController)
+	// TODO???
+	// defer atc.dispatcher.RemoveController(flightController.Instance)
 
-	go func() {
-		defer cancel()
-		defer close(done)
-		defer atc.controllers.Delete(flightGK.String())
-		defer atc.dispatcher.RemoveController(flightController.Instance)
+	reconcilerParams := InstanceReconcilerParams{
+		GK:      flightGK,
+		Airway:  *airway,
+		Version: storageVersion,
+		Flight:  modules.Flight,
+		States:  atc.flightStates,
+	}
 
-		airwayStatus(metav1.ConditionTrue, "Ready", "Flight-Controller launched")
+	if err := ctrl.Inst(ctx).RegisterGK(flightGK, atc.InstanceReconciler(reconcilerParams)); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to register flight controller for gk: %w", err)
+	}
 
-		if err := flightController.Run(); err != nil {
-			airwayStatus(metav1.ConditionFalse, "Error", fmt.Sprintf("Flight-Controller: %v", err))
-			if errors.Is(err, context.Canceled) {
-				ctrl.Logger(ctx).Info("Flight controller canceled. Shutdown complete.", "groupKind", flightGK.String())
-				return
-			}
-			ctrl.Logger(ctx).Error("could not process group kind", "error", err)
-		}
-	}()
+	airwayStatus(metav1.ConditionTrue, "Ready", "Flight-Controller launched")
 
 	return ctrl.Result{}, nil
 }

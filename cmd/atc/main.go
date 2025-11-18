@@ -24,6 +24,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xhttp"
+	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
@@ -84,15 +85,16 @@ func run() (err error) {
 	}
 
 	moduleCache := new(wasm.ModuleCache)
-	controllers := new(atc.ControllerCache)
+	modulecachev2 := cache.NewModuleCache(cfg.CacheFS)
 	eventDispatcher := new(atc.EventDispatcher)
+	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
 	var wg sync.WaitGroup
-	wg.Add(5)
+	wg.Add(3)
 
 	defer wg.Wait()
 
-	e := make(chan error, 5)
+	e := make(chan error, 3)
 
 	go func() {
 		wg.Wait()
@@ -117,77 +119,24 @@ func run() (err error) {
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
-
-		airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindAirway}
-
-		reconciler, teardown := atc.GetAirwayReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
-		defer teardown()
-
-		controller, err := ctrl.NewController(ctx, ctrl.Params{
-			GK:          airwayGK,
-			Handler:     reconciler,
-			Client:      client,
-			Logger:      logger.With("component", "controller"),
-			Concurrency: cfg.Concurrency,
-		})
-		if err != nil {
-			e <- fmt.Errorf("failed to create controller: %w", err)
-			return
-		}
-		if err := controller.Run(); err != nil {
-			e <- fmt.Errorf("error running the airway controller: %s: %w", airwayGK, err)
-		}
-	}()
-
-	modulecachev2 := cache.NewModuleCache(cfg.CacheFS)
+	controller := ctrl.NewController(ctx, ctrl.Params{
+		Client:      client,
+		Logger:      logger.With("component", "controller"),
+		Concurrency: cfg.Concurrency,
+	})
+	if err := controller.RegisterGKs(map[schema.GroupKind]ctrl.Funcs{
+		{Group: "yoke.cd", Kind: v1alpha1.KindAirway}:        atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
+		{Group: "yoke.cd", Kind: v1alpha1.KindFlight}:        atc.FlightReconciler(modulecachev2),
+		{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}: atc.ClusterFlightReconsiler(modulecachev2),
+	}); err != nil {
+		return fmt.Errorf("failed to register group kind handlers: %w", err)
+	}
 
 	go func() {
 		defer wg.Done()
-
-		flightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindFlight}
-
-		reconciler, teardown := atc.FlightReconciler(modulecachev2)
-		defer teardown()
-
-		controller, err := ctrl.NewController(ctx, ctrl.Params{
-			GK:          flightGK,
-			Handler:     reconciler,
-			Client:      client,
-			Logger:      logger.With("component", "controller"),
-			Concurrency: cfg.Concurrency,
-		})
-		if err != nil {
-			e <- fmt.Errorf("failed to create flight controller: %w", err)
-			return
-		}
+		logger.Info("Controller Starting")
 		if err := controller.Run(); err != nil {
-			e <- fmt.Errorf("error running the controller: %s: %w", flightGK, err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		clusterFlightGK := schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}
-
-		reconciler, teardown := atc.FlightReconciler(modulecachev2)
-		defer teardown()
-
-		controller, err := ctrl.NewController(ctx, ctrl.Params{
-			GK:          clusterFlightGK,
-			Handler:     reconciler,
-			Client:      client,
-			Logger:      logger.With("component", "controller"),
-			Concurrency: cfg.Concurrency,
-		})
-		if err != nil {
-			e <- fmt.Errorf("failed to create flight controller: %w", err)
-			return
-		}
-		if err := controller.Run(); err != nil {
-			e <- fmt.Errorf("error running the controller: %s: %w", clusterFlightGK, err)
+			e <- fmt.Errorf("controller exited run with error: %w", err)
 		}
 	}()
 
@@ -204,8 +153,16 @@ func run() (err error) {
 		}()
 
 		svr := http.Server{
-			Handler: Handler(client, moduleCache, controllers, eventDispatcher, logger.With("component", "server"), filter),
-			Addr:    fmt.Sprintf(":%d", cfg.Port),
+			Handler: Handler(HandlerParams{
+				Controller:   controller,
+				FlightStates: flightStates,
+				Client:       client,
+				Cache:        moduleCache,
+				Dispatcher:   eventDispatcher,
+				Logger:       logger.With("component", "server"),
+				Filter:       filter,
+			}),
+			Addr: fmt.Sprintf(":%d", cfg.Port),
 		}
 
 		serverErr := make(chan error, 1)

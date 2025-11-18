@@ -24,15 +24,15 @@ import (
 
 type TeardownFunc func()
 
-func FlightReconciler(modules *cache.ModuleCache) (ctrl.HandleFunc, TeardownFunc) {
+func FlightReconciler(modules *cache.ModuleCache) ctrl.Funcs {
 	return flightReconciler(modules, false)
 }
 
-func ClusterFlightReconsiler(modules *cache.ModuleCache) (ctrl.HandleFunc, TeardownFunc) {
+func ClusterFlightReconsiler(modules *cache.ModuleCache) ctrl.Funcs {
 	return flightReconciler(modules, true)
 }
 
-func flightReconciler(modules *cache.ModuleCache, clusterScope bool) (ctrl.HandleFunc, func()) {
+func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs {
 	cleanups := map[string]func(){}
 
 	gvr := func() schema.GroupVersionResource {
@@ -273,5 +273,8 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) (ctrl.Handl
 		}
 	}
 
-	return reconciler, teardown
+	return ctrl.Funcs{
+		Handler:  reconciler,
+		Teardown: teardown,
+	}
 }

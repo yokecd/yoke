@@ -40,10 +40,10 @@ type InstanceReconcilerParams struct {
 	States  *xsync.Map[string, InstanceState]
 }
 
-func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.HandleFunc {
+func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 	pollerCleanups := map[string]func(){}
 
-	return func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
 
 		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK, params.Version)
@@ -221,7 +221,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.HandleFu
 			}
 
 			params.States.Delete(event.String())
-			atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+			atc.dispatcher.RemoveEvent(event.WithoutMeta())
 
 			return ctrl.Result{}, nil
 		}
@@ -307,16 +307,16 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.HandleFu
 					// Takeoff succeeded, hence we want to drop all previous references to TrackedResources
 					// and build a new fresh list. If there is an error, we are in a dirty state and we can keep the old resource
 					// references as well as track whatever else was registered.
-					atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+					atc.dispatcher.RemoveEvent(event.WithoutMeta())
 				}
 				for _, resource := range host.ExternalResources(ctx) {
-					atc.dispatcher.Register(resource, ctrl.Inst(ctx), event.WithoutMeta())
+					atc.dispatcher.Register(resource, event.WithoutMeta())
 				}
 			}()
 		} else {
 			// if we are not in dynamic mode, either via an update to the Airway or a removed annotation,
 			// we need to stop EventDispatcher events to this controller.
-			atc.dispatcher.RemoveEvent(ctrl.Inst(ctx), event.WithoutMeta())
+			atc.dispatcher.RemoveEvent(event.WithoutMeta())
 		}
 
 		if flightState.Mode == v1alpha1.AirwayModeSubscription {
@@ -446,5 +446,10 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.HandleFu
 		}
 
 		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration}, nil
+	}
+
+	return ctrl.Funcs{
+		Handler:  reconciler,
+		Teardown: func() {},
 	}
 }
