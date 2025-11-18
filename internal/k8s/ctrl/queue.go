@@ -51,9 +51,9 @@ func (queue *Queue[t]) tryUnshift() {
 	}
 }
 
-// QueueFromChannel returns a queue that will dedup events based on its string representation as
+// NewQueue returns a queue that will dedup events based on its string representation as
 // determined by fmt.Stringer.
-func QueueFromChannel[T fmt.Stringer](c chan T) *Queue[T] {
+func NewQueue[T fmt.Stringer]() *Queue[T] {
 	queue := Queue[T]{
 		barrier: &xsync.Map[string, struct{}]{},
 		buffer:  []T{},
@@ -62,30 +62,12 @@ func QueueFromChannel[T fmt.Stringer](c chan T) *Queue[T] {
 		C:       make(chan T),
 	}
 
+	done := make(chan struct{})
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
 	go func() {
-		defer wg.Done()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case value, ok := <-c:
-				if !ok {
-					return
-				}
-				queue.Enqueue(value)
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
+		defer close(done)
 		for {
 			select {
 			case <-ctx.Done():
@@ -95,8 +77,8 @@ func QueueFromChannel[T fmt.Stringer](c chan T) *Queue[T] {
 				case <-ctx.Done():
 					return
 				case queue.C <- value:
-					queue.tryUnshift()
 					queue.barrier.Delete(value.String())
+					queue.tryUnshift()
 				}
 			}
 		}
@@ -104,7 +86,7 @@ func QueueFromChannel[T fmt.Stringer](c chan T) *Queue[T] {
 
 	queue.Stop = func() {
 		cancel()
-		wg.Wait()
+		<-done
 	}
 
 	return &queue

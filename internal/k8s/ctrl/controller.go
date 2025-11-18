@@ -22,18 +22,22 @@ import (
 	"github.com/yokecd/yoke/internal/xsync"
 )
 
+type eventMeta struct {
+	attempts int
+}
 type Event struct {
 	Name      string
 	Namespace string
+	schema.GroupKind
 
-	attempts int
-	typ      string
+	meta eventMeta
 }
 
 func (evt Event) WithoutMeta() Event {
 	return Event{
 		Name:      evt.Name,
 		Namespace: evt.Namespace,
+		GroupKind: evt.GroupKind,
 	}
 }
 
@@ -43,58 +47,135 @@ type Result struct {
 }
 
 func (evt Event) String() string {
-	if evt.Namespace == "" {
-		return evt.Name
-	}
-	return evt.Namespace + "-" + evt.Name
+	return fmt.Sprintf("%s/%s:%s", evt.Namespace, evt.GroupKind, evt.Name)
 }
 
 type HandleFunc func(context.Context, Event) (Result, error)
 
+type gkstate struct {
+	handler  HandleFunc
+	shutdown func()
+}
+
 type Instance struct {
 	ctx    context.Context
 	events *Queue[Event]
+	gks    xsync.Map[schema.GroupKind, gkstate]
 	Params
 }
 
+type Funcs struct {
+	Handler  HandleFunc
+	Teardown func()
+}
+
 type Params struct {
-	GK          schema.GroupKind
-	Handler     HandleFunc
 	Client      *k8s.Client
 	Logger      *slog.Logger
 	Concurrency int
 }
 
-func NewController(ctx context.Context, params Params) (*Instance, error) {
-	logger := params.Logger.With(slog.String("groupKind", params.GK.String()))
-	logger.Info("watching resources")
-
-	ctx = context.WithValue(ctx, loggerKey{}, logger)
+func NewController(ctx context.Context, params Params) *Instance {
+	ctx = context.WithValue(ctx, loggerKey{}, params.Logger)
 	ctx = context.WithValue(ctx, rootLoggerKey{}, params.Logger)
 
-	params.Handler = safe(params.Handler)
-
-	instance := &Instance{ctx: ctx, Params: params}
-
-	params.Client.Mapper.Reset()
-
-	mapping, err := params.Client.Mapper.RESTMapping(params.GK)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get mapping for %s: %w", params.GK, err)
+	return &Instance{
+		ctx:    ctx,
+		Params: params,
+		events: NewQueue[Event](),
+		gks:    xsync.Map[schema.GroupKind, gkstate]{},
 	}
-
-	instance.events = QueueFromChannel(instance.eventsFromMetaGetter(ctx, mapping.Resource))
-
-	return instance, nil
 }
 
-func (ctrl *Instance) Run() error {
-	defer ctrl.events.Stop()
+func (instance *Instance) RegisterGKs(gks map[schema.GroupKind]Funcs) error {
+	var errs []error
+	for gk, funcs := range gks {
+		if err := instance.RegisterGK(gk, funcs); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", gk, err))
+		}
+	}
+	return xerr.JoinOrdered(errs...)
+}
+
+func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
+	instance.Client.Mapper.Reset()
+
+	mapping, err := instance.Client.Mapper.RESTMapping(gk)
+	if err != nil {
+		return fmt.Errorf("failed to get rest mapping: %w", err)
+	}
+
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(instance.Client.Dynamic, 0)
+
+	informer := factory.ForResource(mapping.Resource).Informer()
+
+	informerHandler := func(obj any) {
+		resource := obj.(*unstructured.Unstructured)
+		instance.events.Enqueue(Event{
+			Name:      resource.GetName(),
+			Namespace: resource.GetNamespace(),
+			GroupKind: gk,
+		})
+	}
+
+	informerUpdateHandler := func(oldObj any, newObj any) {
+		prev := oldObj.(*unstructured.Unstructured)
+		next := newObj.(*unstructured.Unstructured)
+		if internal.ResourcesAreEqual(prev, next) {
+			return
+		}
+		instance.events.Enqueue(Event{
+			Name:      next.GetName(),
+			Namespace: next.GetNamespace(),
+			GroupKind: gk,
+		})
+	}
+
+	eventHandlers := kcache.ResourceEventHandlerFuncs{
+		AddFunc:    informerHandler,
+		DeleteFunc: informerHandler,
+		UpdateFunc: informerUpdateHandler,
+	}
+
+	if _, err := informer.AddEventHandler(eventHandlers); err != nil {
+		return fmt.Errorf("failed to add event handlers: %w", err)
+	}
+
+	done := make(chan struct{})
+
+	factory.Start(done)
+
+	instance.gks.Store(
+		gk,
+		gkstate{
+			handler: funcs.Handler,
+			shutdown: xsync.OnceFunc(func() {
+				close(done)
+				factory.Shutdown()
+				instance.gks.Delete(gk)
+				funcs.Teardown()
+			}),
+		},
+	)
+
+	return nil
+}
+
+func (instance *Instance) ShutdownGK(gk schema.GroupKind) {
+	state, ok := instance.gks.Load(gk)
+	if !ok {
+		return
+	}
+	state.shutdown()
+}
+
+func (instance *Instance) Run() error {
+	defer instance.events.Stop()
 
 	var (
 		activeMap   xsync.Map[string, chan struct{}]
 		timers      xsync.Map[string, *time.Timer]
-		concurrency = max(ctrl.Concurrency, 1)
+		concurrency = max(instance.Concurrency, 1)
 	)
 
 	var wg sync.WaitGroup
@@ -103,24 +184,30 @@ func (ctrl *Instance) Run() error {
 		wg.Go(func() {
 			for {
 				select {
-				case <-ctrl.ctx.Done():
+				case <-instance.ctx.Done():
 					return
-				case event := <-ctrl.events.C:
+				case event := <-instance.events.C:
 					func() {
 						defer func() {
 							if e := recover(); e != nil {
-								Logger(ctrl.ctx).Error("Caught Control Loop Panic", "error", e, "stack", xruntime.CallStack(-1))
+								Logger(instance.ctx).Error("Caught Control Loop Panic", "error", e, "stack", xruntime.CallStack(-1))
 							}
 						}()
+
+						state, ok := instance.gks.Load(event.GroupKind)
+						if !ok {
+							Logger(instance.ctx).Warn("event received but not handler registered for groupkind", "gk", event.GroupKind)
+							return
+						}
 
 						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
 						if loaded {
 							wg.Go(func() {
 								select {
-								case <-ctrl.ctx.Done():
+								case <-instance.ctx.Done():
 									return
 								case <-done:
-									ctrl.events.Enqueue(event)
+									instance.events.Enqueue(event)
 								}
 							})
 							return
@@ -132,45 +219,46 @@ func (ctrl *Instance) Run() error {
 							timer.Stop()
 						}
 
-						logger := Logger(ctrl.ctx).With(
+						logger := Logger(instance.ctx).With(
 							slog.String("loopId", randHex()),
 							slog.Group(
 								"event",
-								"name", event.String(),
-								"attempt", event.attempts,
-								"type", event.typ,
+								"name", event.Name,
+								"namespace", event.Namespace,
+								"groupKind", event.GroupKind,
+								"attempt", event.meta.attempts,
 							),
 						)
 
 						// It is important that we do not cancel the handler mid-execution.
 						// Rather we only exit once the loop is idle.
-						ctx := context.WithoutCancel(ctrl.ctx)
+						ctx := context.WithoutCancel(instance.ctx)
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
-						ctx = context.WithValue(ctx, clientKey{}, ctrl.Client)
-						ctx = context.WithValue(ctx, instanceKey{}, ctrl)
+						ctx = context.WithValue(ctx, clientKey{}, instance.Client)
+						ctx = context.WithValue(ctx, instanceKey{}, instance)
 
 						logger.Info("processing event")
 
 						start := time.Now()
 
-						result, err := ctrl.Handler(ctx, event)
+						result, err := safe(state.handler)(ctx, event)
 
 						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
 
 						if shouldRequeue && result.RequeueAfter == 0 {
-							result.RequeueAfter = withJitter(min(time.Duration(powInt(2, event.attempts))*time.Second, 15*time.Minute), 0.10)
+							result.RequeueAfter = withJitter(min(time.Duration(powInt(2, event.meta.attempts))*time.Second, 15*time.Minute), 0.10)
 						}
 
 						if shouldRequeue {
 							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
 							timers.Store(event.String(), time.AfterFunc(result.RequeueAfter, func() {
 								if err != nil {
-									event.attempts++
+									event.meta.attempts++
 								} else {
-									event.attempts = 0
+									event.meta.attempts = 0
 								}
 								timers.Delete(event.String())
-								ctrl.events.Enqueue(event)
+								instance.events.Enqueue(event)
 							}))
 						}
 
@@ -187,47 +275,16 @@ func (ctrl *Instance) Run() error {
 
 	wg.Wait()
 
-	return context.Cause(ctrl.ctx)
+	return context.Cause(instance.ctx)
 }
 
-func (ctrl *Instance) eventsFromMetaGetter(ctx context.Context, resource schema.GroupVersionResource) chan Event {
-	events := make(chan Event)
-
-	factory := dynamicinformer.NewDynamicSharedInformerFactory(ctrl.Client.Dynamic, 0)
-
-	informer := factory.ForResource(resource).Informer()
-
-	informerHandler := func(obj any) {
-		resource := obj.(*unstructured.Unstructured)
-		ctrl.SendEvent(Event{
-			Name:      resource.GetName(),
-			Namespace: resource.GetNamespace(),
-		})
-	}
-
-	informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
-		AddFunc:    informerHandler,
-		DeleteFunc: informerHandler,
-		UpdateFunc: func(oldObj any, newObj any) {
-			prev := oldObj.(*unstructured.Unstructured)
-			next := newObj.(*unstructured.Unstructured)
-			if internal.ResourcesAreEqual(prev, next) {
-				return
-			}
-			ctrl.SendEvent(Event{
-				Name:      next.GetName(),
-				Namespace: next.GetNamespace(),
-			})
-		},
-	})
-
-	factory.Start(ctx.Done())
-
-	return events
+func (instance *Instance) IsListeningForGK(gk schema.GroupKind) bool {
+	_, ok := instance.gks.Load(gk)
+	return ok
 }
 
-func (ctrl *Instance) SendEvent(evt Event) {
-	ctrl.events.Enqueue(evt)
+func (instance *Instance) SendEvent(evt Event) {
+	instance.events.Enqueue(evt)
 }
 
 func powInt(base int, up int) int {

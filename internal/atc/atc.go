@@ -25,38 +25,26 @@ type InstanceState struct {
 	TrackedResources *xsync.Set[string]
 }
 
-type Controller struct {
-	*ctrl.Instance
-	values *xsync.Map[string, InstanceState]
-}
-
-func (controller Controller) FlightState(name, ns string) (InstanceState, bool) {
-	state, ok := controller.values.Load(ctrl.Event{Name: name, Namespace: ns}.String())
-	return state, ok
-}
-
-type ControllerCache = xsync.Map[string, Controller]
-
-func GetAirwayReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int) (ctrl.HandleFunc, func()) {
+func GetAirwayReconciler(service ServiceDef, cache *wasm.ModuleCache, dispatcher *EventDispatcher, states *xsync.Map[string, InstanceState]) ctrl.Funcs {
 	atc := atc{
-		concurrency: concurrency,
-		service:     service,
-		cleanups:    map[string]func(){},
-		moduleCache: cache,
-		controllers: controllers,
-		dispatcher:  dispatcher,
+		service:      service,
+		cleanups:     map[string]func(){},
+		moduleCache:  cache,
+		dispatcher:   dispatcher,
+		flightStates: states,
 	}
-	return atc.Reconcile, atc.Teardown
+	return ctrl.Funcs{
+		Handler:  atc.Reconcile,
+		Teardown: atc.Teardown,
+	}
 }
 
 type atc struct {
-	concurrency int
-
-	dispatcher  *EventDispatcher
-	controllers *ControllerCache
-	service     ServiceDef
-	cleanups    map[string]func()
-	moduleCache *wasm.ModuleCache
+	dispatcher   *EventDispatcher
+	flightStates *xsync.Map[string, InstanceState]
+	service      ServiceDef
+	cleanups     map[string]func()
+	moduleCache  *wasm.ModuleCache
 }
 
 func (atc atc) Teardown() {
