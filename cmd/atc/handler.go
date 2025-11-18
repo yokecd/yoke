@@ -56,6 +56,8 @@ func Handler(params HandlerParams) http.Handler {
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {})
 
+	mux.HandleFunc("GET /memstats", xhttp.MemStatHandler)
+
 	mux.HandleFunc("POST /crdconvert/{airway}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		airway := r.PathValue("airway")
