@@ -169,7 +169,7 @@ func run() (err error) {
 
 		go func() {
 			defer close(serverErr)
-			logger.Info("ATC Admission Control Server starting")
+			logger.Info("ATC Admission Control Server starting", "addr", svr.Addr)
 			if err := svr.ListenAndServeTLS(cfg.TLS.ServerCert.Path, cfg.TLS.ServerKey.Path); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				serverErr <- err
 			}
