@@ -34,6 +34,7 @@ type Config struct {
 	DockerConfigSecretName string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
 	LogFormat              string            `json:"logFormat,omitzero" Enum:"json,text"`
 	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
+	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
 }
 
 func Run(cfg Config) (flight.Resources, error) {
@@ -170,6 +171,23 @@ func Run(cfg Config) (flight.Resources, error) {
 		return hex.EncodeToString(hash.Sum(nil))
 	}()
 
+	environment := []corev1.EnvVar{
+		{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
+		{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
+		{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
+		{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
+		{Name: "SVC_NAME", Value: svc.Name},
+		{Name: "SVC_NAMESPACE", Value: svc.Namespace},
+		{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
+		{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
+		{Name: "LOG_FORMAT", Value: cfg.LogFormat},
+		{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
+	}
+
+	if cfg.Concurrency > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "CONCURRENCY", Value: strconv.Itoa(cfg.Concurrency)})
+	}
+
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -209,18 +227,7 @@ func Run(cfg Config) (flight.Resources, error) {
 							Name:            "yokecd-atc",
 							Image:           cmp.Or(cfg.Image, "ghcr.io/yokecd/atc") + ":" + cfg.Version,
 							ImagePullPolicy: cmp.Or(cfg.ImagePullPolicy, corev1.PullIfNotPresent),
-							Env: []corev1.EnvVar{
-								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
-								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
-								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
-								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
-								{Name: "SVC_NAME", Value: svc.Name},
-								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
-								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
-								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
-								{Name: "LOG_FORMAT", Value: cfg.LogFormat},
-								{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
-							},
+							Env:             environment,
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "tls-secrets",

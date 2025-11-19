@@ -122,7 +122,7 @@ func run() (err error) {
 	controller := ctrl.NewController(ctx, ctrl.Params{
 		Client:      client,
 		Logger:      logger.With("component", "controller"),
-		Concurrency: cfg.Concurrency,
+		Concurrency: max(cfg.Concurrency, 1),
 	})
 	if err := controller.RegisterGKs(map[schema.GroupKind]ctrl.Funcs{
 		{Group: "yoke.cd", Kind: v1alpha1.KindAirway}:        atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
@@ -134,7 +134,7 @@ func run() (err error) {
 
 	go func() {
 		defer wg.Done()
-		logger.Info("Controller Starting")
+		logger.Info("Controller Starting", "concurrency", controller.Concurrency)
 		if err := controller.Run(); err != nil {
 			e <- fmt.Errorf("controller exited run with error: %w", err)
 		}
