@@ -392,9 +392,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Logger(ctx).Info("Launching flight controller")
 
-	// TODO???
-	// defer atc.dispatcher.RemoveController(flightController.Instance)
-
 	reconcilerParams := InstanceReconcilerParams{
 		GK:      flightGK,
 		Airway:  *airway,
