@@ -20,14 +20,12 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
-	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
-	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -112,8 +110,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
-	modules := atc.moduleCache.Get(airway.Name)
-
 	if airway.DeletionTimestamp != nil {
 		airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 
@@ -153,10 +149,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				cleanup()
 			}
 
-			modules.LockAll()
-			modules.Reset()
-			modules.UnlockAll()
-
 			finalizers := slices.Delete(airway.Finalizers, idx, idx+1)
 			airway.SetFinalizers(finalizers)
 
@@ -187,44 +179,18 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}()
 
 	if err := func() error {
-		modules.LockAll()
-		defer modules.UnlockAll()
-
-		modules.Reset()
-
-		for _, value := range []struct {
-			URL string
-			Mod *wasm.Module
-		}{
-			{
-				URL: airway.Spec.WasmURLs.Flight,
-				Mod: modules.Flight,
-			},
-			{
-				URL: airway.Spec.WasmURLs.Converter,
-				Mod: modules.Converter,
-			},
+		for _, value := range []string{
+			airway.Spec.WasmURLs.Flight,
+			airway.Spec.WasmURLs.Converter,
 		} {
-			if value.URL == "" {
+			if value == "" {
 				continue
 			}
-			data, err := yoke.LoadWasm(ctx, value.URL, airway.Spec.Insecure)
-			if err != nil {
-				return fmt.Errorf("failed to load wasm: %w", err)
-			}
-			mod, err := wasi.Compile(ctx, wasi.CompileParams{
-				Wasm:            data,
+			if _, err := atc.moduleCache.FromURL(ctx, value, cache.ModuleAttrs{
 				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
 				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to compile wasm: %w", err)
-			}
-
-			*value.Mod.Instance = mod
-			value.Mod.SourceMetadata = yoke.ModuleSourcetadata{
-				Ref:      value.URL,
-				Checksum: internal.SHA1HexString(data),
+			}); err != nil {
+				return fmt.Errorf("failed to warm cache: %w", err)
 			}
 
 			// Compiling a module creates a lot of heap usage that we don't need to hang onto
@@ -396,7 +362,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		GK:      flightGK,
 		Airway:  *airway,
 		Version: storageVersion,
-		Flight:  modules.Flight,
 		States:  atc.flightStates,
 	}
 

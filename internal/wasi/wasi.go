@@ -137,6 +137,7 @@ type Module struct {
 	wazero.CompiledModule
 	wazero.Runtime
 	maxMemoryMib uint32
+	checksum     string
 }
 
 func (mod Module) Instantiate(ctx context.Context, cfg wazero.ModuleConfig) error {
@@ -216,11 +217,16 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 		Runtime:        runtime,
 		CompiledModule: mod,
 		maxMemoryMib:   params.MaxMemoryMib,
+		checksum:       internal.SHA1HexString(params.Wasm),
 	}, nil
 }
 
 func (mod Module) MaxMemoryMib() uint32 {
 	return mod.maxMemoryMib
+}
+
+func (mod Module) Checksum() string {
+	return mod.checksum
 }
 
 func Error(ctx context.Context, module api.Module, ptr wasm.Ptr, state wasm.State, err string) wasm.Buffer {

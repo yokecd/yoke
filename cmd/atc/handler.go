@@ -21,10 +21,10 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/internal/xsync"
@@ -37,7 +37,7 @@ type HandlerParams struct {
 	Controller   *ctrl.Instance
 	FlightStates *xsync.Map[string, atc.InstanceState]
 	Client       *k8s.Client
-	Cache        *wasm.ModuleCache
+	Cache        *cache.ModuleCache
 	Dispatcher   *atc.EventDispatcher
 	Logger       *slog.Logger
 	Filter       xhttp.LogFilterFunc
@@ -60,15 +60,17 @@ func Handler(params HandlerParams) http.Handler {
 
 	mux.HandleFunc("POST /crdconvert/{airway}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		airway := r.PathValue("airway")
 
-		converter := params.Cache.Get(airway).Converter
+		airway, err := params.Client.AirwayIntf.Get(ctx, r.PathValue("airway"), metav1.GetOptions{})
+		if err != nil {
+			http.Error(w, "failed to find airway defintion", http.StatusInternalServerError)
+			return
 
-		converter.RLock()
-		defer converter.RUnlock()
+		}
 
-		if converter.Instance.CompiledModule == nil {
-			http.Error(w, "converter module not ready or validations not managed by this server", http.StatusNotFound)
+		converter, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Converter, cache.ModuleAttrs{})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to get converter module from cache: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -94,7 +96,7 @@ func Handler(params HandlerParams) http.Handler {
 		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			Module:  converter.Instance,
+			Module:  converter,
 			Stdin:   bytes.NewReader(data),
 			BinName: "converter",
 		})
@@ -297,16 +299,21 @@ func Handler(params HandlerParams) http.Handler {
 			xhttp.AddRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
 			takeoffParams.Flight.Path = overrideURL
 		} else {
-			flightMod := params.Cache.Get(airway.Name).Flight
-
-			flightMod.RLock()
-			defer flightMod.RUnlock()
-
-			if flightMod.Instance.CompiledModule == nil {
-				http.Error(w, "flight not ready or not registered for custom resource", http.StatusNotFound)
+			flightMod, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
+				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(params.Client),
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to get flight module from cache: %v", err), http.StatusNotFound)
 				return
 			}
-			takeoffParams.Flight.Module = flightMod.Module
+			takeoffParams.Flight.Module = yoke.Module{
+				Instance: flightMod,
+				SourceMetadata: internal.Source{
+					Ref:      airway.Spec.WasmURLs.Flight,
+					Checksum: flightMod.Checksum(),
+				},
+			}
 		}
 
 		ctx := internal.WithStderr(r.Context(), io.Discard)

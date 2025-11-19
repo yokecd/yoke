@@ -22,9 +22,9 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
@@ -35,7 +35,6 @@ import (
 type InstanceReconcilerParams struct {
 	GK      schema.GroupKind
 	Version string
-	Flight  *wasm.Module
 	Airway  v1alpha1.Airway
 	States  *xsync.Map[string, InstanceState]
 }
@@ -293,9 +292,20 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			// It is not recommended to override in production. As so it is allowable that users don't version the overrideURL and that the content can change.
 			takeoffParams.Flight.Path = overrideURL
 		} else {
-			params.Flight.RLock()
-			defer params.Flight.RUnlock()
-			takeoffParams.Flight.Module = params.Flight.Module
+			mod, err := atc.moduleCache.FromURL(ctx, params.Airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
+				MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+			})
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to fetch flight modile from cache: %w", err)
+			}
+			takeoffParams.Flight.Module = yoke.Module{
+				Instance: mod,
+				SourceMetadata: yoke.ModuleSourcetadata{
+					Ref:      params.Airway.Spec.WasmURLs.Flight,
+					Checksum: mod.Checksum(),
+				},
+			}
 		}
 
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")

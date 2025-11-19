@@ -19,7 +19,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal/atc"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
@@ -84,8 +83,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to apply dependent resources: %w", err)
 	}
 
-	moduleCache := new(wasm.ModuleCache)
-	modulecachev2 := cache.NewModuleCache(cfg.CacheFS)
+	moduleCache := cache.NewModuleCache(cfg.CacheFS)
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
@@ -126,8 +124,8 @@ func run() (err error) {
 	})
 	if err := controller.RegisterGKs(map[schema.GroupKind]ctrl.Funcs{
 		{Group: "yoke.cd", Kind: v1alpha1.KindAirway}:        atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
-		{Group: "yoke.cd", Kind: v1alpha1.KindFlight}:        atc.FlightReconciler(modulecachev2),
-		{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}: atc.ClusterFlightReconsiler(modulecachev2),
+		{Group: "yoke.cd", Kind: v1alpha1.KindFlight}:        atc.FlightReconciler(moduleCache),
+		{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}: atc.ClusterFlightReconsiler(moduleCache),
 	}); err != nil {
 		return fmt.Errorf("failed to register group kind handlers: %w", err)
 	}
