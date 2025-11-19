@@ -172,9 +172,8 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				Module: yoke.Module{
 					Instance: mod,
 					SourceMetadata: internal.Source{
-						Ref: flight.Spec.WasmURL,
-						// TODO get checkum on wasi.Module?
-						Checksum: "",
+						Ref:      flight.Spec.WasmURL,
+						Checksum: mod.Checksum(),
 					},
 				},
 				Args:         flight.Spec.Args,

@@ -3,8 +3,8 @@ package atc
 import (
 	"sync"
 
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
@@ -25,7 +25,7 @@ type InstanceState struct {
 	TrackedResources *xsync.Set[string]
 }
 
-func GetAirwayReconciler(service ServiceDef, cache *wasm.ModuleCache, dispatcher *EventDispatcher, states *xsync.Map[string, InstanceState]) ctrl.Funcs {
+func GetAirwayReconciler(service ServiceDef, cache *cache.ModuleCache, dispatcher *EventDispatcher, states *xsync.Map[string, InstanceState]) ctrl.Funcs {
 	atc := atc{
 		service:      service,
 		cleanups:     map[string]func(){},
@@ -44,7 +44,7 @@ type atc struct {
 	flightStates *xsync.Map[string, InstanceState]
 	service      ServiceDef
 	cleanups     map[string]func()
-	moduleCache  *wasm.ModuleCache
+	moduleCache  *cache.ModuleCache
 }
 
 func (atc atc) Teardown() {
