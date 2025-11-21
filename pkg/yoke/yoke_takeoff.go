@@ -88,6 +88,11 @@ type TakeoffParams struct {
 	// Name of release
 	Release string
 
+	// ReleasePrefix prefixes the release name. The full name of the release will be releasePrefix+release.
+	// However the YOKE_RELEASE envvar will only be release. This allows us users to set release names that can be used in the Flight
+	// but dedup them with a prefix like in the case of the ATC Flight and ClusterFlight CRs.
+	ReleasePrefix string
+
 	// Release Namespace
 	Namespace string
 
@@ -284,7 +289,9 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 	}
 
-	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
+	fullReleaseName := params.ReleasePrefix + params.Release
+
+	release, err := commander.k8s.GetRelease(ctx, fullReleaseName, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
 	}
@@ -361,7 +368,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	now := time.Now()
 	if err := commander.k8s.CreateRevision(
 		ctx,
-		params.Release,
+		fullReleaseName,
 		targetNS,
 		internal.Revision{
 			Source: func() internal.Source {
@@ -384,7 +391,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	}
 
 	if params.HistoryCapSize > 0 {
-		if err := commander.k8s.CapReleaseHistory(ctx, params.Release, targetNS, params.HistoryCapSize); err != nil {
+		if err := commander.k8s.CapReleaseHistory(ctx, fullReleaseName, targetNS, params.HistoryCapSize); err != nil {
 			return internal.Warning(fmt.Sprintf("failed to cap release history after successful takeoff of %s: %v", params.Release, err))
 		}
 	}
