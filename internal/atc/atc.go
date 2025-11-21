@@ -376,6 +376,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Client(ctx).Mapper.Reset()
 
+	// Get timeout value, defaulting to 10 seconds if not configured
+	timeoutSeconds := cmp.Or(atc.service.ValidationWebhookTimeout, ptr.To[int32](10))
+
 	validationWebhook := admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
@@ -406,6 +409,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
 				AdmissionReviewVersions: []string{"v1"},
+				TimeoutSeconds:          timeoutSeconds,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
@@ -941,8 +945,9 @@ func ReleaseName(resource *unstructured.Unstructured) string {
 }
 
 type ServiceDef struct {
-	Name      string
-	Namespace string
-	CABundle  []byte
-	Port      int32
+	Name                    string
+	Namespace               string
+	CABundle                []byte
+	Port                    int32
+	ValidationWebhookTimeout *int32
 }

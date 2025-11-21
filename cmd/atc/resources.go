@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cmp"
 	"fmt"
 	"reflect"
 	"strings"
@@ -92,6 +93,9 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		return fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 
+	// Get timeout value, defaulting to 10 seconds if not configured
+	timeoutSeconds := cmp.Or(cfg.ValidationWebhookTimeout, ptr.To[int32](10))
+
 	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
@@ -114,6 +118,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
 				AdmissionReviewVersions: []string{"v1"},
+				TimeoutSeconds:          timeoutSeconds,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
@@ -156,6 +161,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
+				TimeoutSeconds:          timeoutSeconds,
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name:       "managed-by-atc",
@@ -212,7 +218,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
-				TimeoutSeconds:          ptr.To[int32](1),
+				TimeoutSeconds:          timeoutSeconds,
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name: "all",
