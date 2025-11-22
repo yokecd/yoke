@@ -298,14 +298,51 @@ func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal
 		return nil, fmt.Errorf("failed to get resource mapping for Secret: %w", err)
 	}
 
-	var labelSelector metav1.LabelSelector
-	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, name)
+	intf := client.Meta.Resource(mapping.Resource).Namespace(ns)
 
-	list, err := client.Meta.Resource(mapping.Resource).Namespace(ns).List(ctx, metav1.ListOptions{
+	var labelSelector metav1.LabelSelector
+	metav1.AddLabelToSelector(&labelSelector, internal.LabelRelease, internal.SHA1HexFromString(name))
+
+	list, err := intf.List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list revision items: %w", err)
+	}
+
+	// in order to be backwards compatible with older versions of yoke where the release label was not
+	// a sha1 but plain text, we need to also look up the label using the raw release name.
+	// If such revisions are found let's convert them to the new format.
+	var deprecatedLabelSelector metav1.LabelSelector
+	metav1.AddLabelToSelector(&deprecatedLabelSelector, internal.LabelRelease, name)
+
+	deprecatedList, err := intf.List(ctx, metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(&deprecatedLabelSelector),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list revision items: %w", err)
+	}
+	for _, item := range deprecatedList.Items {
+		data, err := json.Marshal([]PatchAction{
+			{
+				Op:    PatchOpReplace,
+				Path:  "/metadata/labels/" + PatchEscape(internal.LabelRelease),
+				Value: internal.SHA1HexFromString(item.Labels[internal.LabelRelease]),
+			},
+			{
+				Op:    PatchOpAdd,
+				Path:  "/metadata/annotations/" + PatchEscape(internal.AnnotationReleaseName),
+				Value: name,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build patch request for revision update: %w", err)
+		}
+		rev, err := intf.Patch(ctx, item.Name, types.JSONPatchType, data, metav1.PatchOptions{FieldManager: yoke})
+		if err != nil {
+			return nil, fmt.Errorf("failed to patch revision: %w", err)
+		}
+		list.Items = append(list.Items, *rev)
 	}
 
 	release := internal.Release{Name: name, Namespace: ns}
@@ -407,7 +444,10 @@ func (client Client) GetReleasesByNS(ctx context.Context, ns string) ([]internal
 
 	releases := map[string]struct{}{}
 	for _, item := range list.Items {
-		releases[item.Labels[internal.LabelRelease]] = struct{}{}
+		// New versions of revisions track the release name as an annotation and use a SHA of the release name as selector.
+		// Previous versions put the release name directly as the release label.
+		// Therefore if we are missing the annotation fallback to the label.
+		releases[cmp.Or(item.Annotations[internal.AnnotationReleaseName], item.Labels[internal.LabelRelease])] = struct{}{}
 	}
 
 	var result []internal.Release
@@ -446,7 +486,7 @@ func (client Client) CreateRevision(ctx context.Context, release, ns string, rev
 				Name: "yoke." + internal.RandomString(),
 				Labels: map[string]string{
 					internal.LabelKind:    "revision",
-					internal.LabelRelease: release,
+					internal.LabelRelease: internal.SHA1HexFromString(release),
 				},
 				Annotations: map[string]string{
 					internal.AnnotationCreatedAt:      revision.CreatedAt.Format(time.RFC3339Nano),
@@ -454,6 +494,7 @@ func (client Client) CreateRevision(ctx context.Context, release, ns string, rev
 					internal.AnnotationResourceCount:  strconv.Itoa(revision.Resources),
 					internal.AnnotationSourceURL:      revision.Source.Ref,
 					internal.AnnotationSourceChecksum: revision.Source.Checksum,
+					internal.AnnotationReleaseName:    release,
 				},
 			},
 			Data: map[string][]byte{
@@ -722,29 +763,28 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 // This constant is added for semantic clarity.
 const NoTimeout = -1
 
-type PatchConfig struct {
-	Remove []string
+type PatchOp string
+
+var (
+	PatchOpAdd     = "add"
+	PatchOpRemove  = "remove"
+	PatchOpReplace = "replace"
+	PatchOpMove    = "move"
+	PatchOpCopy    = "copy"
+)
+
+type PatchAction struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value,omitempty"`
+	From  string `json:"from,omitempty"`
 }
 
-func (patch PatchConfig) MarshalJSON() ([]byte, error) {
-	type patchOp struct {
-		Op    string `json:"op"`
-		Path  string `json:"path"`
-		Value string `json:"value,omitempty"`
-	}
-
-	patches := []patchOp{}
-	for _, path := range patch.Remove {
-		patches = append(patches, patchOp{
-			Op:   "remove",
-			Path: path,
-		})
-	}
-
-	return json.Marshal(patches)
+func PatchEscape(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")
 }
 
-func (client Client) Patch(ctx context.Context, resource *unstructured.Unstructured, patch PatchConfig) error {
+func (client Client) Patch(ctx context.Context, resource *unstructured.Unstructured, patch []PatchAction) error {
 	intf, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
 		return fmt.Errorf("failed to get dynamic resource interface: %w", err)
@@ -759,7 +799,7 @@ func (client Client) Patch(ctx context.Context, resource *unstructured.Unstructu
 	return err
 }
 
-func (client Client) PatchMany(ctx context.Context, resources []*unstructured.Unstructured, patch PatchConfig) error {
+func (client Client) PatchMany(ctx context.Context, resources []*unstructured.Unstructured, patch []PatchAction) error {
 	var wg sync.WaitGroup
 	wg.Add(len(resources))
 
@@ -795,15 +835,15 @@ func (client Client) OrhpanResource(ctx context.Context, resource *unstructured.
 		}
 	}
 
-	paths := []string{
-		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1")),
-		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1")),
-		fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1")),
+	patches := []PatchAction{
+		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1"))},
+		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1"))},
+		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1"))},
 	}
 
 	if len(resource.GetOwnerReferences()) > 0 {
-		paths = append(paths, "/metadata/ownerReferences")
+		patches = append(patches, PatchAction{Op: PatchOpRemove, Path: "/metadata/ownerReferences"})
 	}
 
-	return client.Patch(ctx, resource, PatchConfig{Remove: paths})
+	return client.Patch(ctx, resource, patches)
 }
