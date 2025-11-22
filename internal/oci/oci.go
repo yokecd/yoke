@@ -143,7 +143,7 @@ func PullArtifact(ctx context.Context, params PullArtifactParams) (artifact []by
 	var closeErrs []error
 	defer func() {
 		if closeErr := xerr.MultiErrFrom("closing resources", closeErrs...); closeErr != nil {
-			err = xerr.MultiErrFrom("", err, closeErr)
+			err = xerr.Join(err, closeErr)
 		}
 	}()
 

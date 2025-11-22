@@ -21,21 +21,32 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
-	"github.com/yokecd/yoke/pkg/apis/airway/v1alpha1"
+	"github.com/yokecd/yoke/internal/xsync"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.ControllerCache, dispatcher *atc.EventDispatcher, logger *slog.Logger, filter xhttp.LogFilterFunc) http.Handler {
+type HandlerParams struct {
+	Controller   *ctrl.Instance
+	FlightStates *xsync.Map[string, atc.InstanceState]
+	Client       *k8s.Client
+	Cache        *cache.ModuleCache
+	Dispatcher   *atc.EventDispatcher
+	Logger       *slog.Logger
+	Filter       xhttp.LogFilterFunc
+}
+
+func Handler(params HandlerParams) http.Handler {
 	mux := http.NewServeMux()
 
-	commander := yoke.FromK8Client(client)
+	commander := yoke.FromK8Client(params.Client)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("route not found: %s", r.URL.Path), http.StatusNotFound)
@@ -45,17 +56,21 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {})
 
+	mux.HandleFunc("GET /memstats", xhttp.MemStatHandler)
+
 	mux.HandleFunc("POST /crdconvert/{airway}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		airway := r.PathValue("airway")
 
-		converter := cache.Get(airway).Converter
+		airway, err := params.Client.AirwayIntf.Get(ctx, r.PathValue("airway"), metav1.GetOptions{})
+		if err != nil {
+			http.Error(w, "failed to find airway defintion", http.StatusInternalServerError)
+			return
 
-		converter.RLock()
-		defer converter.RUnlock()
+		}
 
-		if converter.Instance.CompiledModule == nil {
-			http.Error(w, "converter module not ready or validations not managed by this server", http.StatusNotFound)
+		converter, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Converter, cache.ModuleAttrs{})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to get converter module from cache: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -81,7 +96,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		resp, err := wasi.Execute(ctx, wasi.ExecParams{
-			Module:  converter.Instance,
+			Module:  converter,
 			Stdin:   bytes.NewReader(data),
 			BinName: "converter",
 		})
@@ -125,7 +140,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		))
 
 		if err := json.NewEncoder(w).Encode(review); err != nil {
-			logger.Error("unexpected: failed to write response to connection", "error", err)
+			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})
 
@@ -166,7 +181,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		if shouldCheckAirwayPerms {
-			accessReview, err := client.Clientset.AuthorizationV1().SubjectAccessReviews().Create(
+			accessReview, err := params.Client.Clientset.AuthorizationV1().SubjectAccessReviews().Create(
 				r.Context(),
 				&authorizationv1.SubjectAccessReview{
 					TypeMeta: metav1.TypeMeta{
@@ -208,7 +223,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			}
 		}
 
-		airway, err := client.AirwayIntf.Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
+		airway, err := params.Client.AirwayIntf.Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get airway: %v", err), http.StatusInternalServerError)
 			return
@@ -246,7 +261,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			Result:  &metav1.Status{Status: metav1.StatusSuccess},
 		}
 
-		params := yoke.TakeoffParams{
+		takeoffParams := yoke.TakeoffParams{
 			Release:        atc.ReleaseName(&cr),
 			Namespace:      cmp.Or(cr.GetNamespace(), "default"),
 			CrossNamespace: airway.Spec.CrossNamespace,
@@ -282,23 +297,28 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 
 		if overrideURL, _, _ := unstructured.NestedString(cr.Object, "metadata", "annotations", flight.AnnotationOverrideFlight); overrideURL != "" {
 			xhttp.AddRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
-			params.Flight.Path = overrideURL
+			takeoffParams.Flight.Path = overrideURL
 		} else {
-			flightMod := cache.Get(airway.Name).Flight
-
-			flightMod.RLock()
-			defer flightMod.RUnlock()
-
-			if flightMod.Instance.CompiledModule == nil {
-				http.Error(w, "flight not ready or not registered for custom resource", http.StatusNotFound)
+			flightMod, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
+				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(params.Client),
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to get flight module from cache: %v", err), http.StatusNotFound)
 				return
 			}
-			params.Flight.Module = flightMod.Module
+			takeoffParams.Flight.Module = yoke.Module{
+				Instance: flightMod,
+				SourceMetadata: internal.Source{
+					Ref:      airway.Spec.WasmURLs.Flight,
+					Checksum: flightMod.Checksum(),
+				},
+			}
 		}
 
 		ctx := internal.WithStderr(r.Context(), io.Discard)
 
-		if err := commander.Takeoff(ctx, params); err != nil && !internal.IsWarning(err) {
+		if err := commander.Takeoff(ctx, takeoffParams); err != nil && !internal.IsWarning(err) {
 			review.Response.Allowed = false
 			review.Response.Result = &metav1.Status{
 				Status:  metav1.StatusFailure,
@@ -310,7 +330,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		xhttp.AddRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
 
 		if err := json.NewEncoder(w).Encode(&review); err != nil {
-			logger.Error("unexpected: failed to write response to connection", "error", err)
+			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})
 
@@ -391,9 +411,10 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			instanceName      = internal.GetLabel(prev, atc.LabelInstanceName)
 			instanceNamespace = internal.GetLabel(prev, atc.LabelInstanceNamespace)
 			instanceGK        = internal.GetLabel(prev, atc.LabelInstanceGroupKind)
+			instanceKey       = ctrl.Event{Name: instanceName, Namespace: instanceNamespace, GroupKind: schema.ParseGroupKind(instanceGK)}.String()
 		)
 
-		controller, ok := controllers.Load(instanceGK)
+		ok := params.Controller.IsListeningForGK(schema.ParseGroupKind(instanceGK))
 
 		xhttp.AddRequestAttrs(
 			r.Context(),
@@ -406,13 +427,13 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return
 		}
 
-		flightState, ok := controller.FlightState(instanceName, instanceNamespace)
+		flight, ok := params.FlightStates.Load(instanceKey)
 		if !ok {
 			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 			return
 		}
 
-		if flightState.Mode == v1alpha1.AirwayModeDynamic || flightState.Mode == v1alpha1.AirwayModeSubscription {
+		if flight.Mode == v1alpha1.AirwayModeDynamic || flight.Mode == v1alpha1.AirwayModeSubscription {
 			// We do not want to be sending resource update events to the controller if it is currently mutating state
 			// as we want to avoid race conditions on admission.
 			// Example:
@@ -423,23 +444,23 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			// With this mutex, if the controller is reading and applying state, we wait, then grab a read lock.
 			//
 			// This makes sure the controller finishes its read/write operations before its subresources can get updated.
-			flightState.Mutex.RLock()
-			defer flightState.Mutex.RUnlock()
+			flight.Mutex.RLock()
+			defer flight.Mutex.RUnlock()
 
 			xhttp.AddRequestAttrs(r.Context(), slog.Bool("admissionLocked", true))
 
 			// Refresh flight state. It may have changed while we were waiting for the lock.
 			// ie:
-			flightState, ok = controller.FlightState(instanceName, instanceNamespace)
+			flight, ok = params.FlightStates.Load(instanceKey)
 			if !ok {
 				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 				return
 			}
 		}
 
-		xhttp.AddRequestAttrs(r.Context(), slog.String("airwayMode", string(flightState.Mode)))
+		xhttp.AddRequestAttrs(r.Context(), slog.String("airwayMode", string(flight.Mode)))
 
-		switch flightState.Mode {
+		switch flight.Mode {
 		case v1alpha1.AirwayModeStatic:
 			if next == nil || !next.GetDeletionTimestamp().IsZero() {
 				review.Response.Allowed = false
@@ -451,7 +472,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				return
 			}
 
-			release, err := client.GetRelease(
+			release, err := params.Client.GetRelease(
 				r.Context(),
 				internal.GetLabel(prev, internal.LabelYokeRelease),
 				internal.GetLabel(prev, internal.LabelYokeReleaseNS),
@@ -465,7 +486,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 				return
 			}
 
-			stages, err := client.GetRevisionResources(r.Context(), release.ActiveRevision())
+			stages, err := params.Client.GetRevisionResources(r.Context(), release.ActiveRevision())
 			if err != nil {
 				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release resources: %v", err)))
 				return
@@ -495,8 +516,8 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			}
 
 		case v1alpha1.AirwayModeDynamic, v1alpha1.AirwayModeSubscription:
-			if flightState.Mode == v1alpha1.AirwayModeSubscription {
-				if ref := internal.ResourceRef(prev); !flightState.TrackedResources.Has(ref) {
+			if flight.Mode == v1alpha1.AirwayModeSubscription {
+				if ref := internal.ResourceRef(prev); !flight.TrackedResources.Has(ref) {
 					xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("resource %q ref not tracked", ref)))
 					return
 				}
@@ -505,11 +526,12 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			evt := ctrl.Event{
 				Name:      instanceName,
 				Namespace: instanceNamespace,
+				GroupKind: schema.ParseGroupKind(instanceGK),
 			}
 
 			xhttp.AddRequestAttrs(r.Context(), slog.String("generatedEvent", evt.String()))
 
-			controller.SendEvent(evt)
+			params.Controller.SendEvent(evt)
 		default:
 			return
 		}
@@ -541,15 +563,17 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 			return internal.ResourceRef(prev)
 		}()
 
-		dispatches := dispatcher.Dispatch(resource)
+		dispatches := params.Dispatcher.Dispatch(resource)
 
-		for _, value := range dispatches {
-			logger.Info(
+		for _, evt := range dispatches {
+			params.Logger.Info(
 				"external resource dispatch event",
 				"triggeringResource", resource,
-				"controller", value.GK, "eventName",
-				value.Name, "eventNamesace", value.Namespace,
+				"eventGK", evt.GroupKind.String(),
+				"eventName", evt.Name,
+				"eventNamesace", evt.Namespace,
 			)
+			params.Controller.SendEvent(evt)
 		}
 
 		xhttp.AddRequestAttrs(r.Context(), slog.String("user", review.Request.UserInfo.Username))
@@ -568,7 +592,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		review.Request = nil
 
 		if err := json.NewEncoder(w).Encode(review); err != nil {
-			logger.Error("unexpected: failed to write response to connection", "error", err)
+			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})
 
@@ -597,7 +621,7 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 		review.Request = nil
 
-		if err := client.ApplyResource(r.Context(), crd, k8s.ApplyOpts{DryRun: true}); err != nil {
+		if err := params.Client.ApplyResource(r.Context(), crd, k8s.ApplyOpts{DryRun: true}); err != nil {
 			review.Response.Allowed = false
 			review.Response.Result = &metav1.Status{
 				Status:  metav1.StatusFailure,
@@ -607,12 +631,12 @@ func Handler(client *k8s.Client, cache *wasm.ModuleCache, controllers *atc.Contr
 		}
 
 		if err := json.NewEncoder(w).Encode(review); err != nil {
-			logger.Error("unexpected: failed to write response to connection", "error", err)
+			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})
 
 	handler := xhttp.WithRecover(mux)
-	handler = xhttp.WithLogger(logger, handler, filter)
+	handler = xhttp.WithLogger(params.Logger, handler, params.Filter)
 
 	return handler
 }

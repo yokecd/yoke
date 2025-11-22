@@ -34,6 +34,8 @@ type Config struct {
 	DockerConfigSecretName string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
 	LogFormat              string            `json:"logFormat,omitzero" Enum:"json,text"`
 	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
+	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
+	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
 }
 
 func Run(cfg Config) (flight.Resources, error) {
@@ -170,6 +172,40 @@ func Run(cfg Config) (flight.Resources, error) {
 		return hex.EncodeToString(hash.Sum(nil))
 	}()
 
+	cfg.CacheFS = cmp.Or(cfg.CacheFS, "/tmp")
+
+	environment := []corev1.EnvVar{
+		{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
+		{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
+		{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
+		{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
+		{Name: "SVC_NAME", Value: svc.Name},
+		{Name: "SVC_NAMESPACE", Value: svc.Namespace},
+		{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
+		{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
+		{Name: "LOG_FORMAT", Value: cfg.LogFormat},
+		{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
+		{Name: "CACHE_FS", Value: cfg.CacheFS},
+	}
+
+	if cfg.Concurrency > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "CONCURRENCY", Value: strconv.Itoa(cfg.Concurrency)})
+	}
+
+	tlsVolume := corev1.Volume{
+		Name: "tls-secrets",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{SecretName: tlsSecret.GetName()},
+		},
+	}
+
+	cacheFSVolume := corev1.Volume{
+		Name: "wasm-cache",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -191,12 +227,8 @@ func Run(cfg Config) (flight.Resources, error) {
 				},
 				Spec: corev1.PodSpec{
 					Volumes: []corev1.Volume{
-						{
-							Name: "tls-secrets",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{SecretName: tlsSecret.GetName()},
-							},
-						},
+						tlsVolume,
+						cacheFSVolume,
 					},
 					ServiceAccountName: func() string {
 						if cfg.ServiceAccountName != "" {
@@ -209,23 +241,16 @@ func Run(cfg Config) (flight.Resources, error) {
 							Name:            "yokecd-atc",
 							Image:           cmp.Or(cfg.Image, "ghcr.io/yokecd/atc") + ":" + cfg.Version,
 							ImagePullPolicy: cmp.Or(cfg.ImagePullPolicy, corev1.PullIfNotPresent),
-							Env: []corev1.EnvVar{
-								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
-								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
-								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
-								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
-								{Name: "SVC_NAME", Value: svc.Name},
-								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
-								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
-								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
-								{Name: "LOG_FORMAT", Value: cfg.LogFormat},
-								{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
-							},
+							Env:             environment,
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "tls-secrets",
+									Name:      tlsVolume.Name,
 									ReadOnly:  true,
 									MountPath: "/conf/tls",
+								},
+								{
+									Name:      cacheFSVolume.Name,
+									MountPath: cfg.CacheFS,
 								},
 							},
 							Ports: []corev1.ContainerPort{

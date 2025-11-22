@@ -56,7 +56,7 @@ func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err
 		return nil, fmt.Errorf("failed to get response: %w", err)
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, resp.Body.Close())
+		err = xerr.Join(err, resp.Body.Close())
 	}()
 
 	if resp.StatusCode >= 400 {
@@ -80,7 +80,7 @@ func loadFile(path string) (result []byte, err error) {
 		return nil, err
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, file.Close())
+		err = xerr.Join(err, file.Close())
 	}()
 
 	return io.ReadAll(gzipReader(file))

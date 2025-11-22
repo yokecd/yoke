@@ -14,6 +14,8 @@ type Config struct {
 	Concurrency int
 	Port        int
 
+	CacheFS string
+
 	Service atc.ServiceDef
 
 	DockerConfigSecretName string
@@ -41,7 +43,7 @@ func LoadConfig() (*Config, error) {
 
 	conf.Var(parser, &cfg.Port, "PORT", conf.Default(3000))
 	conf.Var(parser, &cfg.KubeConfig, "KUBE")
-	conf.Var(parser, &cfg.Concurrency, "CONCURRENCY", conf.Default(runtime.NumCPU()))
+	conf.Var(parser, &cfg.Concurrency, "CONCURRENCY", conf.Default(runtime.GOMAXPROCS(0)))
 
 	conf.Var(parser, &cfg.TLS.CA.Path, "TLS_CA_CERT", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.TLS.ServerCert.Path, "TLS_SERVER_CERT", conf.RequiredNonEmpty[string]())
@@ -54,6 +56,8 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
 
 	conf.Var(parser, &cfg.Verbose, "VERBOSE")
+
+	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
 
 	if err := parser.Parse(); err != nil {
 		return nil, err

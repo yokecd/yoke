@@ -31,7 +31,7 @@ func LoadChartFromZippedArchive(data []byte) (chart *Chart, err error) {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer func() {
-		err = xerr.MultiErrFrom("", err, gz.Close())
+		err = xerr.Join(err, gz.Close())
 	}()
 
 	archive := tar.NewReader(gz)

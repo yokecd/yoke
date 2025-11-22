@@ -1762,3 +1762,42 @@ func TestGetRestMapping(t *testing.T) {
 	require.Equal(t, "deployments", cm.Data["resource"])
 	require.Equal(t, "true", cm.Data["namespaced"])
 }
+
+func TestReleasePrefix(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/name.wasm ./internal/testing/flights/name", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	_, err = cmIntf.Get(background, "example", metav1.GetOptions{})
+	require.True(t, kerrors.IsNotFound(err), "expected example configmap not to be not found")
+
+	require.NoError(t, commander.Takeoff(background, yoke.TakeoffParams{
+		ReleasePrefix: "test-",
+		Release:       "example",
+		Flight:        yoke.FlightParams{Path: "./test_output/name.wasm"},
+	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test-example"}))
+	}()
+
+	_, err = cmIntf.Get(background, "example", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	release, err := client.GetRelease(background, "test-example", "default")
+	require.NoError(t, err)
+
+	stages, err := client.GetRevisionResources(background, release.ActiveRevision())
+	require.NoError(t, err)
+
+	resources := stages.Flatten()
+
+	require.Len(t, resources, 1)
+
+	require.Equal(t, "example", resources[0].GetName())
+	require.Equal(t, "ConfigMap", resources[0].GetKind())
+}

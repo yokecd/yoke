@@ -19,10 +19,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal/atc"
-	"github.com/yokecd/yoke/internal/atc/wasm"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xhttp"
+	"github.com/yokecd/yoke/internal/xsync"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
 func main() {
@@ -81,9 +83,9 @@ func run() (err error) {
 		return fmt.Errorf("failed to apply dependent resources: %w", err)
 	}
 
-	moduleCache := new(wasm.ModuleCache)
-	controllers := new(atc.ControllerCache)
+	moduleCache := cache.NewModuleCache(cfg.CacheFS)
 	eventDispatcher := new(atc.EventDispatcher)
+	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -115,26 +117,24 @@ func run() (err error) {
 		}
 	}()
 
-	airwayGK := schema.GroupKind{Group: "yoke.cd", Kind: "Airway"}
-
-	reconciler, teardown := atc.GetReconciler(cfg.Service, moduleCache, controllers, eventDispatcher, cfg.Concurrency)
-	defer teardown()
-
-	controller, err := ctrl.NewController(ctx, ctrl.Params{
-		GK:          airwayGK,
-		Handler:     reconciler,
+	controller := ctrl.NewController(ctx, ctrl.Params{
 		Client:      client,
 		Logger:      logger.With("component", "controller"),
-		Concurrency: cfg.Concurrency,
+		Concurrency: max(cfg.Concurrency, 1),
 	})
-	if err != nil {
-		return fmt.Errorf("failed to create controller: %w", err)
+	if err := controller.RegisterGKs(map[schema.GroupKind]ctrl.Funcs{
+		{Group: "yoke.cd", Kind: v1alpha1.KindAirway}:        atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
+		{Group: "yoke.cd", Kind: v1alpha1.KindFlight}:        atc.FlightReconciler(moduleCache),
+		{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}: atc.ClusterFlightReconsiler(moduleCache),
+	}); err != nil {
+		return fmt.Errorf("failed to register group kind handlers: %w", err)
 	}
 
 	go func() {
 		defer wg.Done()
+		logger.Info("Controller Starting", "concurrency", controller.Concurrency)
 		if err := controller.Run(); err != nil {
-			e <- fmt.Errorf("error running the controller: %s: %w", airwayGK, err)
+			e <- fmt.Errorf("controller exited run with error: %w", err)
 		}
 	}()
 
@@ -151,15 +151,23 @@ func run() (err error) {
 		}()
 
 		svr := http.Server{
-			Handler: Handler(client, moduleCache, controllers, eventDispatcher, logger.With("component", "server"), filter),
-			Addr:    fmt.Sprintf(":%d", cfg.Port),
+			Handler: Handler(HandlerParams{
+				Controller:   controller,
+				FlightStates: flightStates,
+				Client:       client,
+				Cache:        moduleCache,
+				Dispatcher:   eventDispatcher,
+				Logger:       logger.With("component", "server"),
+				Filter:       filter,
+			}),
+			Addr: fmt.Sprintf(":%d", cfg.Port),
 		}
 
 		serverErr := make(chan error, 1)
 
 		go func() {
 			defer close(serverErr)
-			logger.Info("ATC Admission Control Server starting")
+			logger.Info("ATC Admission Control Server starting", "addr", svr.Addr)
 			if err := svr.ListenAndServeTLS(cfg.TLS.ServerCert.Path, cfg.TLS.ServerKey.Path); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				serverErr <- err
 			}
