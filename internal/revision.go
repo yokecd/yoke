@@ -207,6 +207,7 @@ const (
 	AnnotationCreatedAt      = "internal.yoke/created-at"
 	AnnotationActiveAt       = "internal.yoke/active-at"
 	AnnotationResourceCount  = "internal.yoke/resources"
+	AnnotationReleaseName    = "internal.yoke/release-name"
 	KeyResources             = "resources"
 	KeyLockedBy              = "lockedBy"
 )
