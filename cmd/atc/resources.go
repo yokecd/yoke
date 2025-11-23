@@ -92,12 +92,28 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 		return fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 
-	// Get timeout value, defaulting to 10 seconds if not configured
-	timeoutSeconds := func() *int32 {
-		if cfg.ValidationWebhookTimeout > 0 {
-			return ptr.To(cfg.ValidationWebhookTimeout)
+	// Get timeout value for airway validation webhook, defaulting to 10 seconds if not configured
+	airwayTimeoutSeconds := func() *int32 {
+		if cfg.AirwayValidationWebhookTimeout > 0 {
+			return ptr.To(cfg.AirwayValidationWebhookTimeout)
 		}
 		return ptr.To[int32](10)
+	}()
+
+	// Get timeout value for resource validation webhook (event dispatching), defaulting to 5 seconds if not configured
+	resourceTimeoutSeconds := func() *int32 {
+		if cfg.ResourceValidationWebhookTimeout > 0 {
+			return ptr.To(cfg.ResourceValidationWebhookTimeout)
+		}
+		return ptr.To[int32](5)
+	}()
+
+	// Get timeout value for external resource validation webhook, defaulting to 30 seconds if not configured
+	externalResourceTimeoutSeconds := func() *int32 {
+		if cfg.ExternalResourceValidationWebhookTimeout > 0 {
+			return ptr.To(cfg.ExternalResourceValidationWebhookTimeout)
+		}
+		return ptr.To[int32](30)
 	}()
 
 	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
@@ -122,7 +138,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
 				AdmissionReviewVersions: []string{"v1"},
-				TimeoutSeconds:          timeoutSeconds,
+				TimeoutSeconds:          airwayTimeoutSeconds,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
@@ -165,7 +181,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
-				TimeoutSeconds:          timeoutSeconds,
+				TimeoutSeconds:          resourceTimeoutSeconds,
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name:       "managed-by-atc",
@@ -222,7 +238,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 				AdmissionReviewVersions: []string{"v1"},
 				FailurePolicy:           ptr.To(admissionregistrationv1.Ignore),
 				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
-				TimeoutSeconds:          timeoutSeconds,
+				TimeoutSeconds:          externalResourceTimeoutSeconds,
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
 						Name: "all",

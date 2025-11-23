@@ -68,7 +68,7 @@ func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
 
 type ControllerCache = xsync.Map[string, Controller]
 
-func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int, validationWebhookTimeout int32) (ctrl.HandleFunc, func()) {
+func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int, airwayValidationWebhookTimeout int32) (ctrl.HandleFunc, func()) {
 	atc := atc{
 		concurrency:              concurrency,
 		service:                   service,
@@ -76,7 +76,7 @@ func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *Con
 		moduleCache:               cache,
 		controllers:               controllers,
 		dispatcher:                dispatcher,
-		validationWebhookTimeout:  validationWebhookTimeout,
+		validationWebhookTimeout:  airwayValidationWebhookTimeout,
 	}
 	return atc.Reconcile, atc.Teardown
 }

@@ -32,9 +32,11 @@ type Config struct {
 	ImagePullPolicy           corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
 	GenerateTLS               bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
 	DockerConfigSecretName    string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
-	LogFormat                 string            `json:"logFormat,omitzero" Enum:"json,text"`
-	Verbose                   bool              `json:"verbose,omitzero" Description:"verbose logging"`
-	ValidationWebhookTimeout  int               `json:"validationWebhookTimeout,omitzero" Description:"timeout in seconds for validation webhooks (default: 10)"`
+	LogFormat                          string `json:"logFormat,omitzero" Enum:"json,text"`
+	Verbose                            bool   `json:"verbose,omitzero" Description:"verbose logging"`
+	AirwayValidationWebhookTimeout     int    `json:"airwayValidationWebhookTimeout,omitzero" Description:"timeout in seconds for airway instance validation webhooks (default: 10)"`
+	ResourceValidationWebhookTimeout   int    `json:"resourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for resource/event dispatching validation webhooks (default: 5)"`
+	ExternalResourceValidationWebhookTimeout int `json:"externalResourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for external resource validation webhooks (default: 30)"`
 }
 
 func Run(cfg Config) (flight.Resources, error) {
@@ -223,10 +225,22 @@ func Run(cfg Config) (flight.Resources, error) {
 									{Name: "LOG_FORMAT", Value: cfg.LogFormat},
 									{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
 								}
-								if cfg.ValidationWebhookTimeout > 0 {
+								if cfg.AirwayValidationWebhookTimeout > 0 {
 									env = append(env, corev1.EnvVar{
-										Name:  "VALIDATION_WEBHOOK_TIMEOUT",
-										Value: strconv.Itoa(cfg.ValidationWebhookTimeout),
+										Name:  "AIRWAY_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.AirwayValidationWebhookTimeout),
+									})
+								}
+								if cfg.ResourceValidationWebhookTimeout > 0 {
+									env = append(env, corev1.EnvVar{
+										Name:  "RESOURCE_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.ResourceValidationWebhookTimeout),
+									})
+								}
+								if cfg.ExternalResourceValidationWebhookTimeout > 0 {
+									env = append(env, corev1.EnvVar{
+										Name:  "EXTERNAL_RESOURCE_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.ExternalResourceValidationWebhookTimeout),
 									})
 								}
 								return env
