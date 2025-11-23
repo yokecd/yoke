@@ -307,7 +307,7 @@ func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal
 		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list revision items: %w", err)
+		return nil, fmt.Errorf("failed to list revision items for selector: %s: %w", metav1.FormatLabelSelector(&labelSelector), err)
 	}
 
 	// in order to be backwards compatible with older versions of yoke where the release label was not
@@ -316,33 +316,35 @@ func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal
 	var deprecatedLabelSelector metav1.LabelSelector
 	metav1.AddLabelToSelector(&deprecatedLabelSelector, internal.LabelRelease, name)
 
-	deprecatedList, err := intf.List(ctx, metav1.ListOptions{
-		LabelSelector: metav1.FormatLabelSelector(&deprecatedLabelSelector),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list revision items: %w", err)
-	}
-	for _, item := range deprecatedList.Items {
-		data, err := json.Marshal([]PatchAction{
-			{
-				Op:    PatchOpReplace,
-				Path:  "/metadata/labels/" + PatchEscape(internal.LabelRelease),
-				Value: internal.SHA1HexFromString(item.Labels[internal.LabelRelease]),
-			},
-			{
-				Op:    PatchOpAdd,
-				Path:  "/metadata/annotations/" + PatchEscape(internal.AnnotationReleaseName),
-				Value: name,
-			},
-		})
+	// If selector is <error> this means that our release is using non-label allowed characters and is only supported as a sha1.
+	// This mean we can skip the dprecated method check.
+	if selector := metav1.FormatLabelSelector(&deprecatedLabelSelector); selector != "<error>" {
+		deprecatedList, err := intf.List(ctx, metav1.ListOptions{LabelSelector: selector})
 		if err != nil {
-			return nil, fmt.Errorf("failed to build patch request for revision update: %w", err)
+			return nil, fmt.Errorf("failed to list revision items for selector: %s: %w", metav1.FormatLabelSelector(&deprecatedLabelSelector), err)
 		}
-		rev, err := intf.Patch(ctx, item.Name, types.JSONPatchType, data, metav1.PatchOptions{FieldManager: yoke})
-		if err != nil {
-			return nil, fmt.Errorf("failed to patch revision: %w", err)
+		for _, item := range deprecatedList.Items {
+			data, err := json.Marshal([]PatchAction{
+				{
+					Op:    PatchOpReplace,
+					Path:  "/metadata/labels/" + PatchEscape(internal.LabelRelease),
+					Value: internal.SHA1HexFromString(item.Labels[internal.LabelRelease]),
+				},
+				{
+					Op:    PatchOpAdd,
+					Path:  "/metadata/annotations/" + PatchEscape(internal.AnnotationReleaseName),
+					Value: name,
+				},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to build patch request for revision update: %w", err)
+			}
+			rev, err := intf.Patch(ctx, item.Name, types.JSONPatchType, data, metav1.PatchOptions{FieldManager: yoke})
+			if err != nil {
+				return nil, fmt.Errorf("failed to patch revision: %w", err)
+			}
+			list.Items = append(list.Items, *rev)
 		}
-		list.Items = append(list.Items, *rev)
 	}
 
 	release := internal.Release{Name: name, Namespace: ns}
