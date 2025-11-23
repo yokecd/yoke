@@ -68,14 +68,15 @@ func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
 
 type ControllerCache = xsync.Map[string, Controller]
 
-func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int, validationWebhookTimeout int32) (ctrl.HandleFunc, func()) {
 	atc := atc{
-		concurrency: concurrency,
-		service:     service,
-		cleanups:    map[string]func(){},
-		moduleCache: cache,
-		controllers: controllers,
-		dispatcher:  dispatcher,
+		concurrency:              concurrency,
+		service:                   service,
+		cleanups:                  map[string]func(){},
+		moduleCache:               cache,
+		controllers:               controllers,
+		dispatcher:                dispatcher,
+		validationWebhookTimeout:  validationWebhookTimeout,
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -88,6 +89,8 @@ type atc struct {
 	service     ServiceDef
 	cleanups    map[string]func()
 	moduleCache *wasm.ModuleCache
+
+	validationWebhookTimeout int32
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -377,7 +380,12 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	ctrl.Client(ctx).Mapper.Reset()
 
 	// Get timeout value, defaulting to 10 seconds if not configured
-	timeoutSeconds := cmp.Or(atc.service.ValidationWebhookTimeout, ptr.To[int32](10))
+	timeoutSeconds := func() *int32 {
+		if atc.validationWebhookTimeout > 0 {
+			return ptr.To(atc.validationWebhookTimeout)
+		}
+		return ptr.To[int32](10)
+	}()
 
 	validationWebhook := admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
@@ -945,9 +953,8 @@ func ReleaseName(resource *unstructured.Unstructured) string {
 }
 
 type ServiceDef struct {
-	Name                    string
-	Namespace               string
-	CABundle                []byte
-	Port                    int32
-	ValidationWebhookTimeout *int32
+	Name      string
+	Namespace string
+	CABundle  []byte
+	Port      int32
 }

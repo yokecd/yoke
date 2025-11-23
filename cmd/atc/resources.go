@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"cmp"
 	"fmt"
 	"reflect"
 	"strings"
@@ -94,7 +93,12 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) error 
 	}
 
 	// Get timeout value, defaulting to 10 seconds if not configured
-	timeoutSeconds := cmp.Or(cfg.ValidationWebhookTimeout, ptr.To[int32](10))
+	timeoutSeconds := func() *int32 {
+		if cfg.ValidationWebhookTimeout > 0 {
+			return ptr.To(cfg.ValidationWebhookTimeout)
+		}
+		return ptr.To[int32](10)
+	}()
 
 	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{

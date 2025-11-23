@@ -20,7 +20,7 @@ type Config struct {
 
 	Verbose bool
 
-	ValidationWebhookTimeout *int32
+	ValidationWebhookTimeout int32
 
 	TLS TLSConfig
 }
@@ -74,7 +74,6 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg.Service.CABundle = cfg.TLS.CA.Data
-	cfg.Service.ValidationWebhookTimeout = cfg.ValidationWebhookTimeout
 	cfg.Concurrency = max(cfg.Concurrency, 1)
 
 	return &cfg, nil

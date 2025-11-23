@@ -34,7 +34,7 @@ type Config struct {
 	DockerConfigSecretName    string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
 	LogFormat                 string            `json:"logFormat,omitzero" Enum:"json,text"`
 	Verbose                   bool              `json:"verbose,omitzero" Description:"verbose logging"`
-	ValidationWebhookTimeout  *int32            `json:"validationWebhookTimeout,omitzero" Description:"timeout in seconds for validation webhooks (default: 10)"`
+	ValidationWebhookTimeout  int               `json:"validationWebhookTimeout,omitzero" Description:"timeout in seconds for validation webhooks (default: 10)"`
 }
 
 func Run(cfg Config) (flight.Resources, error) {
@@ -223,10 +223,10 @@ func Run(cfg Config) (flight.Resources, error) {
 									{Name: "LOG_FORMAT", Value: cfg.LogFormat},
 									{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
 								}
-								if cfg.ValidationWebhookTimeout != nil {
+								if cfg.ValidationWebhookTimeout > 0 {
 									env = append(env, corev1.EnvVar{
 										Name:  "VALIDATION_WEBHOOK_TIMEOUT",
-										Value: strconv.FormatInt(int64(*cfg.ValidationWebhookTimeout), 10),
+										Value: strconv.Itoa(cfg.ValidationWebhookTimeout),
 									})
 								}
 								return env
