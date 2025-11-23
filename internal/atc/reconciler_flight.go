@@ -43,10 +43,13 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 	}()
 
 	reconciler := func(ctx context.Context, evt ctrl.Event) (result ctrl.Result, err error) {
+		// We use this type because it is the same as v1alpha1.Flight and ClusterFlight but we want to drop the convenience json marshalling methods
+		type AltFlight v1alpha1.Flight
+
 		var (
 			client     = ctrl.Client(ctx)
 			commander  = yoke.FromK8Client(client)
-			flightIntf = k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, gvr).Namespace(evt.Namespace)
+			flightIntf = k8s.TypedInterface[AltFlight](client.Dynamic, gvr).Namespace(evt.Namespace)
 		)
 
 		if cleanup := cleanups[evt.String()]; cleanup != nil {
@@ -129,10 +132,12 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			return ctrl.Result{}, nil
 		}
 
+		releasePrefix := fmt.Sprintf("%s/%s:", flight.Namespace, flight.GroupVersionKind().GroupKind())
+
 		if !flight.DeletionTimestamp.IsZero() {
 			setReadyCondition(metav1.ConditionFalse, "Terminating", "mayday is being performed")
 			if err := commander.Mayday(ctx, yoke.MaydayParams{
-				Release:   flight.Name,
+				Release:   releasePrefix + flight.Name,
 				Namespace: flight.Namespace,
 				PruneOpts: yoke.PruneOpts{
 					RemoveCRDs:       flight.Spec.Prune.CRDs,
@@ -166,6 +171,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			ForceConflicts: true,
 			ForceOwnership: false,
 			CrossNamespace: clusterScope,
+			ReleasePrefix:  releasePrefix,
 			Release:        flight.Name,
 			Namespace:      flight.Namespace,
 			Flight: yoke.FlightParams{
@@ -203,7 +209,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			return ctrl.Result{}, fmt.Errorf("failed to perform takeoff: %w", err)
 		}
 
-		release, err := client.GetRelease(ctx, flight.Name, flight.Namespace)
+		release, err := client.GetRelease(ctx, releasePrefix+flight.Name, flight.Namespace)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to lookup created revision: %w", err)
 		}
