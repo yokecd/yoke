@@ -23,17 +23,20 @@ import (
 )
 
 type Config struct {
-	Labels                 map[string]string `json:"labels,omitempty"`
-	Annotations            map[string]string `json:"annotations,omitempty"`
-	Image                  string            `json:"image,omitzero" Description:"set the image you want to deploy"`
-	Version                string            `json:"version,omitzero" Description:"version of the deployed image"`
-	Port                   int               `json:"port,omitzero"`
-	ServiceAccountName     string            `json:"serviceAccountName,omitzero"`
-	ImagePullPolicy        corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
-	GenerateTLS            bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
-	DockerConfigSecretName string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
-	LogFormat              string            `json:"logFormat,omitzero" Enum:"json,text"`
-	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
+	Labels                    map[string]string `json:"labels,omitempty"`
+	Annotations               map[string]string `json:"annotations,omitempty"`
+	Image                     string            `json:"image,omitzero" Description:"set the image you want to deploy"`
+	Version                   string            `json:"version,omitzero" Description:"version of the deployed image"`
+	Port                      int               `json:"port,omitzero"`
+	ServiceAccountName        string            `json:"serviceAccountName,omitzero"`
+	ImagePullPolicy           corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
+	GenerateTLS               bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
+	DockerConfigSecretName    string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
+	LogFormat                          string `json:"logFormat,omitzero" Enum:"json,text"`
+	Verbose                            bool   `json:"verbose,omitzero" Description:"verbose logging"`
+	AirwayValidationWebhookTimeout     int    `json:"airwayValidationWebhookTimeout,omitzero" Description:"timeout in seconds for airway instance validation webhooks (default: 10)"`
+	ResourceValidationWebhookTimeout   int    `json:"resourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for resource/event dispatching validation webhooks (default: 5)"`
+	ExternalResourceValidationWebhookTimeout int `json:"externalResourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for external resource validation webhooks (default: 30)"`
 }
 
 func Run(cfg Config) (flight.Resources, error) {
@@ -209,18 +212,39 @@ func Run(cfg Config) (flight.Resources, error) {
 							Name:            "yokecd-atc",
 							Image:           cmp.Or(cfg.Image, "ghcr.io/yokecd/atc") + ":" + cfg.Version,
 							ImagePullPolicy: cmp.Or(cfg.ImagePullPolicy, corev1.PullIfNotPresent),
-							Env: []corev1.EnvVar{
-								{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
-								{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
-								{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
-								{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
-								{Name: "SVC_NAME", Value: svc.Name},
-								{Name: "SVC_NAMESPACE", Value: svc.Namespace},
-								{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
-								{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
-								{Name: "LOG_FORMAT", Value: cfg.LogFormat},
-								{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
-							},
+							Env: func() []corev1.EnvVar {
+								env := []corev1.EnvVar{
+									{Name: "PORT", Value: strconv.Itoa(cfg.Port)},
+									{Name: "TLS_CA_CERT", Value: "/conf/tls/ca.crt"},
+									{Name: "TLS_SERVER_CERT", Value: "/conf/tls/server.crt"},
+									{Name: "TLS_SERVER_KEY", Value: "/conf/tls/server.key"},
+									{Name: "SVC_NAME", Value: svc.Name},
+									{Name: "SVC_NAMESPACE", Value: svc.Namespace},
+									{Name: "SVC_PORT", Value: strconv.Itoa(int(svc.Spec.Ports[0].Port))},
+									{Name: "DOCKER_CONFIG_SECRET_NAME", Value: cfg.DockerConfigSecretName},
+									{Name: "LOG_FORMAT", Value: cfg.LogFormat},
+									{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
+								}
+								if cfg.AirwayValidationWebhookTimeout > 0 {
+									env = append(env, corev1.EnvVar{
+										Name:  "AIRWAY_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.AirwayValidationWebhookTimeout),
+									})
+								}
+								if cfg.ResourceValidationWebhookTimeout > 0 {
+									env = append(env, corev1.EnvVar{
+										Name:  "RESOURCE_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.ResourceValidationWebhookTimeout),
+									})
+								}
+								if cfg.ExternalResourceValidationWebhookTimeout > 0 {
+									env = append(env, corev1.EnvVar{
+										Name:  "EXTERNAL_RESOURCE_VALIDATION_WEBHOOK_TIMEOUT",
+										Value: strconv.Itoa(cfg.ExternalResourceValidationWebhookTimeout),
+									})
+								}
+								return env
+							}(),
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "tls-secrets",

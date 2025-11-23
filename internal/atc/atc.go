@@ -68,14 +68,15 @@ func (controller Controller) FlightState(name, ns string) (FlightState, bool) {
 
 type ControllerCache = xsync.Map[string, Controller]
 
-func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int) (ctrl.HandleFunc, func()) {
+func GetReconciler(service ServiceDef, cache *wasm.ModuleCache, controllers *ControllerCache, dispatcher *EventDispatcher, concurrency int, airwayValidationWebhookTimeout int32) (ctrl.HandleFunc, func()) {
 	atc := atc{
-		concurrency: concurrency,
-		service:     service,
-		cleanups:    map[string]func(){},
-		moduleCache: cache,
-		controllers: controllers,
-		dispatcher:  dispatcher,
+		concurrency:              concurrency,
+		service:                   service,
+		cleanups:                  map[string]func(){},
+		moduleCache:               cache,
+		controllers:               controllers,
+		dispatcher:                dispatcher,
+		validationWebhookTimeout:  airwayValidationWebhookTimeout,
 	}
 	return atc.Reconcile, atc.Teardown
 }
@@ -88,6 +89,8 @@ type atc struct {
 	service     ServiceDef
 	cleanups    map[string]func()
 	moduleCache *wasm.ModuleCache
+
+	validationWebhookTimeout int32
 }
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
@@ -376,6 +379,14 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 
 	ctrl.Client(ctx).Mapper.Reset()
 
+	// Get timeout value, defaulting to 10 seconds if not configured
+	timeoutSeconds := func() *int32 {
+		if atc.validationWebhookTimeout > 0 {
+			return ptr.To(atc.validationWebhookTimeout)
+		}
+		return ptr.To[int32](10)
+	}()
+
 	validationWebhook := admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
@@ -406,6 +417,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
 				AdmissionReviewVersions: []string{"v1"},
+				TimeoutSeconds:          timeoutSeconds,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
