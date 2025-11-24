@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -167,7 +168,9 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 		return
 	}()
 
-	if err := client.ApplyResources(ctx, append(flightResources, airwayResource), k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
+	crds := append(flightResources, airwayResource)
+
+	if err := client.ApplyResources(ctx, crds, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
 		return fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 
@@ -340,7 +343,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 		return fmt.Errorf("failed to apply webhooks: %w", err)
 	}
 
-	return nil
+	return client.WaitForReadyMany(ctx, append(crds, webhooks...), k8s.WaitOptions{Timeout: 30 * time.Second, Interval: time.Second})
 }
 
 func And(expressions ...string) string {

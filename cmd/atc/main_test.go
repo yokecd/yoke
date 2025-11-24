@@ -98,10 +98,8 @@ func TestMain(m *testing.M) {
 	must(x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
 	must(x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
 
-	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
-	if err != nil {
-		panic(err)
-	}
+	client := internal.Must2(k8s.NewClientFromKubeConfig(home.Kubeconfig))
+	commander := yoke.FromK8Client(client)
 
 	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
 
@@ -140,6 +138,15 @@ func TestMain(m *testing.M) {
 		CreateNamespace: true,
 		Wait:            30 * time.Second,
 		Poll:            time.Second,
+	}))
+
+	deployment := internal.Must2(internal.ToUnstructured(internal.Must2(client.Clientset.AppsV1().Deployments("atc").Get(context.Background(), "atc-atc", metav1.GetOptions{}))))
+	deployment.SetAPIVersion("apps/v1")
+	deployment.SetKind("Deployment")
+
+	must(client.WaitForReady(context.Background(), deployment, k8s.WaitOptions{
+		Timeout:  30 * time.Second,
+		Interval: time.Second,
 	}))
 
 	os.Exit(m.Run())

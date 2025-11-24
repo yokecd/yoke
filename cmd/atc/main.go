@@ -79,6 +79,9 @@ func run() (err error) {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
 
+	logger.Info("initializing atc")
+
+	logger.Info("applying resources")
 	if err := ApplyResources(ctx, client, cfg); err != nil {
 		return fmt.Errorf("failed to apply dependent resources: %w", err)
 	}
@@ -107,6 +110,7 @@ func run() (err error) {
 		if cfg.DockerConfigSecretName == "" {
 			return
 		}
+		logger.Info("Starting docker secret watcher")
 		if err := WatchDockerConfig(ctx, WatchDockerConfigParams{
 			SecretName: cfg.DockerConfigSecretName,
 			Namespace:  cfg.Service.Namespace,
