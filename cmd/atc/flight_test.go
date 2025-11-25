@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -126,7 +125,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 
 	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
 
-	flight, err := flightIntf.Create(
+	_, err = flightIntf.Create(
 		context.Background(),
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "crossname"},
@@ -134,47 +133,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 		},
 		metav1.CreateOptions{},
 	)
-	require.NoError(t, err)
-
-	testutils.EventuallyNoErrorf(
-		t,
-		func() error {
-			flight, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			ready := meta.FindStatusCondition(flight.Status.Conditions, "Ready")
-			if ready == nil {
-				return fmt.Errorf("expected a status condition to be present but none was")
-			}
-			if ready.Status != metav1.ConditionFalse {
-				return fmt.Errorf("expected ready condition to be false but got true")
-			}
-			expected := "failed to perform takeoff: Multiple namespaces detected"
-			if !strings.Contains(ready.Message, expected) {
-				return fmt.Errorf("expected condition message to contain %q but got %q", expected, ready.Message)
-			}
-			return nil
-		},
-		time.Second,
-		30*time.Second,
-		"expected flight to fail with crossnamespace implemenation",
-	)
-
-	require.NoError(t, flightIntf.Delete(context.Background(), flight.Name, metav1.DeleteOptions{}))
-
-	testutils.EventuallyNoErrorf(
-		t,
-		func() error {
-			if _, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
-				return fmt.Errorf("expected flight not to be found but got error: %w", err)
-			}
-			return nil
-		},
-		time.Second,
-		10*time.Second,
-		"flight did not delete as expected",
-	)
+	require.ErrorContains(t, err, "Multiple namespaces detected (if desired enable multinamespace releases)")
 
 	clusterFlightIntf := k8s.TypedInterface[v1alpha1.ClusterFlight](client.Dynamic, v1alpha1.ClusterFlightGVR())
 

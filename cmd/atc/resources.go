@@ -214,6 +214,49 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 		},
 	}
 
+	flightValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "atc-flight",
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "flights.yoke.cd",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: cfg.Service.Namespace,
+						Name:      cfg.Service.Name,
+						Path:      ptr.To("/validations/flights.yoke.cd"),
+						Port:      &cfg.Service.Port,
+					},
+					CABundle: cfg.Service.CABundle,
+				},
+				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				AdmissionReviewVersions: []string{"v1"},
+				// We are using the maximum timeout.
+				// It is likely that for this webhook handles the download and compilation of the flights wasm.
+				// In general this should be fast, on the order of a couple seconds, but lets stay on the side of caution for now.
+				TimeoutSeconds: ptr.To(int32(30)),
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{
+							admissionregistrationv1.Create,
+							admissionregistrationv1.Update,
+						},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"yoke.cd"},
+							APIVersions: []string{"v1alpha1"},
+							Resources:   []string{"flights", "clusterflights"},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	resourceValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: admissionregistrationv1.SchemeGroupVersion.Identifier(),
@@ -331,7 +374,12 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 	}
 
 	var webhooks []*unstructured.Unstructured
-	for _, webhook := range []*admissionregistrationv1.ValidatingWebhookConfiguration{airwayValidation, resourceValidation, externalResourceValidation} {
+	for _, webhook := range []*admissionregistrationv1.ValidatingWebhookConfiguration{
+		airwayValidation,
+		flightValidation,
+		resourceValidation,
+		externalResourceValidation,
+	} {
 		resource, err := internal.ToUnstructured(webhook)
 		if err != nil {
 			return fmt.Errorf("failed to convert webhook configuration to unstructured representation: %s: %w", webhook.Name, err)

@@ -130,23 +130,15 @@ func TestMain(m *testing.M) {
 					Name: "wasmcache",
 				},
 				Spec: backendv1.BackendSpec{
-					Image:    "yokecd/wasmcache:test",
-					Replicas: 1,
+					Image:       "yokecd/wasmcache:test",
+					Replicas:    1,
+					HealthCheck: "/health",
 				},
 			}),
 		},
 		CreateNamespace: true,
 		Wait:            30 * time.Second,
 		Poll:            time.Second,
-	}))
-
-	deployment := internal.Must2(internal.ToUnstructured(internal.Must2(client.Clientset.AppsV1().Deployments("atc").Get(context.Background(), "atc-atc", metav1.GetOptions{}))))
-	deployment.SetAPIVersion("apps/v1")
-	deployment.SetKind("Deployment")
-
-	must(client.WaitForReady(context.Background(), deployment, k8s.WaitOptions{
-		Timeout:  30 * time.Second,
-		Interval: time.Second,
 	}))
 
 	os.Exit(m.Run())

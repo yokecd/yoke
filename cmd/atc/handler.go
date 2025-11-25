@@ -635,6 +635,100 @@ func Handler(params HandlerParams) http.Handler {
 		}
 	})
 
+	mux.HandleFunc("POST /validations/flights.yoke.cd", func(w http.ResponseWriter, r *http.Request) {
+		var review admissionv1.AdmissionReview
+		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// The AltFlight is of the same type as v1alpha1.Flight or v1alpha1.ClusterFlight and is declared here to drop
+		// convenince json marhsalling methods as we need to be able to distinguish between each type.
+		type AltFlight v1alpha1.Flight
+
+		var flight AltFlight
+		if err := json.Unmarshal(review.Request.Object.Raw, &flight); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		review.Response = &admissionv1.AdmissionResponse{
+			UID:     review.Request.UID,
+			Allowed: true,
+			Result: &metav1.Status{
+				Status:  metav1.StatusSuccess,
+				Message: "successful dryrun validation",
+			},
+		}
+		review.Request = nil
+
+		defer func() {
+			xhttp.AddRequestAttrs(
+				r.Context(),
+				slog.String("kind", flight.Kind),
+				slog.Group(
+					"validation",
+					"status", review.Response.Result.Status,
+					"reason", review.Response.Result.Reason,
+					"msg", review.Response.Result.Message,
+				),
+			)
+		}()
+
+		defer func() {
+			if err := json.NewEncoder(w).Encode(review); err != nil {
+				params.Logger.Error("unexpected: failed to write response to connection", "error", err)
+			}
+		}()
+
+		mod, err := params.Cache.FromURL(r.Context(), flight.Spec.WasmURL, cache.ModuleAttrs{
+			MaxMemoryMib:    flight.Spec.MaxMemoryMib,
+			HostFunctionMap: host.BuildFunctionMap(params.Client),
+		})
+		if err != nil {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonInternalError,
+				Message: err.Error(),
+			}
+			return
+		}
+
+		if err := commander.Takeoff(r.Context(), yoke.TakeoffParams{
+			Release:   flight.Name,
+			Namespace: flight.Namespace,
+			Flight: yoke.FlightParams{
+				Module: yoke.Module{
+					Instance: mod,
+					SourceMetadata: yoke.ModuleSourcetadata{
+						Ref:      flight.Spec.WasmURL,
+						Checksum: mod.Checksum(),
+					},
+				},
+				Args:    flight.Spec.Args,
+				Timeout: flight.Spec.Timeout.Duration,
+			},
+			DryRun:         true,
+			ForceConflicts: true,
+			ForceOwnership: true,
+			CrossNamespace: flight.Kind == v1alpha1.KindClusterFlight,
+			ClusterAccess: yoke.ClusterAccessParams{
+				Enabled:          flight.Spec.ClusterAccess,
+				ResourceMatchers: flight.Spec.ResourceAccessMatchers,
+			},
+			ManagedBy: "yoke.atc",
+		}); err != nil {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonBadRequest,
+				Message: err.Error(),
+			}
+			return
+		}
+	})
+
 	handler := xhttp.WithRecover(mux)
 	handler = xhttp.WithLogger(params.Logger, handler, params.Filter)
 
