@@ -24,6 +24,7 @@ type BackendSpec struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 	NodePort    int               `json:"nodePort,omitempty"`
 	ServicePort int               `json:"port,omitempty"`
+	HealthCheck string            `json:"healthcheck,omitempty"`
 }
 
 func (backend Backend) MarshalJSON() ([]byte, error) {

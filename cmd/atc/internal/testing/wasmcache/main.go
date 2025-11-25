@@ -20,6 +20,11 @@ func main() {
 	logger.Info("booting up server", "port", port)
 
 	http.ListenAndServe(port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(200)
+			return
+		}
+
 		path := "wasm/" + strings.TrimLeft(r.URL.Path, "/")
 
 		data, err := wasm.ReadFile(path)

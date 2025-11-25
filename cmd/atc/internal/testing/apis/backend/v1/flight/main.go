@@ -46,6 +46,23 @@ func run() error {
 }
 
 func createDeployment(backend v1.Backend) *appsv1.Deployment {
+	healthProbe := func() *corev1.Probe {
+		if backend.Spec.HealthCheck == "" {
+			return nil
+		}
+		return &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: backend.Spec.HealthCheck,
+					Port: intstr.FromInt(backend.Spec.ServicePort),
+				},
+			},
+			InitialDelaySeconds: 10,
+			TimeoutSeconds:      5,
+			PeriodSeconds:       5,
+		}
+	}()
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.Identifier(),
@@ -83,6 +100,8 @@ func createDeployment(backend v1.Backend) *appsv1.Deployment {
 									ContainerPort: int32(backend.Spec.ServicePort),
 								},
 							},
+							ReadinessProbe: healthProbe,
+							LivenessProbe:  healthProbe,
 						},
 					},
 				},
