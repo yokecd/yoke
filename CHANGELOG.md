@@ -4,7 +4,68 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2025-10-16) atc/v0.16.0 - atc-installer/v0.15.0 - latest - v0.17.0 - yokecd/v0.16.0 - yokecd-installer/v0.16.0
+## (2025-11-25) atc/v0.17.0 - atc-installer/v0.16.0 - latest - v0.18.0 - yokecd/v0.17.0 - yokecd-installer/v0.17.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+<details>
+<summary>15 commits</summary>
+
+- pkg/apis: breaking change: remove airway/v1alpha1 and move package to top-level v1alpha1 ([16cd4aa](https://github.com/yokecd/yoke/commit/16cd4aa6fccc1d516914da999f7f960f292906ff))
+- atc: add flights.yoke.cd validation webhook for Flight and ClusterFlight resources ([507e27e](https://github.com/yokecd/yoke/commit/507e27e9296ed91168b8038b9e6c184990a2ce46))
+- atc: test flight custom resource api ([32a4a5b](https://github.com/yokecd/yoke/commit/32a4a5bb0c221cc398bfbcfa5c17aafa8e450590))
+- atc: flight and cluster flight reconciler use release prefix for their own custom namespaces ([5ba5d94](https://github.com/yokecd/yoke/commit/5ba5d945b47e4a2f114dceed6b24a2904ef4fe71))
+- yoke: change revision labels to use sha1 of release name in backward compatible way ([19d90c3](https://github.com/yokecd/yoke/commit/19d90c314754b1d8deb04e5082a64bdde7e67d32))
+- yoke: support release prefix for takeoff in sdk ([48389f9](https://github.com/yokecd/yoke/commit/48389f9e128bb9dbcff4cd0a930e6282f921a171))
+- atc: use the new module cache implementation for more collaborative memory management ([5640f89](https://github.com/yokecd/yoke/commit/5640f89e983d0c6e1b48ce33116609fac31d1bcb))
+- atc-installer: add cacheFS configuration and volume mounting ([a94e7ac](https://github.com/yokecd/yoke/commit/a94e7acbde47700cbf3989e06342d7c56a91d497))
+- atc-installer: add property concurrency to installer inputs ([f551d3b](https://github.com/yokecd/yoke/commit/f551d3be73668f65c3befa6df55f8223bd2d8ae6))
+- atc: add memstats handler to atc http server ([e770264](https://github.com/yokecd/yoke/commit/e770264cf6a6d6ea45c2ed9ffcdd54d331dfd5f9))
+- atc: breaking change: rearchitect atc to run a single reconciliation loop across multiple group kinds for more stable resource usage ([64bedfa](https://github.com/yokecd/yoke/commit/64bedfac2e1ca3cdcefd10313f731238b11e6815))
+- atc: add clusterFlight reconciler and resources ([26dddb2](https://github.com/yokecd/yoke/commit/26dddb2283cb74fff5a7455698f701461efdcca6))
+- atc: user new wasi cache for flight reconciler ([e9e6ba1](https://github.com/yokecd/yoke/commit/e9e6ba1a72aff1b33873266bc7bc94e17fa46f31))
+- atc: add flight controller basic implementation ([4a2ddf6](https://github.com/yokecd/yoke/commit/4a2ddf68da2fe2e1b78a85a1b325b1f8c5d17625))
+- pkg/apis/v1alpha1: add new v1alpha1 top level package to support new apis deprecating the old airway package ([1770b7b](https://github.com/yokecd/yoke/commit/1770b7bf8d53dc5ac1c954c45adaefd7b707053e))
+
+</details>
+
+## (2025-11-15) atc/v0.16.4 - v0.17.4 - yokecd/v0.16.5 - yokecd-installer/v0.16.3
+
+- internal/xhttp: move memstat handler from plugin svr to shared xhttp package and make GC opt-in ([fb25724](https://github.com/yokecd/yoke/commit/fb2572474e38abca1cbda6a63cd90b2c2b5c3d06))
+- yokecd-installer: change yokecd server options to support cacheFS and remove old ttl options ([410384a](https://github.com/yokecd/yoke/commit/410384a5c905d3173b468e0bd23cd940b6ed7e77))
+- yokecd/svr: use new wasi cache implementation ([a95cbcf](https://github.com/yokecd/yoke/commit/a95cbcf15e3553549118cdd1113d23c4aa0de1a0))
+- internal/wasi/cache: make sure url fast path holds a read-lock when accessing weak pointer value ([e266f16](https://github.com/yokecd/yoke/commit/e266f16fb328249d2da1c14a7983cce2ea7f8cc0))
+- internal/wasi/cache: add new cache implementation using weak pointers ([73c63ba](https://github.com/yokecd/yoke/commit/73c63ba2a5c30f7d47cccec60ef9e4e8849a8ff0))
+
+## (2025-11-02) yokecd/v0.16.4
+
+- yokecd: add GET /memstats endpoint to yokecd plugin server ([fbcb365](https://github.com/yokecd/yoke/commit/fbcb365fdb0ce4a634100e80b84dec35ded880f4))
+
+## (2025-10-24) atc/v0.16.3 - v0.17.3 - yokecd/v0.16.3 - yokecd-installer/v0.16.2
+
+- yoke: support yoke version when yoke is used a dependency ([aa9be9d](https://github.com/yokecd/yoke/commit/aa9be9de70460b7f416a20ce616c4b59e1d30354))
+
+## (2025-10-22) atc-installer/v0.15.1 - yokecd-installer/v0.16.1
+
+- cmd/internal/releaser: fix set schematics to set a cmd for installer binaries ([372734c](https://github.com/yokecd/yoke/commit/372734c5267a64056139ec575bbf8d2e777a6dbd))
+
+## (2025-10-22) atc/v0.16.2 - v0.17.2 - yokecd/v0.16.2
+
+- Merge pull request #205 from yokecd/schematics ([e9b73b6](https://github.com/yokecd/yoke/commit/e9b73b6c569bfcf113e734f3c36ebb9a630c38a2))
+- pkg/yoke: add schematics tests ([39ca209](https://github.com/yokecd/yoke/commit/39ca209310b0d98a459e678c1ecb9938192c4ba3))
+- pkg/yoke: move schematics cmd logic into public sdk ([599546a](https://github.com/yokecd/yoke/commit/599546a17452eac77f704918a7a7fb148efa1e66))
+- yoke/schematics: add better help output to schematics command ([bf540e8](https://github.com/yokecd/yoke/commit/bf540e87d33e3f69995b7720ac4b1d1f778f4f45))
+- cmd/internal/releaser: add schematics schema to installer builds ([47b3c83](https://github.com/yokecd/yoke/commit/47b3c83584ded119c2c93e4ed238c9ef78d0adcc))
+- installers: support -schema flag for schematics ([f0138ef](https://github.com/yokecd/yoke/commit/f0138ef6c28323c4831bea006d18cc806d3d6ac2))
+- pkg/openapi: better support for structs with a single embedded field ([222c06b](https://github.com/yokecd/yoke/commit/222c06bdd326d364dcf1dc6eb9b265cfcd31bba7))
+- yoke/schematics: add new schematics command ([fe1e131](https://github.com/yokecd/yoke/commit/fe1e1314a910403074f4e1e42f94a6aa8e3038f9))
+
+## (2025-10-20) atc/v0.16.1 - v0.17.1 - yokecd/v0.16.1
+
+- atc: add subscription mode ([f9fb08e](https://github.com/yokecd/yoke/commit/f9fb08e436bed2f571577dbeb0c6bf9dc75973db))
+
+## (2025-10-16) atc/v0.16.0 - atc-installer/v0.15.0 - v0.17.0 - yokecd/v0.16.0 - yokecd-installer/v0.16.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
