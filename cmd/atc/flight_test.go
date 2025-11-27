@@ -191,3 +191,23 @@ func TestFlightCrossNamespace(t *testing.T) {
 		"cluster flight did not delete as expected",
 	)
 }
+
+func TestFlightValidationWebhook(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
+
+	_, err = flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec: v1alpha1.FlightSpec{
+				WasmURL: "http://wasmcache/basic.wasm",
+				Input:   `{"answer":42}`, // basic expects a map of strings not ints
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.ErrorContains(t, err, "failed to decode input: json: cannot unmarshal number into Go value of type string")
+}
