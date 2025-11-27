@@ -696,31 +696,33 @@ func Handler(params HandlerParams) http.Handler {
 			return
 		}
 
-		if err := commander.Takeoff(r.Context(), yoke.TakeoffParams{
-			Release:   flight.Name,
-			Namespace: flight.Namespace,
-			Flight: yoke.FlightParams{
-				Module: yoke.Module{
-					Instance: mod,
-					SourceMetadata: yoke.ModuleSourcetadata{
-						Ref:      flight.Spec.WasmURL,
-						Checksum: mod.Checksum(),
+		if err := commander.Takeoff(
+			internal.WithStdio(r.Context(), io.Discard, io.Discard, internal.Stdin(r.Context())),
+			yoke.TakeoffParams{
+				Release:   flight.Name,
+				Namespace: flight.Namespace,
+				Flight: yoke.FlightParams{
+					Module: yoke.Module{
+						Instance: mod,
+						SourceMetadata: yoke.ModuleSourcetadata{
+							Ref:      flight.Spec.WasmURL,
+							Checksum: mod.Checksum(),
+						},
 					},
+					Input:   strings.NewReader(flight.Spec.Input),
+					Args:    flight.Spec.Args,
+					Timeout: flight.Spec.Timeout.Duration,
 				},
-				Input:   strings.NewReader(flight.Spec.Input),
-				Args:    flight.Spec.Args,
-				Timeout: flight.Spec.Timeout.Duration,
-			},
-			DryRun:         true,
-			ForceConflicts: true,
-			ForceOwnership: true,
-			CrossNamespace: flight.Kind == v1alpha1.KindClusterFlight,
-			ClusterAccess: yoke.ClusterAccessParams{
-				Enabled:          flight.Spec.ClusterAccess,
-				ResourceMatchers: flight.Spec.ResourceAccessMatchers,
-			},
-			ManagedBy: "yoke.atc",
-		}); err != nil {
+				DryRun:         true,
+				ForceConflicts: true,
+				ForceOwnership: true,
+				CrossNamespace: flight.Kind == v1alpha1.KindClusterFlight,
+				ClusterAccess: yoke.ClusterAccessParams{
+					Enabled:          flight.Spec.ClusterAccess,
+					ResourceMatchers: flight.Spec.ResourceAccessMatchers,
+				},
+				ManagedBy: "atc.yoke",
+			}); err != nil {
 			review.Response.Allowed = false
 			review.Response.Result = &metav1.Status{
 				Status:  metav1.StatusFailure,

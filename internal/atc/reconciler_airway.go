@@ -13,6 +13,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,38 +59,15 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			return
 		}
 
-		airway = current
-
-		readyCondition := metav1.Condition{
+		meta.SetStatusCondition((*[]metav1.Condition)(&current.Status.Conditions), metav1.Condition{
 			Type:               "Ready",
 			Status:             status,
-			ObservedGeneration: airway.Generation,
+			ObservedGeneration: current.Generation,
 			Reason:             reason,
 			Message:            fmt.Sprintf("%v", msg),
-		}
-
-		conditions := airway.Status.Conditions
-
-		i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
-			return condition.Type == "Ready"
 		})
 
-		readyCondition.LastTransitionTime = func() metav1.Time {
-			if i < 0 || conditions[i].Status != status {
-				return metav1.Now()
-			}
-			return conditions[i].LastTransitionTime
-		}()
-
-		if i < 0 {
-			conditions = append(conditions, readyCondition)
-		} else {
-			conditions[i] = readyCondition
-		}
-
-		airway.Status.Conditions = conditions
-
-		updated, err := airwayIntf.UpdateStatus(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager})
+		updated, err := airwayIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return
