@@ -3118,11 +3118,15 @@ func TestOverridePermissions(t *testing.T) {
 	be, err = beIntf.Create(ctx, be, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	be.SetAnnotations(map[string]string{
-		flight.AnnotationOverrideMode: string(v1alpha1.AirwayModeDynamic),
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		resource, err := beIntf.Get(context.Background(), be.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		resource.SetAnnotations(map[string]string{flight.AnnotationOverrideMode: string(v1alpha1.AirwayModeDynamic)})
+		_, err = beIntf.Update(context.Background(), resource, metav1.UpdateOptions{})
+		return err
 	})
-
-	_, err = beIntf.Update(ctx, be, metav1.UpdateOptions{})
 	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: user does not have permissions to create or update override annotations`)
 }
 
