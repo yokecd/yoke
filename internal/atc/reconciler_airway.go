@@ -312,6 +312,17 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
 				AdmissionReviewVersions: []string{"v1"},
+				MatchPolicy:             ptr.To(admissionregistrationv1.Exact),
+				MatchConditions: []admissionregistrationv1.MatchCondition{
+					{
+						Name: "not-atc-service-account",
+						Expression: fmt.Sprintf(
+							`request.userInfo.username != "system:serviceaccount:%s:%s-service-account"`,
+							atc.service.Namespace,
+							atc.service.Name,
+						),
+					},
+				},
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{

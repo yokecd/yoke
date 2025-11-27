@@ -240,6 +240,17 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 				// It is likely that for this webhook handles the download and compilation of the flights wasm.
 				// In general this should be fast, on the order of a couple seconds, but lets stay on the side of caution for now.
 				TimeoutSeconds: ptr.To(int32(30)),
+				MatchPolicy:    ptr.To(admissionregistrationv1.Exact),
+				MatchConditions: []admissionregistrationv1.MatchCondition{
+					{
+						Name: "not-atc-service-account",
+						Expression: fmt.Sprintf(
+							`request.userInfo.username != "system:serviceaccount:%s:%s-service-account"`,
+							cfg.Service.Namespace,
+							cfg.Service.Name,
+						),
+					},
+				},
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
 						Operations: []admissionregistrationv1.OperationType{
