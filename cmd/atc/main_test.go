@@ -3355,3 +3355,116 @@ func TestSubscriptionMode(t *testing.T) {
 		"expected configmaps to be resynced",
 	)
 }
+
+func TestValidationCycle(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	airway, err := client.AirwayIntf.Create(
+		context.Background(),
+		&v1alpha1.Airway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "backends.examples.com",
+			},
+			Spec: v1alpha1.AirwaySpec{
+				WasmURLs: v1alpha1.WasmURLs{
+					Flight: "http://wasmcache/flight.v1.wasm",
+				},
+				Template: apiextv1.CustomResourceDefinitionSpec{
+					Group: "examples.com",
+					Names: apiextv1.CustomResourceDefinitionNames{
+						Plural:     "backends",
+						Singular:   "backend",
+						ShortNames: []string{"be"},
+						Kind:       "Backend",
+					},
+					Scope: apiextv1.NamespaceScoped,
+					Versions: []apiextv1.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextv1.CustomResourceValidation{
+								OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+							},
+						},
+					},
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expected error to be not found but got: %w", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected airway to be deleted proper",
+		)
+	}()
+
+	require.NoError(t,
+		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+			Timeout:  30 * time.Second,
+			Interval: time.Second,
+		}),
+	)
+
+	require.NoError(t, client.EnsureNamespace(context.Background(), "foo"))
+
+	backendIntf := k8s.TypedInterface[backendv1.Backend](client.Dynamic, schema.GroupVersionResource{
+		Resource: "backends",
+		Group:    "examples.com",
+		Version:  "v1",
+	}).Namespace("foo")
+
+	be, err := backendIntf.Create(
+		context.Background(),
+		&backendv1.Backend{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cycle",
+			},
+			Spec: backendv1.BackendSpec{
+				Image:    "yokecd/c4ts:test",
+				Replicas: 1,
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			_, err := backendIntf.Get(context.Background(), be.Name, metav1.GetOptions{})
+			return err
+		},
+		time.Second,
+		10*time.Second,
+		"failed to get backend",
+	)
+
+	require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(context.Background(), "foo", metav1.DeleteOptions{}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			if _, err := backendIntf.Get(context.Background(), be.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+				return fmt.Errorf("expected error not found but got: %w", err)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected backend to be deleted with namespace",
+	)
+}
