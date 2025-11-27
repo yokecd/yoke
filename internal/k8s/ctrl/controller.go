@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2"
 	"sync"
@@ -236,6 +237,7 @@ func (instance *Instance) Run() error {
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
 						ctx = context.WithValue(ctx, clientKey{}, instance.Client)
 						ctx = context.WithValue(ctx, instanceKey{}, instance)
+						ctx = internal.WithStdio(ctx, io.Discard, io.Discard, internal.Stdin(ctx))
 
 						logger.Info("processing event")
 

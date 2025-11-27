@@ -6,8 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -43,8 +41,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 	pollerCleanups := map[string]func(){}
 
 	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
-		ctx = internal.WithStdio(ctx, io.Discard, io.Discard, os.Stdin)
-
 		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK, params.Version)
 		if err != nil {
 			ctrl.Client(ctx).Mapper.Reset()
@@ -116,39 +112,19 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				return
 			}
 
-			resource = current
+			conditions := internal.GetFlightConditions(current)
 
-			readyCondition := metav1.Condition{
+			meta.SetStatusCondition(&conditions, metav1.Condition{
 				Type:               "Ready",
 				Status:             status,
-				ObservedGeneration: resource.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
+				ObservedGeneration: current.GetGeneration(),
 				Reason:             reason,
 				Message:            fmt.Sprintf("%v", msg),
-			}
-
-			conditions := internal.GetFlightConditions(resource)
-
-			i := slices.IndexFunc(conditions, func(condition metav1.Condition) bool {
-				return condition.Type == "Ready"
 			})
 
-			readyCondition.LastTransitionTime = func() metav1.Time {
-				if i < 0 || conditions[i].Status != status {
-					return metav1.Now()
-				}
-				return conditions[i].LastTransitionTime
-			}()
+			_ = unstructured.SetNestedField(current.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
 
-			if i < 0 {
-				conditions = append(conditions, readyCondition)
-			} else {
-				conditions[i] = readyCondition
-			}
-
-			_ = unstructured.SetNestedField(resource.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
-
-			updated, err := resourceIntf.UpdateStatus(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
+			updated, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					return
