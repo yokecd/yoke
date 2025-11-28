@@ -4,6 +4,19 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-11-27) atc/v0.17.3 - v0.18.2
+
+- atc: refactor reconcilers to use apimachinery meta api for condition handling ([24a6323](https://github.com/yokecd/yoke/commit/24a63236d51d44194553b6223e8b11fb1b688a85))
+
+## (2025-11-27) atc/v0.17.2 - v0.18.1
+
+- atc: fix flaky test ([53ead18](https://github.com/yokecd/yoke/commit/53ead188937fa2b6677c0230773dfa1c992f3688))
+- atc: skip airway instance validation on internal updates ([bed0bd3](https://github.com/yokecd/yoke/commit/bed0bd313c3dc6a08c6a86a0ffca505972f5639b))
+
+## (2025-11-26) atc/v0.17.1
+
+- atc: fix flights.yoke.cd admission webhook not using spec input ([e74e4dd](https://github.com/yokecd/yoke/commit/e74e4ddf4e5ae360fc1cc265ad54ec02463e3764))
+
 ## (2025-11-25) atc/v0.17.0 - atc-installer/v0.16.0 - latest - v0.18.0 - yokecd/v0.17.0 - yokecd-installer/v0.17.0
 
 > [!CAUTION]
