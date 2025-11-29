@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/davidmdm/x/xerr"
 
@@ -709,7 +708,7 @@ func Handler(params HandlerParams) http.Handler {
 							Checksum: mod.Checksum(),
 						},
 					},
-					Input:   strings.NewReader(flight.Spec.Input),
+					Input:   v1alpha1.FlightInputStream(flight.Spec),
 					Args:    flight.Spec.Args,
 					Timeout: flight.Spec.Timeout.Duration,
 				},

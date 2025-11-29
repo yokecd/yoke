@@ -192,6 +192,61 @@ func TestFlightCrossNamespace(t *testing.T) {
 	)
 }
 
+func TestFlightInputObject(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
+
+	flight, err := flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec: v1alpha1.FlightSpec{
+				WasmURL:     "http://wasmcache/basic.wasm",
+				InputObject: map[string]any{"banana": "hammock"},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, flightIntf.Delete(context.Background(), flight.Name, metav1.DeleteOptions{}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expected flight to be not found but got: %w", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"flight did not delete as expected",
+		)
+	}()
+
+	configmapIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			cm, err := configmapIntf.Get(context.Background(), flight.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if banana := cm.Data["banana"]; banana != "hammock" {
+				return fmt.Errorf("key banana was expected to be %q but got %q", "hammock", banana)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"subresources were not created as expected",
+	)
+}
+
 func TestFlightValidationWebhook(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)

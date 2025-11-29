@@ -2,10 +2,13 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"io"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/flight"
 )
 
@@ -41,7 +44,16 @@ type FlightSpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
 	WasmURL string `json:"wasmUrl"`
 
+	// Input will be passed to the flight over stdin. Flights are wasm programs and a string representation of the input
+	// is the most practical. This means that the input is not constrained to being json/yaml. It can be binary (base64), cue, toml,
+	// or any input expected by the underlying flight implementation.
+	// As a convenience, you can use InputObject for json/yaml formats. However Input takes precedence InputObject.
 	Input string `json:"input,omitzero"`
+
+	// InputObject will be marshalled to JSON and passed as the input to the flight.
+	// This is a convenience to allow users to write their inputs within the json/yaml context of the flight resource
+	// instead of under a string property like Input. This field has no effect if Input is defined.
+	InputObject map[string]any
 
 	Args []string `json:"args,omitempty"`
 
@@ -111,4 +123,14 @@ func (flight ClusterFlight) MarshalJSON() ([]byte, error) {
 	flight.APIVersion = APIVersion
 	type alt ClusterFlight
 	return json.Marshal(alt(flight))
+}
+
+func FlightInputStream(spec FlightSpec) io.Reader {
+	if spec.Input != "" {
+		return strings.NewReader(spec.Input)
+	}
+	if spec.InputObject != nil {
+		return internal.JSONReader(spec.InputObject)
+	}
+	return strings.NewReader("")
 }
