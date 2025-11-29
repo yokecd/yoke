@@ -1,25 +1,12 @@
 package testutils
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
-
-func JsonReader(value any) io.Reader {
-	data, err := json.Marshal(value)
-	if err != nil {
-		pr, pw := io.Pipe()
-		pw.CloseWithError(err)
-		return pr
-	}
-	return bytes.NewReader(data)
-}
 
 type FatalError struct {
 	error

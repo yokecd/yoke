@@ -817,7 +817,7 @@ func TestDescent(t *testing.T) {
 				TakeoffParams: yoke.TakeoffParams{
 					Release: "foo",
 					Flight: yoke.FlightParams{
-						Input: testutils.JsonReader(&corev1.ConfigMap{
+						Input: internal.JSONReader(&corev1.ConfigMap{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: "v1",
 								Kind:       "ConfigMap",
@@ -1340,7 +1340,7 @@ func TestMayday(t *testing.T) {
 					Release:        "test",
 					ForceOwnership: true,
 					Flight: yoke.FlightParams{
-						Input: testutils.JsonReader(makeResources()),
+						Input: internal.JSONReader(makeResources()),
 					},
 				}),
 			)
@@ -1534,7 +1534,7 @@ func TestTakeoffPruning(t *testing.T) {
 					ForceOwnership: true,
 					Wait:           time.Minute,
 					Flight: yoke.FlightParams{
-						Input: testutils.JsonReader(makeResources(true)),
+						Input: internal.JSONReader(makeResources(true)),
 					},
 				}),
 			)
@@ -1550,7 +1550,7 @@ func TestTakeoffPruning(t *testing.T) {
 			require.Contains(t, crd.GetLabels(), internal.LabelYokeRelease)
 
 			tc.Params.Release = "test"
-			tc.Params.Flight.Input = testutils.JsonReader(makeResources(false))
+			tc.Params.Flight.Input = internal.JSONReader(makeResources(false))
 
 			require.NoError(t, commander.Takeoff(background, tc.Params))
 

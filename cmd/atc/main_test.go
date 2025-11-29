@@ -125,7 +125,7 @@ func TestMain(m *testing.M) {
 		Namespace: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/backend.v1.wasm",
-			Input: testutils.JsonReader(backendv1.Backend{
+			Input: internal.JSONReader(backendv1.Backend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "wasmcache",
 				},
@@ -157,7 +157,7 @@ func TestAirTrafficController(t *testing.T) {
 		commander.Takeoff(ctx, yoke.TakeoffParams{
 			Release: "backend-airway",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(v1alpha1.Airway{
+				Input: internal.JSONReader(v1alpha1.Airway{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "backends.examples.com",
 					},
@@ -197,7 +197,7 @@ func TestAirTrafficController(t *testing.T) {
 	airwayTakeoffParams := yoke.TakeoffParams{
 		Release: "backend-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
@@ -261,7 +261,7 @@ func TestAirTrafficController(t *testing.T) {
 	takeoffErr := commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "c4ts",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(backendv1.Backend{
+			Input: internal.JSONReader(backendv1.Backend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "c4ts",
 				},
@@ -283,7 +283,7 @@ func TestAirTrafficController(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "c4ts",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(backendv1.Backend{
+			Input: internal.JSONReader(backendv1.Backend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "c4ts",
 				},
@@ -350,7 +350,7 @@ func TestAirTrafficController(t *testing.T) {
 			return commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "backend-airway",
 				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(v1alpha1.Airway{
+					Input: internal.JSONReader(v1alpha1.Airway{
 						TypeMeta: metav1.TypeMeta{},
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "backends.examples.com",
@@ -426,7 +426,7 @@ func TestAirTrafficController(t *testing.T) {
 		commander.Takeoff(ctx, yoke.TakeoffParams{
 			Release: "c4ts",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(backendv1.Backend{
+				Input: internal.JSONReader(backendv1.Backend{
 					ObjectMeta: metav1.ObjectMeta{Name: "c4ts"},
 					Spec: backendv1.BackendSpec{
 						Image:    "yokecd/c4ts:test",
@@ -494,7 +494,7 @@ func TestAirTrafficController(t *testing.T) {
 		commander.Takeoff(ctx, yoke.TakeoffParams{
 			Release: "c4ts",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(backendv2.Backend{
+				Input: internal.JSONReader(backendv2.Backend{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "c4ts",
 						Annotations: map[string]string{
@@ -518,7 +518,7 @@ func TestAirTrafficController(t *testing.T) {
 		commander.Takeoff(ctx, yoke.TakeoffParams{
 			Release: "c4ts",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(backendv2.Backend{
+				Input: internal.JSONReader(backendv2.Backend{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "c4ts",
 						Annotations: map[string]string{
@@ -616,7 +616,7 @@ func TestRestarts(t *testing.T) {
 			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "backend-airway",
 				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(v1alpha1.Airway{
+					Input: internal.JSONReader(v1alpha1.Airway{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "backends.examples.com",
 						},
@@ -737,7 +737,7 @@ func TestRestarts(t *testing.T) {
 				Release:   "example",
 				Namespace: "default",
 				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(backendv1.Backend{
+					Input: internal.JSONReader(backendv1.Backend{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "example",
 						},
@@ -806,7 +806,7 @@ func TestCrossNamespace(t *testing.T) {
 		func() error {
 			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "crossnamespace-airway",
-				Flight:  yoke.FlightParams{Input: testutils.JsonReader(airwayWithCrossNamespace(false))},
+				Flight:  yoke.FlightParams{Input: internal.JSONReader(airwayWithCrossNamespace(false))},
 				Wait:    5 * time.Second,
 				Poll:    time.Second,
 			}); err != nil && !internal.IsWarning(err) {
@@ -876,7 +876,7 @@ func TestCrossNamespace(t *testing.T) {
 		func() error {
 			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "crossnamespace-airway",
-				Flight:  yoke.FlightParams{Input: testutils.JsonReader(airwayWithCrossNamespace(true))},
+				Flight:  yoke.FlightParams{Input: internal.JSONReader(airwayWithCrossNamespace(true))},
 				Wait:    30 * time.Second,
 				Poll:    time.Second,
 			}); err != nil && !internal.IsWarning(err) {
@@ -946,7 +946,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "cluster-airway",
-		Flight:  yoke.FlightParams{Input: testutils.JsonReader(airway)},
+		Flight:  yoke.FlightParams{Input: internal.JSONReader(airway)},
 		Wait:    30 * time.Second,
 		Poll:    time.Second,
 	}))
@@ -1050,7 +1050,7 @@ func TestHistoryCap(t *testing.T) {
 			return commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "backend-airway",
 				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(v1alpha1.Airway{
+					Input: internal.JSONReader(v1alpha1.Airway{
 						TypeMeta: metav1.TypeMeta{},
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "backends.examples.com",
@@ -1203,7 +1203,7 @@ func TestHistoryCap(t *testing.T) {
 			return commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "backend-airway",
 				Flight: yoke.FlightParams{
-					Input: testutils.JsonReader(v1alpha1.Airway{
+					Input: internal.JSONReader(v1alpha1.Airway{
 						TypeMeta: metav1.TypeMeta{},
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "backends.examples.com",
@@ -1292,7 +1292,7 @@ func TestFixDriftInterval(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "test-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
 				},
@@ -1356,7 +1356,7 @@ func TestFixDriftInterval(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "test",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(backendv1.Backend{
+			Input: internal.JSONReader(backendv1.Backend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
@@ -1430,7 +1430,7 @@ func TestStatusReadiness(t *testing.T) {
 		func() error {
 			if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 				Release: "longrunning-airway",
-				Flight: yoke.FlightParams{Input: testutils.JsonReader(v1alpha1.Airway{
+				Flight: yoke.FlightParams{Input: internal.JSONReader(v1alpha1.Airway{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "tests.examples.com",
 					},
@@ -1620,7 +1620,7 @@ func TestResourceAccessMatchers(t *testing.T) {
 		return yoke.TakeoffParams{
 			Release: "resourceaccessmatchers-airway",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(v1alpha1.Airway{
+				Input: internal.JSONReader(v1alpha1.Airway{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "backends.examples.com",
 					},
@@ -1748,7 +1748,7 @@ func TestAirwayModes(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "modes-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
 				},
@@ -1813,7 +1813,7 @@ func TestAirwayModes(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "test",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(backendv1.Backend{
+			Input: internal.JSONReader(backendv1.Backend{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
@@ -2048,7 +2048,7 @@ func TestDynamicWithExternalResource(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "dynamic-external-resource-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
 				},
@@ -2215,7 +2215,7 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "dynamic-external-creation-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "clones.examples.com",
 				},
@@ -2373,7 +2373,7 @@ func TestStatusUpdates(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "status-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
 				},
@@ -2617,7 +2617,7 @@ func TestDeploymentStatus(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "deploymentstatus-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
 				},
@@ -2736,7 +2736,7 @@ func TestPruning(t *testing.T) {
 		return yoke.TakeoffParams{
 			Release: "prune-airway",
 			Flight: yoke.FlightParams{
-				Input: testutils.JsonReader(v1alpha1.Airway{
+				Input: internal.JSONReader(v1alpha1.Airway{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "tests.examples.com",
 					},
@@ -3033,7 +3033,7 @@ func TestOverridePermissions(t *testing.T) {
 	airwayTakeoffParams := yoke.TakeoffParams{
 		Release: "backend-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "backends.examples.com",
@@ -3145,7 +3145,7 @@ func TestTimeout(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "timeout-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "timeouts.examples.com",
 				},
@@ -3235,7 +3235,7 @@ func TestSubscriptionMode(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "subscription-airway",
 		Flight: yoke.FlightParams{
-			Input: testutils.JsonReader(v1alpha1.Airway{
+			Input: internal.JSONReader(v1alpha1.Airway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "subscriptions.example.com",
 				},

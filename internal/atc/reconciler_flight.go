@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -165,7 +164,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				Args:         flight.Spec.Args,
 				MaxMemoryMib: uint64(flight.Spec.MaxMemoryMib),
 				Timeout:      flight.Spec.Timeout.Duration,
-				Input:        strings.NewReader(flight.Spec.Input),
+				Input:        v1alpha1.FlightInputStream(flight.Spec),
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

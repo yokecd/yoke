@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 )
@@ -53,4 +55,14 @@ func Stdin(ctx context.Context) io.Reader {
 		return os.Stdin
 	}
 	return r
+}
+
+func JSONReader(value any) io.Reader {
+	data, err := json.Marshal(value)
+	if err != nil {
+		pr, pw := io.Pipe()
+		pw.CloseWithError(err)
+		return pr
+	}
+	return bytes.NewReader(data)
 }
