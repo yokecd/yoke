@@ -995,8 +995,12 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 		t,
 		func() error {
 			for _, ns := range []string{"foo", "bar"} {
-				if _, err := client.Clientset.CoreV1().ConfigMaps(ns).Get(context.Background(), "cm", metav1.GetOptions{}); err != nil {
+				cm, err := client.Clientset.CoreV1().ConfigMaps(ns).Get(context.Background(), "cm", metav1.GetOptions{})
+				if err != nil {
 					return fmt.Errorf("failed to find expected configmap in namespace %s: %w", ns, err)
+				}
+				if !cm.GetDeletionTimestamp().IsZero() {
+					return fmt.Errorf("unexpected configmap state: %s/%s: has deletion timestamp", ns, cm.Name)
 				}
 			}
 			return nil
