@@ -30,6 +30,7 @@ func TestGenerateSchema(t *testing.T) {
 		Active bool              `json:"active"`
 		Choice string            `json:"choice" Enum:"yes,no,toaster"`
 		Rule   string            `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
+		Map    map[string]any    `json:"map"`
 	}
 
 	require.EqualValues(
@@ -74,8 +75,12 @@ func TestGenerateSchema(t *testing.T) {
 				"embed": {
 					Type: "boolean",
 				},
+				"map": {
+					Type:                   "object",
+					XPreserveUnknownFields: ptr.To(true),
+				},
 			},
-			Required: []string{"name", "age", "active", "choice", "rule"},
+			Required: []string{"name", "age", "active", "choice", "rule", "map"},
 		},
 		openapi.SchemaFrom(reflect.TypeOf(S{})),
 	)

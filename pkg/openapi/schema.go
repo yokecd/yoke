@@ -61,8 +61,17 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 	case reflect.Bool:
 		return &apiext.JSONSchemaProps{Type: "boolean"}
 	case reflect.Interface:
-		return &apiext.JSONSchemaProps{}
+		return &apiext.JSONSchemaProps{
+			Type:                   "object",
+			XPreserveUnknownFields: ptr.To(true),
+		}
 	case reflect.Map:
+		if elementType := typ.Elem(); elementType.Kind() == reflect.Interface {
+			return &apiext.JSONSchemaProps{
+				Type:                   "object",
+				XPreserveUnknownFields: ptr.To(true),
+			}
+		}
 		return &apiext.JSONSchemaProps{
 			Type: "object",
 			AdditionalProperties: &apiext.JSONSchemaPropsOrBool{
