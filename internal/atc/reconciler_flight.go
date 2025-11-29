@@ -149,7 +149,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 
 		if err := commander.Takeoff(ctx, yoke.TakeoffParams{
 			ForceConflicts: true,
-			ForceOwnership: false,
+			ForceOwnership: true,
 			CrossNamespace: clusterScope,
 			ReleasePrefix:  releasePrefix,
 			Release:        flight.Name,
