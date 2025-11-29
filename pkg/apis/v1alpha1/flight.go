@@ -53,7 +53,7 @@ type FlightSpec struct {
 	// InputObject will be marshalled to JSON and passed as the input to the flight.
 	// This is a convenience to allow users to write their inputs within the json/yaml context of the flight resource
 	// instead of under a string property like Input. This field has no effect if Input is defined.
-	InputObject map[string]any
+	InputObject map[string]any `json:"inputObject,omitzero"`
 
 	Args []string `json:"args,omitempty"`
 

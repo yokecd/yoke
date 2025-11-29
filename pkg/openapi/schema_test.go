@@ -86,17 +86,33 @@ func TestGenerateSchema(t *testing.T) {
 	)
 }
 
-//go:embed flight.golden.json
-var flight string
-
 var golden bool
 
 func init() {
-	flag.BoolVar(&golden, "golden", false, "generate golden file")
+	flag.BoolVar(&golden, "golden", false, "generate golden files")
 }
+
+//go:embed airway.golden.json
+var airway string
 
 func TestAirwaySchema(t *testing.T) {
 	schema := openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Airway]())
+
+	data, err := json.MarshalIndent(schema, "", "  ")
+	require.NoError(t, err)
+
+	if golden {
+		require.NoError(t, os.WriteFile("airway.golden.json", data, 0o644))
+	}
+
+	require.JSONEq(t, string(data), airway)
+}
+
+//go:embed flight.golden.json
+var flight string
+
+func TestFlightSchema(t *testing.T) {
+	schema := openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Flight]())
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	require.NoError(t, err)
