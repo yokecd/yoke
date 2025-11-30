@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,6 +11,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 const (
@@ -21,6 +24,21 @@ type Airway struct {
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 	Spec              AirwaySpec    `json:"spec"`
 	Status            flight.Status `json:"status,omitzero"`
+}
+
+func (Airway) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	type alt Airway
+	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema.Description = strings.Join(
+		[]string{
+			"Airways are an high level CustomResourceDefintion object with metadata binding it to a Flight implementation.",
+			"Flights are programs compiled to WebAssembly that read in inputs over stdin and write the desired resources over stdout.",
+			"Once an Airway is created, a CustomResourceDefinition you've defined within the spec is created.",
+			"Any custom resource of that type will be passed as json to the stdin of the associated flight and the returned resources will be created.",
+		},
+		" ",
+	)
+	return schema
 }
 
 func AirwayGVR() schema.GroupVersionResource {
@@ -52,6 +70,16 @@ func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 			}
 			return result
 		}(),
+		Description: strings.Join(
+			[]string{
+				"Mode for how your instances are reinvoked on changes within the cluster.",
+				"standard: not reinvoked unless instance resource changes.",
+				"static: changes to subresources are blocked at admission time.",
+				"dynamic: all changes to subresources or resources looked up by the flight requeues the instance for evaluation.",
+				"subscription: only changes to resources looked up by the last invocation of the flight requeuest the instance for evaluation.",
+			},
+			" ",
+		),
 	}
 }
 
@@ -69,21 +97,21 @@ func Modes() []AirwayMode {
 
 type AirwaySpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
-	WasmURLs WasmURLs `json:"wasmUrls"`
+	WasmURLs WasmURLs `json:"wasmUrls" Description:"Remote WASM URLS backing the Airway."`
 
 	// ObjectPath allows you to set a path within your CR to the value you wish to pass to your flight.
 	// By default the entire Custom Resource is injected via STDIN to your flight implementation.
 	// If, for example, you wish to encode the "spec" property over STDIN you would set ObjectPath to []string{"spec"}.
-	ObjectPath []string `json:"objectPath,omitempty"`
+	ObjectPath []string `json:"objectPath,omitempty" Description:"array of strings to path of internal object you wish to use as input to the flight. By default use the entire CR."`
 
 	// FixDriftInterval sets an interval at which the resource is requeued for evaluation by the AirTrafficController.
 	// The ATC will attempt to reapply the resource. In most cases this will result in a noop. If however a user
 	// changed any of the underlying resource's configuration, this will be set back via this mechanism. It allows
 	// you to enforce the desired state of your resource against external manipulation.
-	FixDriftInterval metav1.Duration `json:"fixDriftInterval,omitzero"`
+	FixDriftInterval metav1.Duration `json:"fixDriftInterval,omitzero" Description:"Interval to requeue flight for evaluation. Self-healing mechanism."`
 
 	// ClusterAccess allows the flight to lookup resources in the cluster. Resources are limited to those owned by the calling release.
-	ClusterAccess bool `json:"clusterAccess,omitempty" Default:"false"`
+	ClusterAccess bool `json:"clusterAccess,omitempty" Default:"false" Description:"Allow flight access to the cluster via WASI SDK."`
 
 	// ResourceAccessMatchers combined with ClusterAccess allow you to lookup any resource in your cluster. By default without any matchers
 	// the only resources that you can lookup are resources that are directly owned by the release. If you wish to access resources external
@@ -98,13 +126,13 @@ type AirwaySpec struct {
 	// 	- foo/Deployment.apps:example 	# matches a deployment named example in namespace foo.
 	// 	- * 														# matches all resources in the cluster.
 	// 	- foo/* 												# matches all resources in namespace foo.
-	ResourceAccessMatchers []string `json:"resourceAccessMatchers,omitempty"`
+	ResourceAccessMatchers []string `json:"resourceAccessMatchers,omitempty" Description:"ResourceMatcher expressions to allow explicit access to resources not owned by the flight."`
 
 	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
-	CrossNamespace bool `json:"crossNamespace,omitempty"`
+	CrossNamespace bool `json:"crossNamespace,omitempty" Description:"Enable the creation of resources in multiple namespaces. May be removed in the future and inferred from CR scope."`
 
 	// Insecure only applies to flights using OCI urls. Allows image references to be fetched without TLS verification.
-	Insecure bool `json:"insecure,omitempty"`
+	Insecure bool `json:"insecure,omitempty" Description:"Insecure only applies to flights using OCI urls. Allows image references to be fetched without TLS verification."`
 
 	// SkipAdmissionWebhook bypasses admission webhook for the airway's CRs.
 	// The admission webhook validates that the resources that would be created pass a dry-run phase.
@@ -112,7 +140,7 @@ type AirwaySpec struct {
 	// In this case there is no option but to skip the admission webhook.
 	//
 	// Therefore multi-stage Airways are not generally recommended.
-	SkipAdmissionWebhook bool `json:"skipAdmissionWebhook,omitempty"`
+	SkipAdmissionWebhook bool `json:"skipAdmissionWebhook,omitempty" Description:"Skip admission validation for your airway instances."`
 
 	// Mode sets different behaviors for how the child resources of flights are managed by the ATC.
 	//
@@ -131,22 +159,29 @@ type AirwaySpec struct {
 	// HistoryCapSize controls how many revisions of an instance (custom resource) of this airway is kept in history.
 	// To make it uncapped set this value to any negative integer.
 	// By default 2.
-	HistoryCapSize int `json:"historyCapSize,omitempty"`
+	HistoryCapSize int `json:"historyCapSize,omitempty" Description:"Max length of history for releases generated by your instances. Default is 2."`
 
 	// Template is the CustomResourceDefinition Specification to create. A CRD will be created using this specification
 	// and bound to the implementation defined by the WasmURLs.Flight property.
-	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template"`
+	Template apiextensionsv1.CustomResourceDefinitionSpec `json:"template" Description:"CRD defintion for your custom instances"`
 
 	// Prune enables pruning for resources that are not automatically pruned between updates or on deletion.
-	Prune PruneOptions `json:"prune,omitzero"`
+	Prune PruneOptions `json:"prune,omitzero" Description:"Prune options for deletion of your instances"`
 
 	// MaxMemoryMib sets the maximum amount of memory an Airway instance's flight execution can allocate.
 	// Leaving it unset will allow the maximum amount of memory which is 4Gib. It is recommended to set a reasonable maximum
 	// when working with third party flights.
-	MaxMemoryMib uint32 `json:"maxMemoryMib,omitzero"`
+	MaxMemoryMib uint32 `json:"maxMemoryMib,omitzero" Description:"Maximum amounts of Mib to allow the flight to allocate. Default is 4Gib."`
 
 	// Timeout is the timeout for the airway instance's flight execution. Default setting is 10s.
-	Timeout metav1.Duration `json:"timeout,omitzero"`
+	Timeout metav1.Duration `json:"timeout,omitzero" Description:"Maximum execution duration before flight is cancelled."`
+}
+
+func (AirwaySpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	type alt AirwaySpec
+	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema.Description = "Specification of the Airway resource."
+	return schema
 }
 
 // PruneOptions describes the resources we wish to enable pruning for.
@@ -154,22 +189,22 @@ type PruneOptions struct {
 	// CRDs enables the pruning of CustomResourceDefinition resources.
 	// By default CRDs are orphaned but if set to true they will be removed. This cascades to deleting all custom resources defined by the CRD.
 	// Destructive and dangerous, use with care.
-	CRDs bool `json:"crds,omitzero"`
+	CRDs bool `json:"crds,omitzero" Description:"Delete owned CRDs on deletion"`
 
 	// Namespaces enables the pruning of Namespace resources.
 	// By default namespaces are orphaned but if set to true they will be removed. This cascades to deleting all resources within the namespace.
 	// Destructive and dangerous, use with care.
-	Namespaces bool `json:"namespaces,omitzero"`
+	Namespaces bool `json:"namespaces,omitzero" Description:"Delete owned namespaces on deletion"`
 }
 
 type WasmURLs struct {
 	// Flight is the implementation used to implement the CustomResource as a Package. The flight is always applied against
 	// the storage version of the Custom Resource. This property is required.
-	Flight string `json:"flight"`
+	Flight string `json:"flight" Description:"URL to flight module. Supports http(s) or oci."`
 
 	// Converter is the implementation of the conversion webhook. If present, the ATC will automatically use it to serve conversion
 	// requests between the various served versions of the Custom Resource.
-	Converter string `json:"converter,omitempty"`
+	Converter string `json:"converter,omitempty" Description:"URL to converter module. Used for conversion webhooks. Supports http(s) or oci."`
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {
