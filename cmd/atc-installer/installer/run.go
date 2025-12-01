@@ -38,7 +38,7 @@ type Config struct {
 	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
 }
 
-func Run(cfg Config) (flight.Resources, error) {
+func Run(cfg Config) (flight.Stages, error) {
 	account, binding := func() (*corev1.ServiceAccount, *rbacv1.ClusterRoleBinding) {
 		if cfg.ServiceAccountName != "" {
 			return nil, nil
@@ -286,11 +286,18 @@ func Run(cfg Config) (flight.Resources, error) {
 		},
 	}
 
-	return flight.Resources{
-		svc,
-		tlsSecret,
-		deployment,
-		account,
-		binding,
+	return flight.Stages{
+		{
+			svc,
+			tlsSecret,
+			account,
+			binding,
+		},
+		{
+			// By moving the deployment deletion into a later stage, this means we will also delete it first
+			// before deleting other items such as the account and cluster binding.
+			// This allows us to clean up resources managed by the atc deployment such as any validationWebhookConfigurations.
+			deployment,
+		},
 	}, nil
 }
