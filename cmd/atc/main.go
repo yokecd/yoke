@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/davidmdm/x/xcontext"
+	"github.com/davidmdm/x/xerr"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -82,9 +83,14 @@ func run() (err error) {
 	logger.Info("initializing atc")
 
 	logger.Info("applying resources")
-	if err := ApplyResources(ctx, client, cfg); err != nil {
+
+	teardown, err := ApplyResources(ctx, client, cfg)
+	if err != nil {
 		return fmt.Errorf("failed to apply dependent resources: %w", err)
 	}
+	defer func() {
+		err = xerr.Join(err, teardown(context.Background()))
+	}()
 
 	moduleCache := cache.NewModuleCache(cfg.CacheFS)
 	eventDispatcher := new(atc.EventDispatcher)
