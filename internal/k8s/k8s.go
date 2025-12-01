@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
@@ -259,6 +260,7 @@ func (client Client) PruneReleaseDiff(ctx context.Context, previous, next intern
 	var errs []error
 
 	for _, stage := range slices.Backward(previous) {
+		removing := make([]*unstructured.Unstructured, 0, len(stage))
 		for _, resource := range stage {
 			func() {
 				name := internal.CanonicalWithoutVersion(resource)
@@ -291,17 +293,32 @@ func (client Client) PruneReleaseDiff(ctx context.Context, previous, next intern
 					return
 				}
 
-				if err := intf.Delete(ctx, resource.GetName(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+				foregroundOptions := metav1.DeleteOptions{
+					PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
+				}
+
+				if err := intf.Delete(ctx, resource.GetName(), foregroundOptions); err != nil && !kerrors.IsNotFound(err) {
 					errs = append(errs, fmt.Errorf("failed to delete %s: %w", name, err))
 					return
 				}
 
-				removed = append(removed, resource)
+				removing = append(removing, resource)
 			}()
 		}
+		if err = xerr.JoinOrdered(errs...); err != nil {
+			return
+		}
+		waitOptions := WaitOptions{
+			Timeout:  2 * time.Minute,
+			Interval: 2 * time.Second,
+		}
+		if err = client.WaitIsRemoveFromClusterMany(ctx, removing, waitOptions); err != nil {
+			return
+		}
+		removed = append(removed, removing...)
 	}
 
-	return removed, orphaned, xerr.MultiErrOrderedFrom("", errs...)
+	return removed, orphaned, xerr.JoinOrdered(errs...)
 }
 
 func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal.Release, error) {
@@ -678,18 +695,11 @@ func (client Client) EnsureNamespace(ctx context.Context, namespace string) erro
 
 func (client Client) GetInClusterState(ctx context.Context, resource *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	defer internal.DebugTimer(ctx, "get in-cluster state for "+internal.Canonical(resource))()
-
 	resourceInterface, err := client.GetDynamicResourceInterface(resource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dynamic resource interface: %w", err)
 	}
-
-	state, err := resourceInterface.Get(ctx, resource.GetName(), metav1.GetOptions{})
-	if kerrors.IsNotFound(err) {
-		err = nil
-	}
-
-	return state, err
+	return resourceInterface.Get(ctx, resource.GetName(), metav1.GetOptions{})
 }
 
 type WaitOptions struct {
@@ -739,11 +749,6 @@ func (client Client) IsReady(ctx context.Context, resource *unstructured.Unstruc
 		}
 		return false, fmt.Errorf("failed to get in cluster state: %w", err)
 	}
-
-	if state == nil {
-		return false, fmt.Errorf("resource not found")
-	}
-
 	return client.isReady(ctx, state)
 }
 
@@ -768,6 +773,76 @@ func (client Client) WaitForReadyMany(ctx context.Context, resources []*unstruct
 			defer wg.Done()
 			if err := client.WaitForReady(ctx, resource, opts); err != nil {
 				errs <- fmt.Errorf("failed to get readiness for %s: %w", internal.Canonical(resource), err)
+			}
+		}()
+	}
+
+	return <-errs
+}
+
+func (client Client) WaitIsRemovedFromCluster(ctx context.Context, resource *unstructured.Unstructured, opts WaitOptions) error {
+	defer internal.DebugTimer(ctx, fmt.Sprintf("waiting for %s to be removed from cluster", internal.ResourceRef(resource)))()
+
+	var (
+		interval = cmp.Or(opts.Interval, time.Second)
+		timeout  = cmp.Or(opts.Timeout, 2*time.Minute)
+	)
+
+	var cancel context.CancelFunc
+	if timeout >= 0 {
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("%s timeout reached", timeout))
+		defer cancel()
+	}
+
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-timer.C:
+			removed, err := client.IsRemovedFromCluster(ctx, resource)
+			if err != nil {
+				return err
+			}
+			if removed {
+				return nil
+			}
+			timer.Reset(interval)
+		}
+	}
+}
+
+func (client Client) IsRemovedFromCluster(ctx context.Context, resource *unstructured.Unstructured) (bool, error) {
+	if _, err := client.GetInClusterState(ctx, resource); !kerrors.IsNotFound(err) {
+		return false, err
+	}
+	return true, nil
+}
+
+func (client Client) WaitIsRemoveFromClusterMany(ctx context.Context, resources []*unstructured.Unstructured, opts WaitOptions) error {
+	defer internal.DebugTimer(ctx, "waiting for resources to be removed from cluster")()
+
+	var wg sync.WaitGroup
+	wg.Add(len(resources))
+
+	defer wg.Wait()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errs := make(chan error, len(resources))
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	for _, resource := range resources {
+		go func() {
+			defer wg.Done()
+			if err := client.WaitIsRemovedFromCluster(ctx, resource, opts); err != nil {
+				errs <- fmt.Errorf("failed to wait for %s to be removed from cluster: %w", internal.Canonical(resource), err)
 			}
 		}()
 	}
