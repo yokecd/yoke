@@ -9,9 +9,12 @@ import (
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
+
+	"github.com/davidmdm/x/xerr"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -19,7 +22,7 @@ import (
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
-func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err error) {
+func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teardown func(ctx context.Context) error, err error) {
 	// I don't generally approve of the panic/recover setup for returning errors.
 	// But I am trying it because converting between typed and unstructured apis is too painful
 	// in this function.
@@ -171,7 +174,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 	crds := append(flightResources, airwayResource)
 
 	if err := client.ApplyResources(ctx, crds, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
-		return fmt.Errorf("failed to apply airway crd: %w", err)
+		return nil, fmt.Errorf("failed to apply airway crd: %w", err)
 	}
 
 	airwayValidation := &admissionregistrationv1.ValidatingWebhookConfiguration{
@@ -384,25 +387,36 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (err e
 		},
 	}
 
-	var webhooks []*unstructured.Unstructured
-	for _, webhook := range []*admissionregistrationv1.ValidatingWebhookConfiguration{
+	typedWebhooks := []*admissionregistrationv1.ValidatingWebhookConfiguration{
 		airwayValidation,
 		flightValidation,
 		resourceValidation,
 		externalResourceValidation,
-	} {
-		resource, err := internal.ToUnstructured(webhook)
-		if err != nil {
-			return fmt.Errorf("failed to convert webhook configuration to unstructured representation: %s: %w", webhook.Name, err)
-		}
-		webhooks = append(webhooks, resource)
+	}
+
+	var webhooks []*unstructured.Unstructured
+	for _, webhook := range typedWebhooks {
+		webhooks = append(webhooks, internal.Must2(internal.ToUnstructured(webhook)))
 	}
 
 	if err := client.ApplyResources(ctx, webhooks, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {
-		return fmt.Errorf("failed to apply webhooks: %w", err)
+		return nil, fmt.Errorf("failed to apply webhooks: %w", err)
 	}
 
-	return client.WaitForReadyMany(ctx, append(crds, webhooks...), k8s.WaitOptions{Timeout: 30 * time.Second, Interval: time.Second})
+	if err := client.WaitForReadyMany(ctx, append(crds, webhooks...), k8s.WaitOptions{Timeout: 30 * time.Second, Interval: time.Second}); err != nil {
+		return nil, fmt.Errorf("failed to wait for resources to become ready: %w", err)
+	}
+
+	return func(ctx context.Context) error {
+		intf := client.Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+		var errs []error
+		for _, webhook := range typedWebhooks {
+			if err := intf.Delete(ctx, webhook.Name, metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+				errs = append(errs, fmt.Errorf("%s: %w", webhook.Name, err))
+			}
+		}
+		return xerr.MultiErrFrom("failed to delete validation webhooks", errs...)
+	}, nil
 }
 
 func And(expressions ...string) string {

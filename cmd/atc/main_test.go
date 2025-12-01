@@ -687,6 +687,14 @@ func TestRestarts(t *testing.T) {
 		)
 	}()
 
+	validationWebhookIntf := client.Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+
+	expectedValidationWebhooks := []string{"atc-airway", "atc-flight", "atc-resources", "atc-external-resources"}
+	for _, webhook := range expectedValidationWebhooks {
+		_, err := validationWebhookIntf.Get(ctx, webhook, metav1.GetOptions{})
+		require.NoError(t, err)
+	}
+
 	for _, scale := range []int32{0, 1} {
 		atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, "atc-atc", metav1.GetOptions{})
 		require.NoError(t, err)
@@ -720,6 +728,16 @@ func TestRestarts(t *testing.T) {
 					return fmt.Errorf("expected %d pods but got %d", scale, count)
 				}
 				t.Log("Scale Event Timer:", scale, time.Since(start).String())
+
+				for _, webhook := range expectedValidationWebhooks {
+					_, err := validationWebhookIntf.Get(ctx, webhook, metav1.GetOptions{})
+					if scale == 0 && !kerrors.IsNotFound(err) {
+						return fmt.Errorf("expected webhook %q to be not found but got: %v", webhook, err)
+					} else if scale == 1 && err != nil {
+						return fmt.Errorf("expected webhook %q to be present but got error: %v", webhook, err)
+					}
+				}
+
 				return nil
 			},
 			time.Second/2,
