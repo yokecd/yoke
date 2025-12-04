@@ -50,7 +50,7 @@ func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulencePar
 	)
 	flagset.BoolVar(&params.Fix, "fix", false, "fix the drift. If present conflict-only will be true.")
 	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "outputs diff with color")
-	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release")
+	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
 
 	flagset.Parse(args)
 

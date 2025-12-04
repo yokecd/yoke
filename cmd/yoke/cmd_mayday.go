@@ -35,7 +35,7 @@ func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, err
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
-	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release to remove")
+	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
 
 	var removeAll bool
 	flagset.BoolVar(&removeAll, "remove-all", false, "deletes crds and namespaces owned by the release. Destructive and dangerous use with caution.")

@@ -43,11 +43,12 @@ const (
 )
 
 type Client struct {
-	Dynamic    *dynamic.DynamicClient
-	Clientset  *kubernetes.Clientset
-	Meta       metadata.Interface
-	Mapper     *restmapper.DeferredDiscoveryRESTMapper
-	AirwayIntf TypedIntf[v1alpha1.Airway]
+	Dynamic          *dynamic.DynamicClient
+	Clientset        *kubernetes.Clientset
+	Meta             metadata.Interface
+	Mapper           *restmapper.DeferredDiscoveryRESTMapper
+	AirwayIntf       TypedIntf[v1alpha1.Airway]
+	DefaultNamespace string
 }
 
 func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {
@@ -55,18 +56,30 @@ func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client,
 	if err != nil {
 		return nil, fmt.Errorf("failed to build k8 config: %w", err)
 	}
-	return NewClient(restcfg)
+	ns, _, err := cfgFlags.ToRawKubeConfigLoader().Namespace()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get namespace from raw kube config loader: %w", err)
+	}
+	return NewClient(restcfg, ns)
 }
 
 func NewClientFromKubeConfig(path string) (*Client, error) {
-	restcfg, err := clientcmd.BuildConfigFromFlags("", path)
+	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: path},
+		&clientcmd.ConfigOverrides{},
+	)
+	ns, _, err := loader.Namespace()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default namespace: %w", err)
+	}
+	restcfg, err := loader.ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build k8 config: %w", err)
 	}
-	return NewClient(restcfg)
+	return NewClient(restcfg, ns)
 }
 
-func NewClient(cfg *rest.Config) (*Client, error) {
+func NewClient(cfg *rest.Config, ns string) (*Client, error) {
 	cfg.Burst = cmp.Or(cfg.Burst, 300)
 	cfg.QPS = cmp.Or(cfg.QPS, 50)
 
@@ -88,11 +101,12 @@ func NewClient(cfg *rest.Config) (*Client, error) {
 	airwayIntf := TypedInterface[v1alpha1.Airway](dynamicClient, v1alpha1.AirwayGVR())
 
 	return &Client{
-		Dynamic:    dynamicClient,
-		Clientset:  clientset,
-		Meta:       meta,
-		Mapper:     restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
-		AirwayIntf: airwayIntf,
+		Dynamic:          dynamicClient,
+		Clientset:        clientset,
+		Meta:             meta,
+		Mapper:           restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
+		AirwayIntf:       airwayIntf,
+		DefaultNamespace: cmp.Or(ns, "default"),
 	}, nil
 }
 
@@ -517,7 +531,7 @@ func (client Client) UpdateRevisionActiveState(ctx context.Context, revision int
 		return fmt.Errorf("failed to get revision secret: %w", err)
 	}
 
-	secret.Annotations[internal.AnnotationActiveAt] = time.Now().Format(time.RFC3339)
+	secret.Annotations[internal.AnnotationActiveAt] = time.Now().Format(time.RFC3339Nano)
 
 	_, err = secrets.Update(ctx, secret, metav1.UpdateOptions{FieldManager: yoke})
 	return err

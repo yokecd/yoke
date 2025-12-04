@@ -58,7 +58,7 @@ type DescentParams struct {
 func (commander Commander) Descent(ctx context.Context, params DescentParams) (err error) {
 	defer internal.DebugTimer(ctx, "descent")()
 
-	targetNS := cmp.Or(params.Namespace, "default")
+	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 
 	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
@@ -136,7 +136,7 @@ type MaydayParams struct {
 func (commander Commander) Mayday(ctx context.Context, params MaydayParams) error {
 	defer internal.DebugTimer(ctx, "mayday")()
 
-	targetNS := cmp.Or(params.Namespace, "default")
+	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 
 	release, err := commander.k8s.GetRelease(ctx, params.Release, targetNS)
 	if err != nil {
@@ -144,7 +144,7 @@ func (commander Commander) Mayday(ctx context.Context, params MaydayParams) erro
 	}
 
 	if len(release.History) == 0 {
-		return internal.Warning("mayday noop: no history found for release: " + params.Release)
+		return internal.Warning(fmt.Sprintf("mayday noop: no history found for release %q in namespace %q", params.Release, targetNS))
 	}
 
 	stages, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
@@ -180,7 +180,7 @@ type TurbulenceParams struct {
 func (commander Commander) Turbulence(ctx context.Context, params TurbulenceParams) error {
 	defer internal.DebugTimer(ctx, "turbulence")()
 
-	targetNS := cmp.Or(params.Namespace, "default")
+	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 
 	if params.Silent {
 		ctx = internal.WithStderr(ctx, io.Discard)
@@ -308,6 +308,6 @@ type UnlockParams struct {
 func (commander Commander) UnlockRelease(ctx context.Context, params UnlockParams) error {
 	return commander.k8s.UnlockRelease(ctx, internal.Release{
 		Name:      params.Release,
-		Namespace: cmp.Or(params.Namespace, "default"),
+		Namespace: cmp.Or(params.Namespace, commander.k8s.DefaultNamespace),
 	})
 }

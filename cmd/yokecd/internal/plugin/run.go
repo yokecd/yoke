@@ -38,7 +38,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 			return nil, fmt.Errorf("failed to get in cluster config: %w", err)
 		}
 
-		client, err := k8s.NewClient(rest)
+		client, err := k8s.NewClient(rest, "")
 		if err != nil {
 			return nil, fmt.Errorf("failed to instantiate kubernetes clientset: %w", err)
 		}

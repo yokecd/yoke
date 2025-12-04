@@ -11,6 +11,9 @@ import (
 )
 
 func main() {
+	var data map[string]string
+	_ = json.NewDecoder(os.Stdin).Decode(&data)
+
 	_ = json.NewEncoder(os.Stdout).Encode(corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -19,5 +22,6 @@ func main() {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: flight.Release(),
 		},
+		Data: data,
 	})
 }

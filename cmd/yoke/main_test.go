@@ -114,7 +114,7 @@ func TestCreateEmptyDeployment(t *testing.T) {
 	clientset, err := kubernetes.NewForConfig(restcfg)
 	require.NoError(t, err)
 
-	client, err := k8s.NewClient(restcfg)
+	client, err := k8s.NewClient(restcfg, "")
 	require.NoError(t, err)
 
 	revisions, err := client.GetReleases(background)
@@ -160,7 +160,7 @@ func TestCreateThenEmptyCycle(t *testing.T) {
 	clientset, err := kubernetes.NewForConfig(restcfg)
 	require.NoError(t, err)
 
-	client, err := k8s.NewClient(restcfg)
+	client, err := k8s.NewClient(restcfg, "")
 	require.NoError(t, err)
 
 	revisions, err := client.GetReleases(background)
@@ -221,7 +221,7 @@ func TestCreateDeleteCycle(t *testing.T) {
 	clientset, err := kubernetes.NewForConfig(restcfg)
 	require.NoError(t, err)
 
-	client, err := k8s.NewClient(restcfg)
+	client, err := k8s.NewClient(restcfg, "")
 	require.NoError(t, err)
 
 	revisions, err := client.GetReleases(background)
@@ -1800,4 +1800,78 @@ func TestReleasePrefix(t *testing.T) {
 
 	require.Equal(t, "example", resources[0].GetName())
 	require.Equal(t, "ConfigMap", resources[0].GetKind())
+}
+
+func TestDefaultNamespace(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/name.wasm ./internal/testing/flights/name", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	buildCommander := func(namespace string) *yoke.Commander {
+		require.NoError(t, x.Xf("kubectl config set-context --current=true --namespace=%s", []any{namespace}))
+		defer func() {
+			require.NoError(t, x.X("kubectl config set-context --current=true --namespace=default"))
+		}()
+		client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+		require.NoError(t, err)
+		require.Equal(t, namespace, client.DefaultNamespace)
+		return yoke.FromK8Client(client)
+	}
+
+	for _, ns := range []string{"foo", "bar", "baz"} {
+		require.NoError(t, client.EnsureNamespace(t.Context(), ns))
+		defer func() {
+			require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(t.Context(), ns, metav1.DeleteOptions{}))
+		}()
+
+		commander := buildCommander(ns)
+
+		require.NoError(t, commander.Takeoff(t.Context(), yoke.TakeoffParams{
+			Release: "test",
+			Flight: yoke.FlightParams{
+				Path:  "./test_output/name.wasm",
+				Input: internal.JSONReader(map[string]string{"hello": "42"}),
+			},
+		}))
+
+		cm, err := client.Clientset.CoreV1().ConfigMaps(ns).Get(t.Context(), "test", metav1.GetOptions{})
+		require.NoError(t, err)
+		require.Equal(t, "42", cm.Data["hello"])
+
+		require.NoError(t, commander.Takeoff(t.Context(), yoke.TakeoffParams{
+			Release: "test",
+			Flight: yoke.FlightParams{
+				Path:  "./test_output/name.wasm",
+				Input: internal.JSONReader(map[string]string{"hello": "world"}),
+			},
+		}))
+
+		cm, err = client.Clientset.CoreV1().ConfigMaps(ns).Get(t.Context(), "test", metav1.GetOptions{})
+		require.NoError(t, err)
+		require.Len(t, cm.Data, 1)
+		require.Equal(t, "world", cm.Data["hello"])
+
+		require.NoError(t, commander.Descent(t.Context(), yoke.DescentParams{Release: "test", RevisionID: 1}))
+
+		cm, err = client.Clientset.CoreV1().ConfigMaps(ns).Get(t.Context(), "test", metav1.GetOptions{})
+		require.NoError(t, err)
+		require.Equal(t, "42", cm.Data["hello"])
+
+		cm.Data["hello"] = "bye"
+
+		_, err = client.Clientset.CoreV1().ConfigMaps(ns).Update(t.Context(), cm, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		require.NoError(t, commander.Turbulence(t.Context(), yoke.TurbulenceParams{Release: "test", Fix: true}))
+
+		cm, err = client.Clientset.CoreV1().ConfigMaps(ns).Get(t.Context(), "test", metav1.GetOptions{})
+		require.NoError(t, err)
+		if cm.Data["hello"] != "42" {
+			os.Exit(1)
+		}
+		require.Equal(t, "42", cm.Data["hello"])
+
+		require.NoError(t, commander.Mayday(t.Context(), yoke.MaydayParams{Release: "test"}))
+	}
 }

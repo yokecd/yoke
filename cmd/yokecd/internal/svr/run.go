@@ -72,7 +72,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to get kubernetes config: %w", err)
 	}
 
-	client, err := k8s.NewClient(restCfg)
+	client, err := k8s.NewClient(restCfg, "")
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
