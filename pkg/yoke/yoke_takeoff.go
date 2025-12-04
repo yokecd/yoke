@@ -207,7 +207,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		return ExportToFS(params.Out, params.Release, stages.Flatten())
 	}
 
-	targetNS := cmp.Or(params.Namespace, "default")
+	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 	for _, stage := range stages {
 		internal.AddYokeMetadata(stage, params.Release, targetNS, params.ManagedBy)
 	}

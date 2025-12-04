@@ -1011,7 +1011,9 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 	)
 
 	for _, ns := range []string{"foo", "bar"} {
-		require.NoError(t, client.Clientset.CoreV1().ConfigMaps(ns).Delete(context.Background(), "cm", metav1.DeleteOptions{}))
+		if err := client.Clientset.CoreV1().ConfigMaps(ns).Delete(context.Background(), "cm", metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
+			require.NoError(t, err)
+		}
 	}
 
 	testutils.EventuallyNoErrorf(
@@ -3023,7 +3025,7 @@ func TestOverridePermissions(t *testing.T) {
 		UserName: "system:serviceaccount:default:" + sa.Name,
 	}
 
-	saClient, err := k8s.NewClient(restCfg)
+	saClient, err := k8s.NewClient(restCfg, "")
 	require.NoError(t, err)
 
 	ctx := internal.WithDebugFlag(context.Background(), func(value bool) *bool { return &value }(true))

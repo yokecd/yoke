@@ -74,7 +74,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
-	client, err := k8s.NewClient(kubecfg)
+	client, err := k8s.NewClient(kubecfg, "")
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
