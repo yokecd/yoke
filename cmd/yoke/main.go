@@ -150,7 +150,7 @@ type GlobalSettings struct {
 }
 
 func RegisterGlobalFlags(flagset *flag.FlagSet, settings *GlobalSettings) {
-	flagset.StringVar(settings.Kube.KubeConfig, "kubeconfig", cmp.Or(os.Getenv("KUBECONFIG"), home.Kubeconfig), "path to kube config")
-	flagset.StringVar(settings.Kube.Context, "kube-context", "", "kubernetes context to use")
-	flagset.BoolVar(settings.Debug, "debug", false, "debug output mode")
+	flagset.StringVar(settings.Kube.KubeConfig, "kubeconfig", cmp.Or(*settings.Kube.KubeConfig, os.Getenv("KUBECONFIG"), home.Kubeconfig), "path to kube config")
+	flagset.StringVar(settings.Kube.Context, "kube-context", *settings.Kube.Context, "kubernetes context to use")
+	flagset.BoolVar(settings.Debug, "debug", *settings.Debug, "debug output mode")
 }
