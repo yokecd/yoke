@@ -4,6 +4,36 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2025-12-06) atc/v0.18.1 - atc-installer/v0.17.0 - v0.19.2 - yokecd/v0.18.1
+
+- yoke/takeoff: fix eval namespace to use new context namespace ([32a9e67](https://github.com/yokecd/yoke/commit/32a9e67cb87d5b2a9a14ef73729e2768cef22b9e))
+- atc: teardown validationWebhooks on shutdown ([271aa13](https://github.com/yokecd/yoke/commit/271aa13c410188b35c9f3ce5cf327b8b8e124e9d))
+- atc-installer: separate deployment into its own stage so it can cleanup before tearing down roles and bindings ([97933a0](https://github.com/yokecd/yoke/commit/97933a013c84e347c65abc777c293a7504f326eb))
+- yoke/mayday: wait for each stage to fully remove their resources from cluster before proceeding ([6f53439](https://github.com/yokecd/yoke/commit/6f5343947edaaa7f77dcdf3bbdd805163a9e32ae))
+
+## (2025-12-05) v0.19.1
+
+- yoke: propagate global flag settnings to subcommands as defaults ([e010ca8](https://github.com/yokecd/yoke/commit/e010ca87464a433f7c337ce5c8e4efde915a4bd0))
+
+## (2025-12-05) atc/v0.18.0 - v0.19.0 - yokecd/v0.18.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: breaking change: use context namespace as default namespace when running yoke ([38c4858](https://github.com/yokecd/yoke/commit/38c4858fc8d896d38cb1cccdf6c514b351bec4c2))
+
+## (2025-11-30) atc/v0.17.5 - atc-installer/v0.16.1 - v0.18.4 - yokecd/v0.17.1 - yokecd-installer/v0.17.1
+
+- pkg/v1alpha1: add openapi descriptions to Airway and Flight resources ([69b025a](https://github.com/yokecd/yoke/commit/69b025a4a06fbed14779e907f53929622cf8812f))
+- pkg/openapi: add test for flight CR openapi generation ([4a142a2](https://github.com/yokecd/yoke/commit/4a142a213616790078e9e3ffc895a3b2b4bc302b))
+- atc: flight CRs support InputObject as convenience over raw string Input ([ede73fb](https://github.com/yokecd/yoke/commit/ede73fb0906c2b7f560906339e7da2b6f4eeef81))
+- pkg/openapi: support map[string]any with XPreserveUnknownFields ([5b11c10](https://github.com/yokecd/yoke/commit/5b11c10e4a01217e55dc320d43af1e4cfab94dc2))
+
+## (2025-11-28) atc/v0.17.4 - v0.18.3
+
+- atc: add more observability to flaky test ([95a98f7](https://github.com/yokecd/yoke/commit/95a98f7722bb7c9881e6093929972718e5c56e40))
+- atc: set forceOwnership to true for takeoff of flight resources ([4d5bffa](https://github.com/yokecd/yoke/commit/4d5bffa261d3e08055ecc648c401f69c3f30fb0c))
+
 ## (2025-11-27) atc/v0.17.3 - v0.18.2
 
 - atc: refactor reconcilers to use apimachinery meta api for condition handling ([24a6323](https://github.com/yokecd/yoke/commit/24a63236d51d44194553b6223e8b11fb1b688a85))
