@@ -184,7 +184,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				RemoveCRDs:       flight.Spec.Prune.CRDs,
 				RemoveNamespaces: flight.Spec.Prune.Namespaces,
 			},
-		}); err != nil {
+		}); err != nil && !internal.IsWarning(err) {
 			return ctrl.Result{}, fmt.Errorf("failed to perform takeoff: %w", err)
 		}
 
