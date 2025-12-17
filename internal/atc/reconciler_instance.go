@@ -286,7 +286,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 
 		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
-		if flightState.Mode == v1alpha1.AirwayModeDynamic {
+		if flightState.Mode.IsDynamic() {
 			ctx = host.WithResourceTracking(ctx)
 			defer func() {
 				if err == nil {
@@ -306,7 +306,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		}
 
 		if flightState.Mode == v1alpha1.AirwayModeSubscription {
-			ctx = host.WithResourceTracking(ctx)
 			ctx = host.WithReleaseTracking(ctx)
 			defer func() {
 				if err != nil {

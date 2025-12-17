@@ -3263,8 +3263,9 @@ func TestSubscriptionMode(t *testing.T) {
 					WasmURLs: v1alpha1.WasmURLs{
 						Flight: "http://wasmcache/subscriptions.wasm",
 					},
-					Mode:          v1alpha1.AirwayModeSubscription,
-					ClusterAccess: true,
+					Mode:                   v1alpha1.AirwayModeSubscription,
+					ClusterAccess:          true,
+					ResourceAccessMatchers: []string{"ConfigMap:external"},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "example.com",
 						Names: apiextv1.CustomResourceDefinitionNames{
@@ -3316,6 +3317,19 @@ func TestSubscriptionMode(t *testing.T) {
 		Resource: "subscriptions",
 	})
 
+	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	external, err := cmIntf.Create(
+		ctx,
+		&corev1.ConfigMap{
+			TypeMeta:   metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "external"},
+			Data:       map[string]string{"key": "value"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
 	sub := &EmptyCRD{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "example.com/v1",
@@ -3325,8 +3339,6 @@ func TestSubscriptionMode(t *testing.T) {
 			Name: "test",
 		},
 	}
-
-	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
 
 	_, err = subIntf.Create(ctx, sub, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -3375,6 +3387,33 @@ func TestSubscriptionMode(t *testing.T) {
 				if _, err := cmIntf.Get(ctx, name, metav1.GetOptions{}); err != nil {
 					return fmt.Errorf("failed to get configmap %s: %w", name, err)
 				}
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected configmaps to be resynced",
+	)
+
+	require.NoError(t, retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		external, err = cmIntf.Get(ctx, external.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		external.Data = map[string]string{"key": "updated"}
+		_, err = cmIntf.Update(ctx, external, metav1.UpdateOptions{})
+		return err
+	}))
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			standard, err := cmIntf.Get(ctx, "standard", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get configmap %s: %w", "standard", err)
+			}
+			if standard.Data["key"] != "updated" {
+				return fmt.Errorf("standard configmap did not update: %w", err)
 			}
 			return nil
 		},
