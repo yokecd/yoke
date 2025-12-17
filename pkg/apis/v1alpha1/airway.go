@@ -51,6 +51,10 @@ func AirwayGVR() schema.GroupVersionResource {
 
 type AirwayMode string
 
+func (mode AirwayMode) IsDynamic() bool {
+	return mode == AirwayModeDynamic || mode == AirwayModeSubscription
+}
+
 func (AirwayMode) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	mustJSON := func(value any) *apiextensionsv1.JSON {
 		data, err := json.Marshal(value)
