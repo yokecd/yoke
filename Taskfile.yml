@@ -3,7 +3,7 @@
 #
 # go install github.com/go-task/task/v3/cmd/task@latest
 
-version: '3'
+version: "3"
 
 tasks:
   fmt:
@@ -31,7 +31,7 @@ tasks:
     cmds:
       - go install ./cmd/helm2go
       - rm -rf ./cmd/yokecd-installer/argocd
-      - helm2go -repo https://argoproj.github.io/argo-helm/argo-cd -outdir ./cmd/yokecd-installer/argocd -schema
+      - helm2go -repo https://argoproj.github.io/argo-helm/argo-cd -outdir ./cmd/yokecd-installer/argocd
       - task fmt
 
   wasm:

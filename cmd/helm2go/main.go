@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"flag"
 	"fmt"
 	"net/url"
@@ -69,8 +70,14 @@ func run() error {
 	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
 	defer cancel()
 
-	if err := ensureGoJsonSchema(ctx); err != nil {
+	if err := ensureGoLibrary(ctx, "go-jsonschema", "github.com/atombender/go-jsonschema@latest"); err != nil {
 		return fmt.Errorf("failed to ensure go-jsonschema installation: %w", err)
+	}
+	if err := ensureGoLibrary(ctx, "gofumpt", "mvdan.cc/gofumpt@latest"); err != nil {
+		return fmt.Errorf("failed to ensure gofumpt installation: %w", err)
+	}
+	if err := ensureGoLibrary(ctx, "goimports", "golang.org/x/tools/cmd/goimports@latest"); err != nil {
+		return fmt.Errorf("failed to ensure goimports installation: %w", err)
 	}
 
 	packageName := regexp.MustCompile(`\W`).ReplaceAllString(filepath.Base(*outDir), "")
@@ -121,7 +128,7 @@ func run() error {
 			}
 		} else {
 			if len(chart.Schema) == 0 {
-				debug("no schema found within chart")
+				return errors.New("no schema found")
 			}
 		}
 
@@ -185,9 +192,9 @@ func ensureReadmeGenerator(ctx context.Context) error {
 	return nil
 }
 
-func ensureGoJsonSchema(ctx context.Context) error {
-	if err := x(exec.CommandContext(ctx, "go", "install", "github.com/atombender/go-jsonschema@latest")); err != nil {
-		return fmt.Errorf("failed to install go-jsonschema: %w", err)
+func ensureGoLibrary(ctx context.Context, libraryName, libraryURI string) error {
+	if err := x(exec.CommandContext(ctx, "go", "install", libraryURI)); err != nil {
+		return fmt.Errorf("failed to install %s: %w", libraryName, err)
 	}
 	return nil
 }
