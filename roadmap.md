@@ -18,7 +18,7 @@ Suggestions are welcome.
 > when any sub-resources or subscribed-to external resources are updated. This is an important feature which allows flight authors to take advantage of
 > the ATC's server-side approach and run their package logic as a reconciliation loop. This should be implemented for Flights/ClusterFlights.
 
-- [ ] (Breaking change :: minor) Airways should no longer have the `CrossNamespace` option. Instead, this takeoff option should be inferred from the Airway's child CRD scope.
+- [x] (Breaking change :: minor) Airways should no longer have the `CrossNamespace` option. Instead, this takeoff option should be inferred from the Airway's child CRD scope.
 
 > Cross-namespace flights only make sense when the parent resources are cluster-scoped; otherwise, the parent cannot own its children in all namespaces where they will be deployed.
 > Hence, there is no reason to ask the Airway author to set this value explicitly. If the Airway is namespace-scoped, `CrossNamespace=false`, and if cluster-scoped, `CrossNamespace=true`.

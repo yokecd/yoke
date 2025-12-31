@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -238,7 +239,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				LabelInstanceNamespace: resource.GetNamespace(),
 				LabelInstanceGroupKind: resource.GroupVersionKind().GroupKind().String(),
 			},
-			CrossNamespace: params.Airway.Spec.CrossNamespace,
+			CrossNamespace: params.Airway.Spec.Template.Scope == apiextv1.ClusterScoped,
 			PruneOpts: k8s.PruneOpts{
 				RemoveCRDs:       params.Airway.Spec.Prune.CRDs,
 				RemoveNamespaces: params.Airway.Spec.Prune.Namespaces,

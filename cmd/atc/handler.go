@@ -13,7 +13,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -82,7 +82,7 @@ func Handler(params HandlerParams) http.Handler {
 
 		var desiredAPIVersion string
 
-		var review apiextensionsv1.ConversionReview
+		var review apiextv1.ConversionReview
 		if err := json.Unmarshal(data, &review); err == nil {
 			desiredAPIVersion = review.Request.DesiredAPIVersion
 		}
@@ -264,7 +264,7 @@ func Handler(params HandlerParams) http.Handler {
 		takeoffParams := yoke.TakeoffParams{
 			Release:        atc.ReleaseName(&cr),
 			Namespace:      cmp.Or(cr.GetNamespace(), "default"),
-			CrossNamespace: airway.Spec.CrossNamespace,
+			CrossNamespace: airway.Spec.Template.Scope == apiextv1.ClusterScoped,
 			ClusterAccess: host.ClusterAccessParams{
 				Enabled:          airway.Spec.ClusterAccess,
 				ResourceMatchers: airway.Spec.ResourceAccessMatchers,
