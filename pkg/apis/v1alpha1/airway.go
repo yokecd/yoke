@@ -132,9 +132,6 @@ type AirwaySpec struct {
 	// 	- foo/* 												# matches all resources in namespace foo.
 	ResourceAccessMatchers []string `json:"resourceAccessMatchers,omitempty" Description:"ResourceMatcher expressions to allow explicit access to resources not owned by the flight."`
 
-	// CrossNamespace allows for resources to be created in other namespaces other than the releases target namespace.
-	CrossNamespace bool `json:"crossNamespace,omitempty" Description:"Enable the creation of resources in multiple namespaces. May be removed in the future and inferred from CR scope."`
-
 	// Insecure only applies to flights using OCI urls. Allows image references to be fetched without TLS verification.
 	Insecure bool `json:"insecure,omitempty" Description:"Insecure only applies to flights using OCI urls. Allows image references to be fetched without TLS verification."`
 

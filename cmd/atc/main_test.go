@@ -795,7 +795,6 @@ func TestCrossNamespace(t *testing.T) {
 				WasmURLs: v1alpha1.WasmURLs{
 					Flight: "http://wasmcache/crossnamespace.wasm",
 				},
-				CrossNamespace: crossNamespace,
 				Template: apiextv1.CustomResourceDefinitionSpec{
 					Group: "examples.com",
 					Names: apiextv1.CustomResourceDefinitionNames{
@@ -803,7 +802,12 @@ func TestCrossNamespace(t *testing.T) {
 						Singular: "test",
 						Kind:     "Test",
 					},
-					Scope: apiextv1.NamespaceScoped,
+					Scope: func() apiextv1.ResourceScope {
+						if crossNamespace {
+							return apiextv1.ClusterScoped
+						}
+						return apiextv1.NamespaceScoped
+					}(),
 					Versions: []apiextv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1",
@@ -868,13 +872,13 @@ func TestCrossNamespace(t *testing.T) {
 		require.NoError(t, client.EnsureNamespace(context.Background(), ns))
 	}
 
-	testIntf := client.Dynamic.
-		Resource(schema.GroupVersionResource{
-			Group:    "examples.com",
-			Version:  "v1",
-			Resource: "tests",
-		}).
-		Namespace("default")
+	testIntfCluster := client.Dynamic.Resource(schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "tests",
+	})
+
+	testIntfNS := testIntfCluster.Namespace("default")
 
 	emptyTest := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -886,8 +890,10 @@ func TestCrossNamespace(t *testing.T) {
 		},
 	}
 
-	_, err = testIntf.Create(ctx, emptyTest, metav1.CreateOptions{})
+	_, err = testIntfNS.Create(ctx, emptyTest, metav1.CreateOptions{})
 	require.ErrorContains(t, err, "Multiple namespaces detected (if desired enable multinamespace releases)")
+
+	require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "crossnamespace-airway"}))
 
 	testutils.EventuallyNoErrorf(
 		t,
@@ -907,19 +913,9 @@ func TestCrossNamespace(t *testing.T) {
 		"failed to create airway",
 	)
 
-	_, err = testIntf.Create(ctx, emptyTest, metav1.CreateOptions{})
+	_, err = testIntfCluster.Create(ctx, emptyTest, metav1.CreateOptions{})
 	require.NoError(t, err)
-
-	require.NoError(
-		t,
-		client.Dynamic.
-			Resource(schema.GroupVersionResource{
-				Group:    "yoke.cd",
-				Version:  "v1alpha1",
-				Resource: "airways",
-			}).
-			Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}),
-	)
+	require.NoError(t, client.AirwayIntf.Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}))
 }
 
 func TestClusterScopeDynamicAirway(t *testing.T) {
@@ -938,8 +934,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 			WasmURLs: v1alpha1.WasmURLs{
 				Flight: "http://wasmcache/crossnamespace.wasm",
 			},
-			CrossNamespace: true,
-			Mode:           v1alpha1.AirwayModeDynamic,
+			Mode: v1alpha1.AirwayModeDynamic,
 			Template: apiextv1.CustomResourceDefinitionSpec{
 				Group: "examples.com",
 				Names: apiextv1.CustomResourceDefinitionNames{
