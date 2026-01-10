@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
@@ -98,52 +99,59 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		flightState.ClusterAccess = params.Airway.Spec.ClusterAccess
 		flightState.Mode = cmp.Or(overrideMode, params.Airway.Spec.Mode, v1alpha1.AirwayModeStandard)
 
-		flightStatus := func(status metav1.ConditionStatus, reason string, msg any) {
-			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
-			if err != nil {
+		setReadyCondition := func(status metav1.ConditionStatus, reason string, msg any) {
+			if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+				if err != nil {
+					if kerrors.IsNotFound(err) {
+						return nil
+					}
+					return nil
+				}
+
+				if current.GetGeneration() != resource.GetGeneration() {
+					// Don't update status if current generation has changed.
+					return nil
+				}
+
+				conditions := internal.GetFlightConditions(current)
+
+				meta.SetStatusCondition(&conditions, metav1.Condition{
+					Type:               "Ready",
+					Status:             status,
+					ObservedGeneration: current.GetGeneration(),
+					Reason:             reason,
+					Message:            fmt.Sprintf("%v", msg),
+				})
+
+				_ = unstructured.SetNestedField(current.Object, internal.MustUnstructuredObject[any](conditions), "status", "conditions")
+
+				updated, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+				if err != nil {
+					return err
+				}
+
+				resource = updated
+
+				return nil
+			}); err != nil {
 				if kerrors.IsNotFound(err) {
 					return
 				}
-				ctrl.Logger(ctx).Error("failed to update status", "error", err)
-				return
+				ctrl.Logger(ctx).Error("failed to set ready condition", "error", err)
 			}
-
-			if current.GetGeneration() != resource.GetGeneration() {
-				// Don't update status if current generation has changed.
-				return
-			}
-
-			conditions := internal.GetFlightConditions(current)
-
-			meta.SetStatusCondition(&conditions, metav1.Condition{
-				Type:               "Ready",
-				Status:             status,
-				ObservedGeneration: current.GetGeneration(),
-				Reason:             reason,
-				Message:            fmt.Sprintf("%v", msg),
-			})
-
-			_ = unstructured.SetNestedField(current.Object, internal.MustUnstructuredObject[[]any](conditions), "status", "conditions")
-
-			updated, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
-			if err != nil {
-				if kerrors.IsNotFound(err) {
-					return
-				}
-				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
-				return
-			}
-
-			resource = updated
 		}
 
+		// There is potentially a background worker polling the state of the subresources for release readiness.
+		// Since we are going to be modifying the release readiness on error, we need to stop this process first.
 		if cleanup := pollerCleanups[event.String()]; cleanup != nil {
 			cleanup()
+			delete(pollerCleanups, event.String())
 		}
 
 		defer func() {
 			if err != nil {
-				flightStatus(metav1.ConditionFalse, "Error", err.Error())
+				setReadyCondition(metav1.ConditionFalse, "Error", err.Error())
 			}
 		}()
 
@@ -172,7 +180,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		}
 
 		if !resource.GetDeletionTimestamp().IsZero() {
-			flightStatus(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
+			setReadyCondition(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
 
 			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, yoke.MaydayParams{
 				Release:   ReleaseName(resource),
@@ -217,6 +225,120 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		release := ReleaseName(resource)
 
 		var identity *unstructured.Unstructured
+
+		defer func() {
+			if err != nil || internal.GetFlightReadyCondition(identity) != nil {
+				return
+			}
+
+			release, err := ctrl.Client(ctx).GetRelease(ctx, release, event.Namespace)
+			if err != nil {
+				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to get release: %v", err))
+				return
+			}
+			if len(release.History) == 0 {
+				ctrl.Logger(ctx).Error("failed to watch for default ready condition: release not found")
+				return
+			}
+
+			resources, err := ctrl.Client(ctx).GetRevisionResources(ctx, release.ActiveRevision())
+			if err != nil {
+				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to list revision resources: %v", err))
+				return
+			}
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			ctx, cancel := context.WithCancel(ctx)
+
+			pollerCleanups[event.String()] = func() {
+				cancel()
+				wg.Wait()
+			}
+
+			e := make(chan error, 1)
+
+			go func() {
+				defer wg.Done()
+				e <- ctrl.Client(ctx).WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
+					Timeout:  k8s.NoTimeout,
+					Interval: 2 * time.Second,
+				})
+			}()
+
+			go func() {
+				// Release resources if no longer polling.
+				defer cancel()
+
+				defer wg.Done()
+				start := time.Now()
+
+				ticker := time.NewTicker(2 * time.Second)
+				defer ticker.Stop()
+
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						setReadyCondition(
+							metav1.ConditionFalse,
+							"InProgress",
+							fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
+						)
+					case err := <-e:
+						if err != nil {
+							setReadyCondition(metav1.ConditionFalse, "Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
+						} else {
+							setReadyCondition(metav1.ConditionTrue, "Ready", "Successfully deployed")
+						}
+						return
+					}
+				}
+			}()
+		}()
+
+		defer func() {
+			if identity == nil || identity.Object["status"] == nil {
+				return
+			}
+
+			if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get resource: %w", err)
+				}
+				if current.GetGeneration() != resource.GetGeneration() {
+					return nil
+				}
+
+				// We don't want to change the identity itself as it is used later to check if we need to
+				// spawn a readiness process.
+				identity := identity.DeepCopy()
+
+				current.Object["status"] = identity.Object["status"]
+
+				conditions := internal.GetFlightConditions(resource)
+				for _, cond := range internal.GetFlightConditions(identity) {
+					meta.SetStatusCondition(&conditions, cond)
+				}
+				_ = unstructured.SetNestedField(current.Object, internal.MustUnstructuredObject[any](conditions), "status", "conditions")
+
+				updated, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+				if err != nil {
+					return err
+				}
+				resource = updated
+				return nil
+			}); err != nil {
+
+				if kerrors.IsNotFound(err) {
+					return
+				}
+				ctrl.Logger(ctx).Error("failed to update status for identity", "error", err)
+			}
+		}()
 
 		takeoffParams := yoke.TakeoffParams{
 			Release:   release,
@@ -285,7 +407,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			}
 		}
 
-		flightStatus(metav1.ConditionFalse, "InProgress", "Flight is taking off")
+		setReadyCondition(metav1.ConditionFalse, "InProgress", "Flight is taking off")
 
 		if flightState.Mode.IsDynamic() {
 			ctx = host.WithResourceTracking(ctx)
@@ -324,111 +446,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
 			}
 			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
-		}
-
-		if identity != nil && identity.Object["status"] != nil {
-			current, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to fetch current state of CR: %w", err)
-			}
-			if current.GetGeneration() != resource.GetGeneration() {
-				return ctrl.Result{}, fmt.Errorf("skipping status update: generation has changed")
-			}
-
-			resource = current
-
-			// We don't want to change the identity itself as it is used later to check if we need to
-			// spawn a readiness process.
-			value := identity.DeepCopy()
-
-			resource.Object["status"] = func() any {
-				if readyCond := internal.GetFlightReadyCondition(resource); readyCond != nil && internal.GetFlightReadyCondition(identity) == nil {
-					_ = unstructured.SetNestedField(
-						value.Object,
-						internal.MustUnstructuredObject[any](append(internal.GetFlightConditions(identity), *readyCond)),
-						"status", "conditions",
-					)
-				}
-				return value.Object["status"]
-			}()
-
-			if _, err := resourceIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to set custom status: %w", err)
-			}
-		}
-
-		if err := func() (err error) {
-			if internal.GetFlightReadyCondition(identity) != nil {
-				return nil
-			}
-
-			release, err := ctrl.Client(ctx).GetRelease(ctx, release, event.Namespace)
-			if err != nil {
-				return err
-			}
-			if len(release.History) == 0 {
-				return fmt.Errorf("release not found")
-			}
-
-			resources, err := ctrl.Client(ctx).GetRevisionResources(ctx, release.ActiveRevision())
-			if err != nil {
-				return fmt.Errorf("failed to get release resources: %w", err)
-			}
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-
-			ctx, cancel := context.WithCancel(ctx)
-
-			pollerCleanups[event.String()] = func() {
-				cancel()
-				wg.Wait()
-			}
-
-			e := make(chan error, 1)
-
-			go func() {
-				defer wg.Done()
-				e <- ctrl.Client(ctx).WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
-					Timeout:  k8s.NoTimeout,
-					Interval: 2 * time.Second,
-				})
-			}()
-
-			go func() {
-				// Release resources if no longer polling.
-				defer cancel()
-
-				defer wg.Done()
-				start := time.Now()
-
-				ticker := time.NewTicker(2 * time.Second)
-				defer ticker.Stop()
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-						flightStatus(
-							metav1.ConditionFalse,
-							"InProgress",
-							fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
-						)
-					case err := <-e:
-						if err != nil {
-							flightStatus(metav1.ConditionFalse, "Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
-						} else {
-							flightStatus(metav1.ConditionTrue, "Ready", "Successfully deployed")
-						}
-						return
-					}
-				}
-			}()
-
-			return nil
-		}(); err != nil {
-			return ctrl.Result{}, err
 		}
 
 		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration}, nil

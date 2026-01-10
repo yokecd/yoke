@@ -171,6 +171,14 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		},
 	)
 	if err != nil {
+		// The calling process may wish to capture the identity resource and act on it.
+		// Hence even though we have an error we need to evaluate the output against the identity function before returning said error.
+		if params.IdentityFunc != nil && len(output) > 0 {
+			stages, _ := internal.ParseStages(output)
+			for _, resource := range stages.Flatten() {
+				params.IdentityFunc(resource)
+			}
+		}
 		return fmt.Errorf("failed to evaluate flight: %w", err)
 	}
 

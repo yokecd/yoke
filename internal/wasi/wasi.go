@@ -15,6 +15,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/davidmdm/x/xerr"
 
@@ -116,11 +117,23 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 		if params.Stderr != nil {
 			return nil, fmt.Errorf("failed to instantiate module: %w", err)
 		}
-		details := stderr.String()
-		if details == "" {
-			details = "(no output captured on stderr)"
+
+		runtimeErr := RuntimeError{
+			exit: func() *sys.ExitError {
+				if sysErr := new(sys.ExitError); errors.As(err, &sysErr) {
+					return sysErr
+				}
+				return nil
+			}(),
+			Message: func() string {
+				details := stderr.String()
+				if details == "" {
+					details = "(no output captured on stderr)"
+				}
+				return details
+			}(),
 		}
-		return nil, fmt.Errorf("failed to instantiate module: %w: stderr: %s", err, details)
+		return stdout.Bytes(), fmt.Errorf("failed to instantiate module: %w", runtimeErr)
 	}
 
 	return stdout.Bytes(), nil
@@ -270,4 +283,20 @@ func LoadBytes(module api.Module, value wasm.Buffer) []byte {
 		panic("memory read out of bounds")
 	}
 	return data
+}
+
+type RuntimeError struct {
+	exit    *sys.ExitError
+	Message string
+}
+
+func (err RuntimeError) ExitCode() int {
+	if err.exit != nil {
+		return int(err.exit.ExitCode())
+	}
+	return -1
+}
+
+func (err RuntimeError) Error() string {
+	return err.Message
 }

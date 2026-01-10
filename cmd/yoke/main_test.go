@@ -1715,7 +1715,7 @@ func TestTimeout(t *testing.T) {
 				Timeout: 10 * time.Millisecond,
 			},
 		}),
-		"failed to evaluate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (10ms) exceeded",
+		"failed to evaluate flight: module closed with context deadline exceeded: execution timeout (10ms) exceeded",
 	)
 }
 

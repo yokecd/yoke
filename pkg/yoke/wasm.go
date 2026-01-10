@@ -159,9 +159,6 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 			MaxMemoryMib:    uint32(params.Flight.MaxMemoryMib),
 		},
 	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to execute wasm: %w", err)
-	}
 
-	return output, wasm, nil
+	return output, wasm, err
 }
