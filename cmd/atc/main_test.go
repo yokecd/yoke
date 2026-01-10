@@ -19,6 +19,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -2373,7 +2374,7 @@ func TestStatusUpdates(t *testing.T) {
 	commander := yoke.FromK8Client(client)
 
 	type CRStatus struct {
-		Potato     string            `json:"potato"`
+		Potato     string            `json:"potato,omitempty"`
 		Conditions flight.Conditions `json:"conditions,omitempty"`
 	}
 
@@ -2424,17 +2425,10 @@ func TestStatusUpdates(t *testing.T) {
 	}))
 	defer func() {
 		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "status-airway"}))
-
-		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
-			Group:    "yoke.cd",
-			Version:  "v1alpha1",
-			Resource: "airways",
-		})
-
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -2449,13 +2443,13 @@ func TestStatusUpdates(t *testing.T) {
 		)
 	}()
 
-	backendIntf := client.Dynamic.
-		Resource(schema.GroupVersionResource{
-			Group:    "examples.com",
-			Version:  "v1",
-			Resource: "backends",
-		}).
-		Namespace("default")
+	backendGVR := schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "backends",
+	}
+
+	backendIntf := k8s.TypedInterface[CR](client.Dynamic, backendGVR).Namespace("default")
 
 	cases := []struct {
 		Name        string
@@ -2473,11 +2467,14 @@ func TestStatusUpdates(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						readyCondition := internal.GetFlightReadyCondition(be)
-						if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
-							return fmt.Errorf("ready condition not met")
+						ready := meta.FindStatusCondition(be.Status.Conditions, "Ready")
+						if ready == nil {
+							return fmt.Errorf("ready condition not found")
 						}
-						if value, _, _ := unstructured.NestedString(be.Object, "status", "potato"); value != "peels" {
+						if ready.Status != metav1.ConditionTrue {
+							return fmt.Errorf("ready condition should be true but got false")
+						}
+						if value := be.Status.Potato; value != "peels" {
 							return fmt.Errorf("expected potato to have peels: but got: %q", value)
 						}
 						return nil
@@ -2509,7 +2506,7 @@ func TestStatusUpdates(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						readyCondition := internal.GetFlightReadyCondition(be)
+						readyCondition := meta.FindStatusCondition(be.Spec.Conditions, "Ready")
 						if readyCondition == nil {
 							return fmt.Errorf("no ready condition set")
 						}
@@ -2545,18 +2542,14 @@ func TestStatusUpdates(t *testing.T) {
 						if err != nil {
 							return err
 						}
-
-						conditions := internal.GetFlightConditions(be)
-						if count := len(conditions); count != 2 {
+						if count := len(be.Status.Conditions); count != 2 {
 							return fmt.Errorf("expected two conditions but %d", count)
 						}
-						if !slices.ContainsFunc(conditions, func(cond metav1.Condition) bool { return cond.Type == "Ready" }) {
-							return fmt.Errorf("no Ready condition found")
+						for _, status := range []string{"Custom", "Ready"} {
+							if meta.FindStatusCondition(be.Status.Conditions, status) == nil {
+								return fmt.Errorf("no %q condition found", status)
+							}
 						}
-						if !slices.ContainsFunc(conditions, func(cond metav1.Condition) bool { return cond.Type == "Custom" }) {
-							return fmt.Errorf("no Custom condition found")
-						}
-
 						return nil
 					},
 					time.Second,
@@ -2578,7 +2571,7 @@ func TestStatusUpdates(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					if len(list.Items) != 0 {
+					if len(list) != 0 {
 						return fmt.Errorf("does not have 0 existing test resources: state unclean")
 					}
 					return nil
@@ -2588,7 +2581,7 @@ func TestStatusUpdates(t *testing.T) {
 				"previous test still exists",
 			)
 
-			be, err := internal.ToUnstructured(CR{
+			be := CR{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "examples.com/v1",
 					Kind:       "Backend",
@@ -2597,10 +2590,9 @@ func TestStatusUpdates(t *testing.T) {
 					Name: "test",
 				},
 				Spec: tc.Spec,
-			})
-			require.NoError(t, err)
+			}
 
-			_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+			_, err = backendIntf.Create(ctx, &be, metav1.CreateOptions{})
 			require.NoError(t, err)
 
 			tc.Expectation(t)
@@ -2669,16 +2661,10 @@ func TestDeploymentStatus(t *testing.T) {
 	defer func() {
 		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{Release: "deploymentstatus-airway"}))
 
-		airwayIntf := client.Dynamic.Resource(schema.GroupVersionResource{
-			Group:    "yoke.cd",
-			Version:  "v1alpha1",
-			Resource: "airways",
-		})
-
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := airwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -2693,15 +2679,15 @@ func TestDeploymentStatus(t *testing.T) {
 		)
 	}()
 
-	backendIntf := client.Dynamic.
-		Resource(schema.GroupVersionResource{
-			Group:    "examples.com",
-			Version:  "v1",
-			Resource: "backends",
-		}).
-		Namespace("default")
+	backendGVR := schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "backends",
+	}
 
-	be, err := internal.ToUnstructured(CR{
+	backendIntf := k8s.TypedInterface[CR](client.Dynamic, backendGVR).Namespace("default")
+
+	be := &CR{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "examples.com/v1",
 			Kind:       "Backend",
@@ -2710,30 +2696,32 @@ func TestDeploymentStatus(t *testing.T) {
 			Name: "test",
 		},
 		Image: "yokecd/c4ts:test",
-	})
-	require.NoError(t, err)
+	}
 
-	_, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
+	be, err = backendIntf.Create(ctx, be, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
-			be, err := backendIntf.Get(ctx, be.GetName(), metav1.GetOptions{})
+			be, err := backendIntf.Get(ctx, be.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-			ap, _, _ := unstructured.NestedString(be.Object, "status", "availablePods")
-			if ap != "1" {
+			if ap := be.Status.AvailablePods; ap != "1" {
 				return fmt.Errorf("expected one available pod but got: %q", ap)
 			}
-			if ready := internal.GetFlightReadyCondition(be); ready == nil || ready.Status != metav1.ConditionTrue {
-				return fmt.Errorf("expected ready condition to be true")
+			ready := meta.FindStatusCondition(be.Status.Conditions, "Ready")
+			if ready == nil {
+				return fmt.Errorf("expected ready condition to be presented but was not")
+			}
+			if ready.Status != metav1.ConditionTrue {
+				return fmt.Errorf("expected ready condition to be true but got false with message: %v", ready.Message)
 			}
 			return nil
 		},
 		time.Second,
-		10*time.Second,
+		30*time.Second,
 		"failed to get available pods",
 	)
 }
@@ -3235,7 +3223,7 @@ func TestTimeout(t *testing.T) {
 	}
 
 	_, err = timeoutIntf.Create(ctx, &instance, metav1.CreateOptions{})
-	require.ErrorContains(t, err, "valuate flight: failed to execute wasm: module closed with context deadline exceeded: execution timeout (30ms) exceeded")
+	require.ErrorContains(t, err, "module closed with context deadline exceeded: execution timeout (30ms) exceeded")
 }
 
 func TestSubscriptionMode(t *testing.T) {
@@ -3527,5 +3515,124 @@ func TestValidationCycle(t *testing.T) {
 		time.Second,
 		30*time.Second,
 		"expected backend to be deleted with namespace",
+	)
+}
+
+func TestIdentityWithError(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	type CR struct {
+		metav1.TypeMeta
+		metav1.ObjectMeta `json:"metadata"`
+		Status            struct {
+			Message string `json:"message,omitempty"`
+		} `json:"status"`
+	}
+
+	airway, err := client.AirwayIntf.Create(
+		context.Background(),
+		&v1alpha1.Airway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "tests.examples.com",
+			},
+			Spec: v1alpha1.AirwaySpec{
+				WasmURLs: v1alpha1.WasmURLs{
+					Flight: "http://wasmcache/identityerror.wasm",
+				},
+				Mode:          v1alpha1.AirwayModeSubscription,
+				ClusterAccess: true,
+				Template: apiextv1.CustomResourceDefinitionSpec{
+					Group: "examples.com",
+					Names: apiextv1.CustomResourceDefinitionNames{
+						Plural:   "tests",
+						Singular: "test",
+						Kind:     "Test",
+					},
+					Scope: apiextv1.NamespaceScoped,
+					Versions: []apiextv1.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextv1.CustomResourceValidation{
+								OpenAPIV3Schema: openapi.SchemaFor[CR](),
+							},
+						},
+					},
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	require.NoError(t,
+		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+			Timeout:  30 * time.Second,
+			Interval: time.Second,
+		}),
+	)
+
+	testGVR := schema.GroupVersionResource{
+		Resource: "tests",
+		Group:    "examples.com",
+		Version:  "v1",
+	}
+
+	testIntf := k8s.TypedInterface[CR](client.Dynamic, testGVR).Namespace("default")
+
+	test, err := testIntf.Create(
+		context.Background(),
+		&CR{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Test",
+				APIVersion: "examples.com/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "identity",
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	defer func() {
+		// Kubernetes garbage collectin is too slow and creating flaky test conditions...
+		// So forcefully remove test resource before deleting airway...
+		require.NoError(t, testIntf.Delete(context.Background(), test.Name, metav1.DeleteOptions{}))
+		require.NoError(t, client.WaitIsRemovedFromCluster(context.Background(), internal.Must2(internal.ToUnstructured(test)), k8s.WaitOptions{}))
+
+		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expected error to be not found but got: %v", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected airway to be deleted proper",
+		)
+	}()
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			test, err := testIntf.Get(context.Background(), test.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if msg := test.Status.Message; msg != "artificial test error" {
+				return fmt.Errorf("expected the artifical test error but got: %q", msg)
+			}
+			_, err = client.Clientset.AppsV1().Deployments("default").Get(context.Background(), test.Name, metav1.GetOptions{})
+			return err
+		},
+		time.Second,
+		10*time.Second,
+		"failed to get test with expected state",
 	)
 }

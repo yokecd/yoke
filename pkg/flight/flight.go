@@ -3,10 +3,12 @@ package flight
 import (
 	"cmp"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 
+	"github.com/davidmdm/x/xerr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -71,3 +73,10 @@ func (resources Resources) MarshalJSON() ([]byte, error) {
 // Stages is an ordered list of stages. Yoke will apply each stage one by one.
 // Stages is a valid flight output.
 type Stages []Resources
+
+// JSONEncodeWithError is a utility for writing some value to stdout but returning a previously existing error as a default return.
+// This makes call sites for returning parent/identity resource updates with errors more ergonomic.
+// If an error occurs writing the value to stdout it will be joined with the provided error.
+func JSONEncodeWithError(out io.Writer, value any, err error) error {
+	return xerr.Join(err, json.NewEncoder(out).Encode(value))
+}
