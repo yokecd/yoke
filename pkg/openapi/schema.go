@@ -32,6 +32,11 @@ func SchemaFrom(typ reflect.Type) *apiext.JSONSchemaProps {
 	return generateSchema(typ, true, make(typeCache))
 }
 
+// SchemaFor is a utility function for calling SchemaFrom generically without providing a reflect.Type.
+func SchemaFor[T any]() *apiext.JSONSchemaProps {
+	return SchemaFrom(reflect.TypeFor[T]())
+}
+
 func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSchemaProps {
 	type OpenAPISchemer interface {
 		OpenAPISchema() *apiext.JSONSchemaProps
@@ -55,6 +60,19 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 				{Type: "string"},
 				{Type: "integer"},
 			},
+		}
+	}
+
+	if typ.PkgPath() == "k8s.io/apimachinery/pkg/api/resource" && typ.Name() == "Quantity" {
+		return &apiext.JSONSchemaProps{
+			XIntOrString: true,
+			AnyOf: []apiext.JSONSchemaProps{
+				{Type: "string"},
+				{Type: "integer"},
+			},
+			// Pattern taken from the prometheus operator for resource quantities.
+			// https://github.com/prometheus-operator/prometheus-operator/blob/87ed2f1149edc971525f4e5b3b608c808bad0dc9/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml#L8247-L8253
+			Pattern: `^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$`,
 		}
 	}
 
