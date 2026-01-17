@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
@@ -24,13 +25,14 @@ func TestGenerateSchema(t *testing.T) {
 
 	type S struct {
 		Embedded
-		Name   string            `json:"name" MinLength:"3"`
-		Age    int               `json:"age" Minimum:"18"`
-		Labels map[string]string `json:"labels,omitempty"`
-		Active bool              `json:"active"`
-		Choice string            `json:"choice" Enum:"yes,no,toaster"`
-		Rule   string            `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
-		Map    map[string]any    `json:"map"`
+		Name        string             `json:"name" MinLength:"3"`
+		Age         int                `json:"age" Minimum:"18"`
+		Labels      map[string]string  `json:"labels,omitempty"`
+		Active      bool               `json:"active"`
+		Choice      string             `json:"choice" Enum:"yes,no,toaster"`
+		Rule        string             `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
+		Map         map[string]any     `json:"map"`
+		IntOrString intstr.IntOrString `json:"intOrString,omitzero"`
 	}
 
 	require.EqualValues(
@@ -79,10 +81,17 @@ func TestGenerateSchema(t *testing.T) {
 					Type:                   "object",
 					XPreserveUnknownFields: ptr.To(true),
 				},
+				"intOrString": {
+					XIntOrString: true,
+					AnyOf: []apiext.JSONSchemaProps{
+						{Type: "string"},
+						{Type: "integer"},
+					},
+				},
 			},
 			Required: []string{"name", "age", "active", "choice", "rule", "map"},
 		},
-		openapi.SchemaFrom(reflect.TypeOf(S{})),
+		openapi.SchemaFrom(reflect.TypeFor[S]()),
 	)
 }
 
