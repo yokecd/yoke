@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
@@ -33,6 +34,7 @@ func TestGenerateSchema(t *testing.T) {
 		Rule        string             `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
 		Map         map[string]any     `json:"map"`
 		IntOrString intstr.IntOrString `json:"intOrString,omitzero"`
+		Quantity    resource.Quantity  `json:"quantity,omitzero"`
 	}
 
 	require.EqualValues(
@@ -87,6 +89,14 @@ func TestGenerateSchema(t *testing.T) {
 						{Type: "string"},
 						{Type: "integer"},
 					},
+				},
+				"quantity": {
+					XIntOrString: true,
+					AnyOf: []apiext.JSONSchemaProps{
+						{Type: "string"},
+						{Type: "integer"},
+					},
+					Pattern: `^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$`,
 				},
 			},
 			Required: []string{"name", "age", "active", "choice", "rule", "map"},
