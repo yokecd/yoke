@@ -48,6 +48,16 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 		return &apiext.JSONSchemaProps{Type: "string"}
 	}
 
+	if typ.PkgPath() == "k8s.io/apimachinery/pkg/util/intstr" && typ.Name() == "IntOrString" {
+		return &apiext.JSONSchemaProps{
+			XIntOrString: true,
+			AnyOf: []apiext.JSONSchemaProps{
+				{Type: "string"},
+				{Type: "integer"},
+			},
+		}
+	}
+
 	switch typ.Kind() {
 	case reflect.String:
 		return &apiext.JSONSchemaProps{Type: "string"}
