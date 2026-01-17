@@ -5,7 +5,7 @@ concurrency:
 
 on:
   schedule:
-    - cron: "0 0 1,16 * *" # 00:00 on day 1 and 16 of each month
+    - cron: '0 0 1,16 * *' # 00:00 on day 1 and 16 of each month
   workflow_dispatch:
 
 jobs:
@@ -58,9 +58,8 @@ jobs:
       - name: Deploy and Validate ArgoCD
         if: steps.diff.outputs.continue == 'true'
         run: |
-          task build-cli
           task yokecd-installer
-          ./yoke takeoff -create-namespace -namespace argocd -wait 10m argocd ./yokecd-installer.wasm
+          go run ./cmd/yoke takeoff -create-namespace -namespace argocd -wait 10m argocd ./yokecd-installer.wasm
 
       - name: Create PR
         if: steps.diff.outputs.continue == 'true'
