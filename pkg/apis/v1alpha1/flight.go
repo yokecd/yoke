@@ -8,9 +8,11 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/pkg/apis"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
@@ -142,6 +144,12 @@ func (flight Flight) MarshalJSON() ([]byte, error) {
 	return json.Marshal(alt(flight))
 }
 
+var _ runtime.Object = (*Flight)(nil)
+
+func (flight *Flight) DeepCopyObject() runtime.Object {
+	return apis.DeepCopy(flight)
+}
+
 type ClusterFlight Flight
 
 func (ClusterFlight) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
@@ -166,4 +174,10 @@ func FlightInputStream(spec FlightSpec) io.Reader {
 		return internal.JSONReader(spec.InputObject)
 	}
 	return strings.NewReader("")
+}
+
+var _ runtime.Object = (*ClusterFlight)(nil)
+
+func (flight *ClusterFlight) DeepCopyObject() runtime.Object {
+	return apis.DeepCopy(flight)
 }

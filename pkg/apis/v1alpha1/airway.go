@@ -7,9 +7,11 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
+	"github.com/yokecd/yoke/pkg/apis"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
@@ -245,4 +247,10 @@ func (airway Airway) CRGroupResource() schema.GroupResource {
 		Group:    airway.Spec.Template.Group,
 		Resource: airway.Spec.Template.Names.Plural,
 	}
+}
+
+var _ runtime.Object = (*Airway)(nil)
+
+func (airway *Airway) DeepCopyObject() runtime.Object {
+	return apis.DeepCopy(airway)
 }
