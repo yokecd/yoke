@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	"encoding/json"
-	"reflect"
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -30,7 +29,7 @@ type Airway struct {
 
 func (Airway) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type alt Airway
-	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema := openapi.SchemaFor[alt]()
 	schema.Description = strings.Join(
 		[]string{
 			"Airways are an high level CustomResourceDefintion object with metadata binding it to a Flight implementation.",
@@ -182,7 +181,7 @@ type AirwaySpec struct {
 
 func (AirwaySpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type alt AirwaySpec
-	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema := openapi.SchemaFor[alt]()
 	schema.Description = "Specification of the Airway resource."
 	return schema
 }

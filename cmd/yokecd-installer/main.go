@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 
 	"go.yaml.in/yaml/v3"
 
@@ -55,7 +54,7 @@ func run() error {
 	flag.Parse()
 
 	if *schema {
-		return encodeAsYaml(os.Stdout, openapi.SchemaFrom(reflect.TypeFor[Values]()))
+		return encodeAsYaml(os.Stdout, openapi.SchemaFor[Values]())
 	}
 
 	values := Values{

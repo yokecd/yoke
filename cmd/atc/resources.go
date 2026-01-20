@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -71,7 +70,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
 					},
 					Schema: &apiextensionsv1.CustomResourceValidation{
-						OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Airway]()),
+						OpenAPIV3Schema: openapi.SchemaFor[v1alpha1.Airway](),
 					},
 					AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{
 						{
@@ -143,7 +142,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 								Served:       true,
 								Storage:      true,
 								Subresources: &apiextensionsv1.CustomResourceSubresources{Status: &apiextensionsv1.CustomResourceSubresourceStatus{}},
-								Schema:       &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[v1alpha1.Flight]())},
+								Schema:       &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: openapi.SchemaFor[v1alpha1.Flight]()},
 								AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{
 									{
 										Name:     "flight",

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/term"
@@ -32,7 +31,7 @@ func run() error {
 	flag.Parse()
 
 	if *schema {
-		return encodeAsYaml(os.Stdout, openapi.SchemaFrom(reflect.TypeFor[installer.Config]()))
+		return encodeAsYaml(os.Stdout, openapi.SchemaFor[installer.Config]())
 	}
 
 	if !*skipVersionCheck {

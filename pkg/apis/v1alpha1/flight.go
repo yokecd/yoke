@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"encoding/json"
 	"io"
-	"reflect"
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -31,7 +30,7 @@ type Flight struct {
 
 func (Flight) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type alt Flight
-	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema := openapi.SchemaFor[alt]()
 	schema.Description = strings.Join(
 		[]string{
 			"Flights allow you to create yoke releases in your cluster using the air traffic controller instead of a client-side implementation",
@@ -132,7 +131,7 @@ type FlightSpec struct {
 
 func (FlightSpec) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type alt FlightSpec
-	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema := openapi.SchemaFor[alt]()
 	schema.Description = "Specification of the Flight and ClusterFlight custom resources."
 	return schema
 }
@@ -154,7 +153,7 @@ type ClusterFlight Flight
 
 func (ClusterFlight) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	type alt ClusterFlight
-	schema := openapi.SchemaFrom(reflect.TypeFor[alt]())
+	schema := openapi.SchemaFor[alt]()
 	schema.Description = "Cluser scoped version of the yoke.cd Flight resource. For more information see Flight."
 	return schema
 }
