@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -204,7 +203,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 		statusSchema, ok := version.Schema.OpenAPIV3Schema.Properties["status"]
 		if !ok {
-			version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFrom(reflect.TypeFor[struct {
+			version.Schema.OpenAPIV3Schema.Properties["status"] = *(openapi.SchemaFor[struct {
 				Conditions flight.Conditions `json:"conditions,omitempty"`
 			}]())
 		} else {
@@ -215,9 +214,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				statusSchema.Properties = map[string]apiextv1.JSONSchemaProps{}
 			}
 			if _, ok := statusSchema.Properties["conditions"]; !ok {
-				statusSchema.Properties["conditions"] = *openapi.SchemaFrom(reflect.TypeFor[flight.Conditions]())
+				statusSchema.Properties["conditions"] = *openapi.SchemaFor[flight.Conditions]()
 			}
-			if err := openapi.Satisfies(statusSchema.Properties["conditions"], *openapi.SchemaFrom(reflect.TypeFor[flight.Conditions]())); err != nil {
+			if err := openapi.Satisfies(statusSchema.Properties["conditions"], *openapi.SchemaFor[flight.Conditions]()); err != nil {
 				return ctrl.Result{}, fmt.Errorf("invalid airway: invalid status: conditions does not have expected schema: %v", err)
 			}
 

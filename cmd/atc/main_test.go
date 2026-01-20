@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -180,7 +179,7 @@ func TestAirTrafficController(t *testing.T) {
 									Served:  true,
 									Storage: false, // THIS SHOULD TRIGGER AN ERROR. Invalid to have no storage version. This should be caught by admission validation.
 									Schema: &apiextv1.CustomResourceValidation{
-										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+										OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 									},
 								},
 							},
@@ -221,7 +220,7 @@ func TestAirTrafficController(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+									OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 								},
 							},
 						},
@@ -375,7 +374,7 @@ func TestAirTrafficController(t *testing.T) {
 										Served:  true,
 										Storage: false,
 										Schema: &apiextv1.CustomResourceValidation{
-											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+											OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 										},
 									},
 									{
@@ -383,7 +382,7 @@ func TestAirTrafficController(t *testing.T) {
 										Served:  true,
 										Storage: true,
 										Schema: &apiextv1.CustomResourceValidation{
-											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv2.Backend]()),
+											OpenAPIV3Schema: openapi.SchemaFor[backendv2.Backend](),
 										},
 									},
 								},
@@ -639,7 +638,7 @@ func TestRestarts(t *testing.T) {
 										Served:  true,
 										Storage: true,
 										Schema: &apiextv1.CustomResourceValidation{
-											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+											OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 										},
 									},
 								},
@@ -814,7 +813,7 @@ func TestCrossNamespace(t *testing.T) {
 							Served:  true,
 							Storage: true,
 							Schema: &apiextv1.CustomResourceValidation{
-								OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+								OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 							},
 						},
 					},
@@ -949,7 +948,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 						Served:  true,
 						Storage: true,
 						Schema: &apiextv1.CustomResourceValidation{
-							OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+							OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 						},
 					},
 				},
@@ -1089,7 +1088,7 @@ func TestHistoryCap(t *testing.T) {
 										Served:  true,
 										Storage: true,
 										Schema: &apiextv1.CustomResourceValidation{
-											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+											OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 										},
 									},
 								},
@@ -1243,7 +1242,7 @@ func TestHistoryCap(t *testing.T) {
 										Served:  true,
 										Storage: true,
 										Schema: &apiextv1.CustomResourceValidation{
-											OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+											OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 										},
 									},
 								},
@@ -1330,7 +1329,7 @@ func TestFixDriftInterval(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+									OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 								},
 							},
 						},
@@ -1467,7 +1466,7 @@ func TestStatusReadiness(t *testing.T) {
 									Served:  true,
 									Storage: true,
 									Schema: &apiextv1.CustomResourceValidation{
-										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+										OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 									},
 								},
 							},
@@ -1659,7 +1658,7 @@ func TestResourceAccessMatchers(t *testing.T) {
 									Served:  true,
 									Storage: true,
 									Schema: &apiextv1.CustomResourceValidation{
-										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+										OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 									},
 								},
 							},
@@ -1787,7 +1786,7 @@ func TestAirwayModes(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+									OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 								},
 							},
 						},
@@ -2088,7 +2087,7 @@ func TestDynamicWithExternalResource(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+									OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 								},
 							},
 						},
@@ -2255,7 +2254,7 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CopyJob]()),
+									OpenAPIV3Schema: openapi.SchemaFor[CopyJob](),
 								},
 							},
 						},
@@ -2412,7 +2411,7 @@ func TestStatusUpdates(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CR]()),
+									OpenAPIV3Schema: openapi.SchemaFor[CR](),
 								},
 							},
 						},
@@ -2656,7 +2655,7 @@ func TestDeploymentStatus(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[CR]()),
+									OpenAPIV3Schema: openapi.SchemaFor[CR](),
 								},
 							},
 						},
@@ -2776,7 +2775,7 @@ func TestPruning(t *testing.T) {
 									Served:  true,
 									Storage: true,
 									Schema: &apiextv1.CustomResourceValidation{
-										OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[struct{}]()),
+										OpenAPIV3Schema: openapi.SchemaFor[struct{}](),
 									},
 								},
 							},
@@ -3072,7 +3071,7 @@ func TestOverridePermissions(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+									OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 								},
 							},
 						},
@@ -3183,7 +3182,7 @@ func TestTimeout(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+									OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 								},
 							},
 						},
@@ -3275,7 +3274,7 @@ func TestSubscriptionMode(t *testing.T) {
 								Served:  true,
 								Storage: true,
 								Schema: &apiextv1.CustomResourceValidation{
-									OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[EmptyCRD]()),
+									OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
 								},
 							},
 						},
@@ -3447,7 +3446,7 @@ func TestValidationCycle(t *testing.T) {
 							Served:  true,
 							Storage: true,
 							Schema: &apiextv1.CustomResourceValidation{
-								OpenAPIV3Schema: openapi.SchemaFrom(reflect.TypeFor[backendv1.Backend]()),
+								OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 							},
 						},
 					},
