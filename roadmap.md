@@ -32,7 +32,7 @@ Suggestions are welcome.
 > Ideally this should be done in a backward compatible way, migrating the old-format to the new as the ATC redeploys.
 
 
-- [ ] Feature: Airway instance status updates without modifying the release state.
+- [x] Feature: Airway instance status updates without modifying the release state.
 
 > Currently, on every Airway instance evaluation, the custom resource is passed to the flight implementation and the release state is calculated. In dynamic and subscription modes,
 > certain events will retrigger evaluation, allowing authors to build the state progressively via orchestration (e.g., waiting for a secret to be created before creating a deployment).
