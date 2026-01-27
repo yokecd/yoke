@@ -4,6 +4,40 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
+## (2026-01-24) atc/v0.18.7 - atc-installer/v0.17.3 - latest - v0.19.8 - yokecd/v0.18.6 - yokecd-installer/v0.18.3
+
+- atc: set identity status if written over stdout even on non-zero exit codes ([488c432](https://github.com/yokecd/yoke/commit/488c432b1a7efaf4d69427b0d051ac0af6870657))
+- deps: update dependencies ([39c3a90](https://github.com/yokecd/yoke/commit/39c3a90a8736257453c29932dc4d275b45b3b6bd))
+
+## (2026-01-23) yokecd-installer/v0.18.2
+
+- yokecd-installer: bump ArgoCD Chart to latest ([c8f0bd3](https://github.com/yokecd/yoke/commit/c8f0bd377fb3148f503be7e2f8b80a58e8a78976))
+
+## (2026-01-19) atc/v0.18.6 - atc-installer/v0.17.2 - v0.19.7 - yokecd/v0.18.5 - yokecd-installer/v0.18.1
+
+- refactor: use openapi.SchemaFor instead of openapi.SchemaFrom in codebase ([cfeb4fc](https://github.com/yokecd/yoke/commit/cfeb4fc7837c29190701d4eb6ac2f614ffb6f215))
+- pkg/apis: implement runtime.Object for v1alhpa1 apis ([37c08c3](https://github.com/yokecd/yoke/commit/37c08c38ebf356f5589a0f9bb498458413a03415))
+
+## (2026-01-17) atc/v0.18.5 - atc-installer/v0.17.1 - v0.19.6 - yokecd/v0.18.4 - yokecd-installer/v0.18.0
+
+- pkg/openapi: support resource.Quantity ([b5c7bff](https://github.com/yokecd/yoke/commit/b5c7bff475e6596843272aa7a4255c8c5608a987))
+- pkg/openapi: support intstr.IntOrString ([b4a7e57](https://github.com/yokecd/yoke/commit/b4a7e5752d2f42238ab8479829f919dfa64a0fbd))
+- argocd-updater: use go run to run yoke instead of building a local copy ([4031d8c](https://github.com/yokecd/yoke/commit/4031d8c76c014bacb0b707b7d582e3d06c373822))
+- ci: add github action to update embedded argocd chart ([49c8bba](https://github.com/yokecd/yoke/commit/49c8bba78785121d3fb259be26b4d40cfc5968bb))
+
+## (2026-01-02) atc/v0.18.4 - v0.19.5 - yokecd/v0.18.3
+
+- atc: breaking-change: airways infer crossnamespace from crd scope ([5b98cd3](https://github.com/yokecd/yoke/commit/5b98cd308ecf40a8c52c70f2d6b30decb92db3e6))
+- roadmap: add a roadmap.md file to project ([34ad58d](https://github.com/yokecd/yoke/commit/34ad58d30f8f58e61a0d93c9384838a9fafb7a86))
+
+## (2025-12-16) atc/v0.18.3 - v0.19.4 - yokecd/v0.18.2
+
+- atc: subscription mode must register external events ([05d7b99](https://github.com/yokecd/yoke/commit/05d7b993fbaa5c5baf420304add47251660bfeae))
+
+## (2025-12-07) atc/v0.18.2 - v0.19.3
+
+- atc: do not error on flight reconciliation takeoff for warnings ([746f13e](https://github.com/yokecd/yoke/commit/746f13ef7c3be29403d9fff3b6d523c3351161e4))
+
 ## (2025-12-06) atc/v0.18.1 - atc-installer/v0.17.0 - v0.19.2 - yokecd/v0.18.1
 
 - yoke/takeoff: fix eval namespace to use new context namespace ([32a9e67](https://github.com/yokecd/yoke/commit/32a9e67cb87d5b2a9a14ef73729e2768cef22b9e))
@@ -47,7 +81,7 @@
 
 - atc: fix flights.yoke.cd admission webhook not using spec input ([e74e4dd](https://github.com/yokecd/yoke/commit/e74e4ddf4e5ae360fc1cc265ad54ec02463e3764))
 
-## (2025-11-25) atc/v0.17.0 - atc-installer/v0.16.0 - latest - v0.18.0 - yokecd/v0.17.0 - yokecd-installer/v0.17.0
+## (2025-11-25) atc/v0.17.0 - atc-installer/v0.16.0 - v0.18.0 - yokecd/v0.17.0 - yokecd-installer/v0.17.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
