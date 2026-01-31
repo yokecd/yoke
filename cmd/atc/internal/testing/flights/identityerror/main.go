@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yokecd/yoke/pkg/flight"
-	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 )
 
 func main() {
