@@ -68,8 +68,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          CHART_VERSION=$(basename $(find ./cmd/yokecd-installer/argocd -name 'argo-cd-*.tgz') .tgz | cut -c 9-)
+
           BRANCH="yokecd-installer/argocd-chart-upgrade"
-          TITLE="yokecd-installer: bump ArgoCD Chart to latest"
+          TITLE="yokecd-installer: use ArgoCD Helm Chart version $CHART_VERSION"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
