@@ -22,6 +22,11 @@ type Config struct {
 
 	Verbose bool
 
+	AirwayValidationWebhookTimeout           int32
+	ResourceValidationWebhookTimeout         int32
+	ExternalResourceValidationWebhookTimeout int32
+	FlightValidationWebhookTimeout           int32
+
 	TLS TLSConfig
 }
 
@@ -58,6 +63,11 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Verbose, "VERBOSE")
 
 	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
+
+	conf.Var(parser, &cfg.AirwayValidationWebhookTimeout, "AIRWAY_VALIDATION_WEBHOOK_TIMEOUT")
+	conf.Var(parser, &cfg.ResourceValidationWebhookTimeout, "RESOURCE_VALIDATION_WEBHOOK_TIMEOUT")
+	conf.Var(parser, &cfg.ExternalResourceValidationWebhookTimeout, "EXTERNAL_RESOURCE_VALIDATION_WEBHOOK_TIMEOUT")
+	conf.Var(parser, &cfg.FlightValidationWebhookTimeout, "FLIGHT_VALIDATION_WEBHOOK_TIMEOUT")
 
 	if err := parser.Parse(); err != nil {
 		return nil, err
