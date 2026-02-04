@@ -87,9 +87,11 @@ type Revision struct {
 }
 
 const (
-	LabelManagedBy     = "app.kubernetes.io/managed-by"
-	LabelYokeRelease   = "app.kubernetes.io/yoke-release"
-	LabelYokeReleaseNS = "app.kubernetes.io/yoke-release-namespace"
+	LabelManagedBy               = "app.kubernetes.io/managed-by"
+	DeprecatedLabelYokeRelease   = "app.kubernetes.io/yoke-release"
+	DeprecatedLabelYokeReleaseNS = "app.kubernetes.io/yoke-release-namespace"
+	AnnotationYokeRelease        = "instance.atc.yoke.cd/release"
+	AnnotationYokeNamespace      = "instance.atc.yoke.cd/namespace"
 )
 
 func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns, manager string) {
@@ -99,18 +101,35 @@ func AddYokeMetadata(resources []*unstructured.Unstructured, release, ns, manage
 			labels = make(map[string]string)
 		}
 		labels[LabelManagedBy] = cmp.Or(manager, "yoke")
-		labels[LabelYokeRelease] = release
-		labels[LabelYokeReleaseNS] = ns
 		resource.SetLabels(labels)
+
+		annotations := resource.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		annotations[AnnotationYokeRelease] = release
+		annotations[AnnotationYokeNamespace] = ns
+		resource.SetAnnotations(annotations)
 	}
 }
 
 func RemoveYokeMetadata(resources []*unstructured.Unstructured) {
 	for _, resource := range resources {
 		delete(resource.GetLabels(), LabelManagedBy)
-		delete(resource.GetLabels(), LabelYokeRelease)
-		delete(resource.GetLabels(), LabelYokeReleaseNS)
+		delete(resource.GetAnnotations(), AnnotationYokeRelease)
+		delete(resource.GetAnnotations(), AnnotationYokeNamespace)
 	}
+}
+
+func GetAnnotation(resource *unstructured.Unstructured, key string) string {
+	if resource == nil {
+		return ""
+	}
+	annotations := resource.GetAnnotations()
+	if annotations == nil {
+		return ""
+	}
+	return annotations[key]
 }
 
 func GetLabel(resource *unstructured.Unstructured, label string) string {
@@ -129,8 +148,15 @@ func GetOwner(resource *unstructured.Unstructured) string {
 		return ""
 	}
 
-	release := GetLabel(resource, LabelYokeRelease)
-	namespace := GetLabel(resource, LabelYokeReleaseNS)
+	// Use deprecated labels for backwards compatiblity as fallback.
+	release := cmp.Or(
+		GetAnnotation(resource, AnnotationYokeRelease),
+		GetLabel(resource, DeprecatedLabelYokeRelease),
+	)
+	namespace := cmp.Or(
+		GetAnnotation(resource, AnnotationYokeNamespace),
+		GetLabel(resource, DeprecatedLabelYokeReleaseNS),
+	)
 
 	if release == "" || namespace == "" {
 		return ""

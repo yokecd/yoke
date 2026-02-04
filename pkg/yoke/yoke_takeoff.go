@@ -140,6 +140,10 @@ type TakeoffParams struct {
 	// Example: used by the ATC to add Instance metadata
 	ExtraLabels map[string]string
 
+	// ExtraAnnotations adds extra annotations to resources deployed by yoke.
+	// Example: used by the ATC to add Instance metadata
+	ExtraAnnotations map[string]string
+
 	// ManagedBy is the value used in the yoke managed-by label. If left empty will default to `yoke`.
 	ManagedBy string
 
@@ -241,14 +245,24 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}
 	}
 
-	if len(params.ExtraLabels) > 0 {
+	if len(params.ExtraLabels)+len(params.ExtraAnnotations) > 0 {
 		for _, resource := range stages.Flatten() {
-			labels := resource.GetLabels()
-			if labels == nil {
-				labels = map[string]string{}
+			if len(params.ExtraLabels) > 0 {
+				labels := resource.GetLabels()
+				if labels == nil {
+					labels = map[string]string{}
+				}
+				maps.Copy(labels, params.ExtraLabels)
+				resource.SetLabels(labels)
 			}
-			maps.Copy(labels, params.ExtraLabels)
-			resource.SetLabels(labels)
+			if len(params.ExtraAnnotations) > 0 {
+				annotations := resource.GetAnnotations()
+				if annotations == nil {
+					annotations = map[string]string{}
+				}
+				maps.Copy(annotations, params.ExtraAnnotations)
+				resource.SetAnnotations(annotations)
+			}
 		}
 	}
 

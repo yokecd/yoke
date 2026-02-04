@@ -13,9 +13,7 @@ const (
 	fieldManager           = "yoke.cd/atc"
 	cleanupFinalizer       = "yoke.cd/mayday.flight"
 	cleanupAirwayFinalizer = "yoke.cd/strip.airway"
-	LabelInstanceGroupKind = "instance.atc.yoke.cd/groupKind"
-	LabelInstanceName      = "instance.atc.yoke.cd/name"
-	LabelInstanceNamespace = "instance.atc.yoke.cd/namespace"
+	AnnotationInstanceRef  = "instance.atc.yoke.cd/instanceRef"
 )
 
 type InstanceState struct {

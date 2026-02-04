@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -401,15 +402,22 @@ func TestReleaseOwnership(t *testing.T) {
 	deployment, err := client.Clientset.AppsV1().Deployments("default").Get(context.Background(), "sample-app", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.Equal(
+	require.Subset(
 		t,
-		map[string]string{
-			"app":                                      "sample-app",
-			"app.kubernetes.io/managed-by":             "yoke",
-			"app.kubernetes.io/yoke-release":           "foo",
-			"app.kubernetes.io/yoke-release-namespace": "default",
-		},
 		deployment.Labels,
+		map[string]string{
+			"app":                   "sample-app",
+			internal.LabelManagedBy: "yoke",
+		},
+	)
+
+	require.Subset(
+		t,
+		deployment.Annotations,
+		map[string]string{
+			internal.AnnotationYokeRelease:   "foo",
+			internal.AnnotationYokeNamespace: "default",
+		},
 	)
 }
 
@@ -451,7 +459,7 @@ func TestForceOwnership(t *testing.T) {
 
 	deployment, err := deploymentIntf.Get(background, "sample-app", metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "foo", deployment.GetLabels()[internal.LabelYokeRelease])
+	require.Equal(t, "foo", deployment.GetAnnotations()[internal.AnnotationYokeRelease])
 }
 
 func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
@@ -642,7 +650,7 @@ func TestTakeoffWithNamespaceStage(t *testing.T) {
 
 	ns, err = client.CoreV1().Namespaces().Get(background, "test-ns-resource", metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, "foo", ns.Labels["app.kubernetes.io/yoke-release"])
+	require.Equal(t, "foo", ns.Annotations[internal.AnnotationYokeRelease])
 
 	_, err = client.CoreV1().ConfigMaps("test-ns-resource").Get(background, "test-cm", metav1.GetOptions{})
 	require.NoError(t, err)
@@ -1261,11 +1269,11 @@ func TestMayday(t *testing.T) {
 
 				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, crd.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, crd.GetAnnotations(), internal.AnnotationYokeRelease)
 			},
 		},
 		{
@@ -1279,7 +1287,7 @@ func TestMayday(t *testing.T) {
 
 				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 				if err != nil {
@@ -1349,11 +1357,11 @@ func TestMayday(t *testing.T) {
 
 			ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 			require.NoError(t, err)
-			require.Contains(t, ns.GetLabels(), internal.LabelYokeRelease)
+			require.Contains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 			crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 			require.NoError(t, err)
-			require.Contains(t, crd.GetLabels(), internal.LabelYokeRelease)
+			require.Contains(t, crd.GetAnnotations(), internal.AnnotationYokeRelease)
 
 			tc.Params.Release = "test"
 
@@ -1454,11 +1462,11 @@ func TestTakeoffPruning(t *testing.T) {
 
 				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, crd.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, crd.GetAnnotations(), internal.AnnotationYokeRelease)
 			},
 		},
 		{
@@ -1472,7 +1480,7 @@ func TestTakeoffPruning(t *testing.T) {
 
 				ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 				require.NoError(t, err)
-				require.NotContains(t, ns.GetLabels(), internal.LabelYokeRelease)
+				require.NotContains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 				crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 				if err != nil {
@@ -1543,11 +1551,11 @@ func TestTakeoffPruning(t *testing.T) {
 
 			ns, err := client.Clientset.CoreV1().Namespaces().Get(background, "foo", metav1.GetOptions{})
 			require.NoError(t, err)
-			require.Contains(t, ns.GetLabels(), internal.LabelYokeRelease)
+			require.Contains(t, ns.GetAnnotations(), internal.AnnotationYokeRelease)
 
 			crd, err := crdIntf.Get(background, "tests.examples.com", metav1.GetOptions{})
 			require.NoError(t, err)
-			require.Contains(t, crd.GetLabels(), internal.LabelYokeRelease)
+			require.Contains(t, crd.GetAnnotations(), internal.AnnotationYokeRelease)
 
 			tc.Params.Release = "test"
 			tc.Params.Flight.Input = internal.JSONReader(makeResources(false))
@@ -1580,7 +1588,7 @@ func TestPruneOwnership(t *testing.T) {
 	deployment, err := deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.Equal(t, "foo", deployment.Labels[internal.LabelYokeRelease])
+	require.Equal(t, "foo", deployment.Annotations[internal.AnnotationYokeRelease])
 
 	require.NoError(
 		t,
@@ -1594,14 +1602,14 @@ func TestPruneOwnership(t *testing.T) {
 	deployment, err = deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.Equal(t, "bar", deployment.Labels[internal.LabelYokeRelease])
+	require.Equal(t, "bar", deployment.Annotations[internal.AnnotationYokeRelease])
 
 	require.NoError(t, commander.Mayday(context.Background(), yoke.MaydayParams{Release: "foo"}))
 
 	deployment, err = deploymentIntf.Get(context.Background(), "test", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	require.Equal(t, "bar", deployment.Labels[internal.LabelYokeRelease])
+	require.Equal(t, "bar", deployment.Annotations[internal.AnnotationYokeRelease])
 
 	require.NoError(t, commander.Mayday(context.Background(), yoke.MaydayParams{Release: "bar"}))
 
@@ -1874,4 +1882,92 @@ func TestDefaultNamespace(t *testing.T) {
 
 		require.NoError(t, commander.Mayday(t.Context(), yoke.MaydayParams{Release: "test"}))
 	}
+}
+
+func TestDeprecatedReleaseLabelsCompat(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
+
+	data, err := json.Marshal(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Labels: map[string]string{
+				internal.DeprecatedLabelYokeRelease:   "test",
+				internal.DeprecatedLabelYokeReleaseNS: "default",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = cmIntf.Patch(
+		background,
+		"foo",
+		types.ApplyPatchType,
+		data,
+		// FieldManager must be yoke to simulate a configmap owned by a yoke release.
+		// This will allow server-side apply to remove the previous labels when updating with the new annotations.
+		metav1.PatchOptions{FieldManager: "yoke"},
+	)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	require.ErrorContains(
+		t,
+		commander.Takeoff(
+			background,
+			yoke.TakeoffParams{
+				Release:   "other-test",
+				Namespace: "default",
+				Flight: yoke.FlightParams{
+					Input: internal.JSONReader(&corev1.ConfigMap{
+						TypeMeta:   metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
+						ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+					}),
+				},
+			},
+		),
+		`expected release "default/other-test" but resource is already owned by "default/test"`,
+	)
+
+	require.NoError(
+		t,
+		commander.Takeoff(
+			background,
+			yoke.TakeoffParams{
+				Release:   "test",
+				Namespace: "default",
+				Flight: yoke.FlightParams{
+					Input: internal.JSONReader(
+						&corev1.ConfigMap{
+							TypeMeta: metav1.TypeMeta{
+								Kind:       "ConfigMap",
+								APIVersion: "v1",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "foo",
+							},
+						},
+					),
+				},
+			},
+		),
+	)
+
+	foo, err := cmIntf.Get(background, "foo", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	require.NotContains(t, foo.Labels, internal.DeprecatedLabelYokeRelease)
+	require.NotContains(t, foo.Labels, internal.DeprecatedLabelYokeReleaseNS)
+
+	require.Equal(t, "test", foo.Annotations[internal.AnnotationYokeRelease])
+	require.Equal(t, "default", foo.Annotations[internal.AnnotationYokeNamespace])
+
+	require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test"}))
 }

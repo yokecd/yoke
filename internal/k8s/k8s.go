@@ -928,8 +928,8 @@ func (client Client) OrhpanResource(ctx context.Context, resource *unstructured.
 
 	patches := []PatchAction{
 		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelManagedBy, "/", "~1"))},
-		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeRelease, "/", "~1"))},
-		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(internal.LabelYokeReleaseNS, "/", "~1"))},
+		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/annotations/%s", strings.ReplaceAll(internal.AnnotationYokeRelease, "/", "~1"))},
+		{Op: PatchOpRemove, Path: fmt.Sprintf("/metadata/annotations/%s", strings.ReplaceAll(internal.AnnotationYokeNamespace, "/", "~1"))},
 	}
 
 	if len(resource.GetOwnerReferences()) > 0 {

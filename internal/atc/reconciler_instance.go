@@ -196,12 +196,20 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				ctrl.Logger(ctx).Warn("mayday succeeded despite a warning", "warning", err)
 			}
 
-			finalizers := resource.GetFinalizers()
-			if idx := slices.Index(finalizers, cleanupFinalizer); idx != -1 {
-				resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
-				if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
-					return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
+			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				resource, err := resourceIntf.Get(ctx, resource.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
 				}
+				finalizers := resource.GetFinalizers()
+				if idx := slices.Index(finalizers, cleanupFinalizer); idx != -1 {
+					resource.SetFinalizers(slices.Delete(finalizers, idx, idx+1))
+					_, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager})
+					return err
+				}
+				return nil
+			}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 			}
 
 			params.States.Delete(event.String())
@@ -356,12 +364,8 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				Enabled:          params.Airway.Spec.ClusterAccess,
 				ResourceMatchers: params.Airway.Spec.ResourceAccessMatchers,
 			},
-			ExtraLabels: map[string]string{
-				LabelInstanceName:      resource.GetName(),
-				LabelInstanceNamespace: resource.GetNamespace(),
-				LabelInstanceGroupKind: resource.GroupVersionKind().GroupKind().String(),
-			},
-			CrossNamespace: params.Airway.Spec.Template.Scope == apiextv1.ClusterScoped,
+			ExtraAnnotations: map[string]string{AnnotationInstanceRef: internal.ResourceRef(resource)},
+			CrossNamespace:   params.Airway.Spec.Template.Scope == apiextv1.ClusterScoped,
 			PruneOpts: k8s.PruneOpts{
 				RemoveCRDs:       params.Airway.Spec.Prune.CRDs,
 				RemoveNamespaces: params.Airway.Spec.Prune.Namespaces,
