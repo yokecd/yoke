@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -149,13 +150,19 @@ func IsCRD(resource *unstructured.Unstructured) bool {
 	}
 }
 
-func GetAnnotation(resource unstructured.Unstructured, key string) string {
-	if annotations := resource.GetAnnotations(); annotations != nil {
-		return annotations[key]
-	}
-	return ""
-}
-
 func ResourceRef(resource *unstructured.Unstructured) string {
 	return fmt.Sprintf("%s/%s:%s", resource.GetNamespace(), resource.GroupVersionKind().GroupKind().String(), resource.GetName())
+}
+
+func ParseRef(ref string) (ns, gk, name string) {
+	if ref == "" {
+		return
+	}
+	ns, rest, ok := strings.Cut(ref, "/")
+	if !ok {
+		rest = ns
+		ns = ""
+	}
+	gk, name, _ = strings.Cut(rest, ":")
+	return
 }

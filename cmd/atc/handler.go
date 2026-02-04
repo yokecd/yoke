@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/davidmdm/x/xerr"
 
@@ -160,7 +161,7 @@ func Handler(params HandlerParams) http.Handler {
 		shouldCheckAirwayPerms, err := func() (bool, error) {
 			switch review.Request.Operation {
 			case admissionv1.Create:
-				return internal.GetAnnotation(cr, flight.AnnotationOverrideFlight) != "" || internal.GetAnnotation(cr, flight.AnnotationOverrideMode) != "", nil
+				return internal.GetAnnotation(&cr, flight.AnnotationOverrideFlight) != "" || internal.GetAnnotation(&cr, flight.AnnotationOverrideMode) != "", nil
 
 			case admissionv1.Update:
 				var oldCr unstructured.Unstructured
@@ -168,8 +169,8 @@ func Handler(params HandlerParams) http.Handler {
 					return false, fmt.Errorf("failed to decode old resource: %w", err)
 				}
 				return false ||
-					internal.GetAnnotation(oldCr, flight.AnnotationOverrideFlight) != internal.GetAnnotation(cr, flight.AnnotationOverrideFlight) ||
-					internal.GetAnnotation(oldCr, flight.AnnotationOverrideMode) != internal.GetAnnotation(cr, flight.AnnotationOverrideMode), nil
+					internal.GetAnnotation(&oldCr, flight.AnnotationOverrideFlight) != internal.GetAnnotation(&cr, flight.AnnotationOverrideFlight) ||
+					internal.GetAnnotation(&oldCr, flight.AnnotationOverrideMode) != internal.GetAnnotation(&cr, flight.AnnotationOverrideMode), nil
 
 			default:
 				return false, nil
@@ -371,27 +372,28 @@ func Handler(params HandlerParams) http.Handler {
 				"allowed", review.Response.Allowed,
 				"details", review.Response.Result.Message,
 			))
-			json.NewEncoder(w).Encode(review)
+			if err := json.NewEncoder(w).Encode(review); err != nil {
+				xhttp.AddRequestAttrs(r.Context(), slog.String("error", fmt.Sprintf("failed to write review: %v", err)))
+			}
 		}()
 
 		xhttp.AddRequestAttrs(r.Context(), slog.String("resourceId", internal.ResourceRef(prev)))
 
 		if next != nil {
-			atcLabels := []string{
-				internal.LabelYokeRelease,
-				internal.LabelYokeReleaseNS,
-				atc.LabelInstanceName,
-				atc.LabelInstanceNamespace,
-				atc.LabelInstanceGroupKind,
+			annotations := []string{
+				internal.AnnotationYokeRelease,
+				internal.AnnotationYokeNamespace,
+				atc.AnnotationInstanceRef,
 			}
 
 			var errs []error
-			for _, label := range atcLabels {
-				if internal.GetLabel(prev, label) != internal.GetLabel(next, label) {
-					errs = append(errs, fmt.Errorf("%s", label))
+			for _, annotation := range annotations {
+				if internal.GetAnnotation(prev, annotation) != internal.GetAnnotation(next, annotation) {
+					errs = append(errs, fmt.Errorf("%s", annotation))
 				}
 			}
-			if err := xerr.MultiErrFrom("cannot modify yoke labels", errs...); err != nil {
+
+			if err := xerr.MultiErrFrom("cannot modify yoke annotations", errs...); err != nil {
 				review.Response.Allowed = false
 				review.Response.Result = &metav1.Status{
 					Message: err.Error(),
@@ -407,12 +409,8 @@ func Handler(params HandlerParams) http.Handler {
 			return
 		}
 
-		var (
-			instanceName      = internal.GetLabel(prev, atc.LabelInstanceName)
-			instanceNamespace = internal.GetLabel(prev, atc.LabelInstanceNamespace)
-			instanceGK        = internal.GetLabel(prev, atc.LabelInstanceGroupKind)
-			instanceKey       = ctrl.Event{Name: instanceName, Namespace: instanceNamespace, GroupKind: schema.ParseGroupKind(instanceGK)}.String()
-		)
+		instanceRef := internal.GetAnnotation(prev, atc.AnnotationInstanceRef)
+		instanceNS, instanceGK, instanceName := internal.ParseRef(instanceRef)
 
 		ok := params.Controller.IsListeningForGK(schema.ParseGroupKind(instanceGK))
 
@@ -427,7 +425,7 @@ func Handler(params HandlerParams) http.Handler {
 			return
 		}
 
-		flight, ok := params.FlightStates.Load(instanceKey)
+		flight, ok := params.FlightStates.Load(instanceRef)
 		if !ok {
 			xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 			return
@@ -451,7 +449,7 @@ func Handler(params HandlerParams) http.Handler {
 
 			// Refresh flight state. It may have changed while we were waiting for the lock.
 			// ie:
-			flight, ok = params.FlightStates.Load(instanceKey)
+			flight, ok = params.FlightStates.Load(instanceRef)
 			if !ok {
 				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "no flight state"), slog.String("ERROR", "unexpected: no flight state associated to resource"))
 				return
@@ -463,6 +461,10 @@ func Handler(params HandlerParams) http.Handler {
 		switch flight.Mode {
 		case v1alpha1.AirwayModeStatic:
 			if next == nil || !next.GetDeletionTimestamp().IsZero() {
+				if strings.HasPrefix(review.Request.UserInfo.Username, "system:serviceaccount:kube-system:") {
+					xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "deletion requested by kube-system"))
+					return
+				}
 				review.Response.Allowed = false
 				review.Response.Result = &metav1.Status{
 					Message: "cannot delete resources managed by Air-Traffic-Controller",
@@ -474,8 +476,8 @@ func Handler(params HandlerParams) http.Handler {
 
 			release, err := params.Client.GetRelease(
 				r.Context(),
-				internal.GetLabel(prev, internal.LabelYokeRelease),
-				internal.GetLabel(prev, internal.LabelYokeReleaseNS),
+				internal.GetAnnotation(prev, internal.AnnotationYokeRelease),
+				internal.GetAnnotation(prev, internal.AnnotationYokeNamespace),
 			)
 			if err != nil {
 				xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", fmt.Sprintf("failed to get release: %v", err)))
@@ -525,7 +527,7 @@ func Handler(params HandlerParams) http.Handler {
 
 			evt := ctrl.Event{
 				Name:      instanceName,
-				Namespace: instanceNamespace,
+				Namespace: instanceNS,
 				GroupKind: schema.ParseGroupKind(instanceGK),
 			}
 

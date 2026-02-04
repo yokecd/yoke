@@ -104,9 +104,11 @@ func TestPluginE2E(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name: "bar",
 					Labels: map[string]string{
-						"app.kubernetes.io/managed-by":             "yokecd",
-						"app.kubernetes.io/yoke-release":           "test",
-						"app.kubernetes.io/yoke-release-namespace": "foo",
+						internal.LabelManagedBy: "yokecd",
+					},
+					Annotations: map[string]string{
+						internal.AnnotationYokeRelease:   "test",
+						internal.AnnotationYokeNamespace: "foo",
 					},
 				},
 				Data: map[string]string{"potato": "farm"},
@@ -116,9 +118,11 @@ func TestPluginE2E(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name: "foo",
 					Labels: map[string]string{
-						"app.kubernetes.io/managed-by":             "yokecd",
-						"app.kubernetes.io/yoke-release":           "test",
-						"app.kubernetes.io/yoke-release-namespace": "foo",
+						internal.LabelManagedBy: "yokecd",
+					},
+					Annotations: map[string]string{
+						internal.AnnotationYokeRelease:   "test",
+						internal.AnnotationYokeNamespace: "foo",
 					},
 				},
 				Data: map[string]string{"hello": "world"},

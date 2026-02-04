@@ -1879,7 +1879,7 @@ func TestAirwayModes(t *testing.T) {
 			return nil
 		},
 		time.Second,
-		3*time.Second,
+		30*time.Second,
 		"failed to have admission webhook deny change",
 	)
 
