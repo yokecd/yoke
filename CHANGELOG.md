@@ -4,7 +4,20 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-01-24) atc/v0.18.7 - atc-installer/v0.17.3 - latest - v0.19.8 - yokecd/v0.18.6 - yokecd-installer/v0.18.3
+## (2026-02-06) atc/v0.19.0 - latest - v0.20.0 - yokecd/v0.19.0 - yokecd-installer/v0.19.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke: breaking change: set release metadata as an annotation instead of labels ([f973056](https://github.com/yokecd/yoke/commit/f97305640524f75df4f658be45edca0b0196beb7))
+
+## (2026-01-31) atc/v0.18.8 - atc-installer/v0.17.4 - v0.19.9 - yokecd/v0.18.7 - yokecd-installer/v0.18.4
+
+- yokecd-installer: use ArgoCD Helm Chart version 9.3.7 ([ec52893](https://github.com/yokecd/yoke/commit/ec528936bfbb303e39b51255a3dbfa3224dc502c))
+- ci: update argocd-chart-update workflow to capture argocd chart version ([e220989](https://github.com/yokecd/yoke/commit/e2209893cec52a0c528cc3f31c69d1fc2bf12d74))
+- roadmap: update roadmap ([0ea2691](https://github.com/yokecd/yoke/commit/0ea269190e6aa749f8a3cf7de926739e73c309f7))
+
+## (2026-01-24) atc/v0.18.7 - atc-installer/v0.17.3 - v0.19.8 - yokecd/v0.18.6 - yokecd-installer/v0.18.3
 
 - atc: set identity status if written over stdout even on non-zero exit codes ([488c432](https://github.com/yokecd/yoke/commit/488c432b1a7efaf4d69427b0d051ac0af6870657))
 - deps: update dependencies ([39c3a90](https://github.com/yokecd/yoke/commit/39c3a90a8736257453c29932dc4d275b45b3b6bd))
