@@ -33,30 +33,6 @@ func LookupResource[T any, P object[T]](value P) (P, error) {
 	})
 }
 
-func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
-	var state wasm.State
-
-	buffer := lookup(
-		wasm.PtrTo(&state),
-		wasm.FromString(identifier.Name),
-		wasm.FromString(identifier.Namespace),
-		wasm.FromString(identifier.Kind),
-		wasm.FromString(identifier.ApiVersion),
-	)
-	defer wasi.Free(buffer)
-
-	if state != wasm.StateOK {
-		return nil, errorMapping(state, buffer)
-	}
-
-	var resource T
-	if err := json.Unmarshal(buffer.Slice(), &resource); err != nil {
-		return nil, err
-	}
-
-	return &resource, nil
-}
-
 type RestMapping struct {
 	Group      string
 	Version    string
