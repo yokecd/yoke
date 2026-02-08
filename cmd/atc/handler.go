@@ -613,7 +613,8 @@ func Handler(params HandlerParams) http.Handler {
 
 		crd, err := internal.ToUnstructured(airway.CRD())
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err), http.StatusBadRequest)
+			xhttp.AddRequestAttrs(r.Context(), slog.String("error", err.Error()))
+			http.Error(w, fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err), http.StatusInternalServerError)
 			return
 		}
 

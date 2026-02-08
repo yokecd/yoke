@@ -218,8 +218,8 @@ func (airway Airway) MarshalJSON() ([]byte, error) {
 }
 
 // CRD returns the CustomResourceDefinition as described by the template. The CRD will share the same name as the Airway and is owned by it.
-func (airway Airway) CRD() apiextensionsv1.CustomResourceDefinition {
-	return apiextensionsv1.CustomResourceDefinition{
+func (airway Airway) CRD() *apiextensionsv1.CustomResourceDefinition {
+	return &apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
 			Kind:       "CustomResourceDefinition",
