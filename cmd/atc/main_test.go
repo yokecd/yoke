@@ -1140,7 +1140,7 @@ func TestHistoryCap(t *testing.T) {
 		}).
 		Namespace("default")
 
-	backend, err := internal.ToUnstructured(backendv1.Backend{
+	backend, err := internal.ToUnstructured(&backendv1.Backend{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
 		},
@@ -3094,7 +3094,7 @@ func TestOverridePermissions(t *testing.T) {
 		)
 	}()
 
-	be, err := internal.ToUnstructured(backendv1.Backend{
+	be, err := internal.ToUnstructured(&backendv1.Backend{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "backend",
 			Annotations: map[string]string{

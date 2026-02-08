@@ -8,6 +8,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -23,8 +24,11 @@ func UnstructuredObject[T any](value any) (T, error) {
 }
 
 func ToUnstructured(value any) (*unstructured.Unstructured, error) {
-	m, err := UnstructuredObject[map[string]any](value)
-	return &unstructured.Unstructured{Object: m}, err
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(value)
+	if err != nil {
+		return nil, err
+	}
+	return &unstructured.Unstructured{Object: obj}, nil
 }
 
 func MustUnstructuredObject[T any](value any) T {
