@@ -23,19 +23,23 @@ import (
 )
 
 type Config struct {
-	Labels                 map[string]string `json:"labels,omitempty"`
-	Annotations            map[string]string `json:"annotations,omitempty"`
-	Image                  string            `json:"image,omitzero" Description:"set the image you want to deploy"`
-	Version                string            `json:"version,omitzero" Description:"version of the deployed image"`
-	Port                   int               `json:"port,omitzero"`
-	ServiceAccountName     string            `json:"serviceAccountName,omitzero"`
-	ImagePullPolicy        corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
-	GenerateTLS            bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
-	DockerConfigSecretName string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
-	LogFormat              string            `json:"logFormat,omitzero" Enum:"json,text"`
-	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
-	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
-	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
+	Labels                                   map[string]string `json:"labels,omitempty"`
+	Annotations                              map[string]string `json:"annotations,omitempty"`
+	Image                                    string            `json:"image,omitzero" Description:"set the image you want to deploy"`
+	Version                                  string            `json:"version,omitzero" Description:"version of the deployed image"`
+	Port                                     int               `json:"port,omitzero"`
+	ServiceAccountName                       string            `json:"serviceAccountName,omitzero"`
+	ImagePullPolicy                          corev1.PullPolicy `json:"imagePullPolicy,omitzero"`
+	GenerateTLS                              bool              `json:"generateTLS,omitzero" Description:"generate new tls certificates even if they already exist"`
+	DockerConfigSecretName                   string            `json:"dockerConfigSecretName,omitzero" Description:"name of dockerconfig secret to allow atc to pull images from private registries"`
+	LogFormat                                string            `json:"logFormat,omitzero" Enum:"json,text"`
+	Verbose                                  bool              `json:"verbose,omitzero" Description:"verbose logging"`
+	Concurrency                              int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
+	CacheFS                                  string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
+	AirwayValidationWebhookTimeout           int               `json:"airwayValidationWebhookTimeout,omitzero" Description:"timeout in seconds for airway instance validation webhooks (default: 10)"`
+	ResourceValidationWebhookTimeout         int               `json:"resourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for resource/event dispatching validation webhooks (default: 10)"`
+	ExternalResourceValidationWebhookTimeout int               `json:"externalResourceValidationWebhookTimeout,omitzero" Description:"timeout in seconds for external resource validation webhooks (default: 1)"`
+	FlightValidationWebhookTimeout           int               `json:"flightValidationWebhookTimeout,omitzero" Description:"timeout in seconds for flight validation webhooks (default: 30)"`
 }
 
 func Run(cfg Config) (flight.Stages, error) {
@@ -190,6 +194,22 @@ func Run(cfg Config) (flight.Stages, error) {
 
 	if cfg.Concurrency > 0 {
 		environment = append(environment, corev1.EnvVar{Name: "CONCURRENCY", Value: strconv.Itoa(cfg.Concurrency)})
+	}
+
+	if cfg.AirwayValidationWebhookTimeout > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "AIRWAY_VALIDATION_WEBHOOK_TIMEOUT", Value: strconv.Itoa(cfg.AirwayValidationWebhookTimeout)})
+	}
+
+	if cfg.ResourceValidationWebhookTimeout > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "RESOURCE_VALIDATION_WEBHOOK_TIMEOUT", Value: strconv.Itoa(cfg.ResourceValidationWebhookTimeout)})
+	}
+
+	if cfg.ExternalResourceValidationWebhookTimeout > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "EXTERNAL_RESOURCE_VALIDATION_WEBHOOK_TIMEOUT", Value: strconv.Itoa(cfg.ExternalResourceValidationWebhookTimeout)})
+	}
+
+	if cfg.FlightValidationWebhookTimeout > 0 {
+		environment = append(environment, corev1.EnvVar{Name: "FLIGHT_VALIDATION_WEBHOOK_TIMEOUT", Value: strconv.Itoa(cfg.FlightValidationWebhookTimeout)})
 	}
 
 	tlsVolume := corev1.Volume{
