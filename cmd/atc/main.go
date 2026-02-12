@@ -92,7 +92,7 @@ func run() (err error) {
 		err = xerr.Join(err, teardown(context.Background()))
 	}()
 
-	moduleCache := cache.NewModuleCache(cfg.CacheFS)
+	moduleCache := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList)
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
 

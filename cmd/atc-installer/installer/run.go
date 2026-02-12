@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +37,7 @@ type Config struct {
 	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
 	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
 	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
+	ModuleAllowList        []string          `json:"moduleAllowList,omitzero" Description:"comma separated list of patterns that define the module allow-list. If empty all modules are allowed."`
 }
 
 func Run(cfg Config) (flight.Stages, error) {
@@ -186,6 +188,13 @@ func Run(cfg Config) (flight.Stages, error) {
 		{Name: "LOG_FORMAT", Value: cfg.LogFormat},
 		{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
 		{Name: "CACHE_FS", Value: cfg.CacheFS},
+	}
+
+	if len(cfg.ModuleAllowList) > 0 {
+		environment = append(environment, corev1.EnvVar{
+			Name:  "MODULE_ALLOW_LIST",
+			Value: strings.Join(cfg.ModuleAllowList, ","),
+		})
 	}
 
 	if cfg.Concurrency > 0 {

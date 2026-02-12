@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
+	"github.com/yokecd/yoke/cmd/atc-installer/installer"
 	backendv1 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v1"
 	backendv2 "github.com/yokecd/yoke/cmd/atc/internal/testing/apis/backend/v2"
 	"github.com/yokecd/yoke/internal"
@@ -108,11 +109,12 @@ func TestMain(m *testing.M) {
 		Namespace: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/atc-installer.wasm",
-			Input: strings.NewReader(`{
-        "image": "yokecd/atc",
-        "version": "test",
-				"logFormat": "text",
-      }`),
+			Input: internal.JSONReader(installer.Config{
+				Image:           "yokecd/atc",
+				Version:         "test",
+				LogFormat:       "text",
+				ModuleAllowList: []string{"http://wasmcache/*"},
+			}),
 			Args: []string{"--skip-version-check"},
 		},
 		CreateNamespace: true,
@@ -3635,4 +3637,46 @@ func TestIdentityWithError(t *testing.T) {
 		10*time.Second,
 		"failed to get test with expected state",
 	)
+}
+
+func TestInvalidFlightURL(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	_, err = client.AirwayIntf.Create(
+		context.Background(),
+		&v1alpha1.Airway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "tests.examples.com",
+			},
+			Spec: v1alpha1.AirwaySpec{
+				WasmURLs: v1alpha1.WasmURLs{
+					Flight: "http://evil/main.wasm",
+				},
+				Mode:          v1alpha1.AirwayModeSubscription,
+				ClusterAccess: true,
+				Template: apiextv1.CustomResourceDefinitionSpec{
+					Group: "examples.com",
+					Names: apiextv1.CustomResourceDefinitionNames{
+						Plural:   "tests",
+						Singular: "test",
+						Kind:     "Test",
+					},
+					Scope: apiextv1.NamespaceScoped,
+					Versions: []apiextv1.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextv1.CustomResourceValidation{
+								OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
+							},
+						},
+					},
+				},
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: "http://evil/main.wasm" disallowed by allow-list`)
 }
