@@ -6,6 +6,7 @@ import (
 
 	"github.com/davidmdm/conf"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
 )
 
@@ -13,6 +14,8 @@ type Config struct {
 	KubeConfig  string
 	Concurrency int
 	Port        int
+
+	ModuleAllowList internal.URLGlobs
 
 	CacheFS string
 
@@ -58,6 +61,8 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Verbose, "VERBOSE")
 
 	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
+
+	conf.Var(parser, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
 
 	if err := parser.Parse(); err != nil {
 		return nil, err

@@ -44,7 +44,7 @@ func TestPluginServer(t *testing.T) {
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
 
-	mods := cache.NewModuleCache("./test_output")
+	mods := cache.NewModuleCache("./test_output", nil)
 
 	modCount := func() (count int) {
 		for range mods.All() {
@@ -139,7 +139,7 @@ func TestPluginServerLookup(t *testing.T) {
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
 
-	mods := cache.NewModuleCache("./test_output")
+	mods := cache.NewModuleCache("./test_output", nil)
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)

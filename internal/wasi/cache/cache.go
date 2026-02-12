@@ -27,13 +27,15 @@ type ModuleCache struct {
 	mods   *xsync.Map[string, *CachedModule]
 	paths  *xsync.Map[string, *sync.Mutex]
 	fsRoot string
+	Globs  internal.URLGlobs
 }
 
-func NewModuleCache(fsRoot string) *ModuleCache {
+func NewModuleCache(fsRoot string, globs internal.URLGlobs) *ModuleCache {
 	return &ModuleCache{
 		mods:   new(xsync.Map[string, *CachedModule]),
 		paths:  new(xsync.Map[string, *sync.Mutex]),
 		fsRoot: fsRoot,
+		Globs:  globs,
 	}
 }
 
@@ -97,6 +99,12 @@ func (cache *ModuleCache) FromSource(ctx context.Context, source []byte, attrs M
 }
 
 func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byte, error) {
+	if ok, err := cache.Globs.Match(uri); err != nil {
+		return nil, fmt.Errorf("failed to match %q against allow-list globs: %w", uri, err)
+	} else if !ok {
+		return nil, fmt.Errorf("module %q disallowed by allow-list", uri)
+	}
+
 	mutex, _ := cache.paths.LoadOrStore(uri, new(sync.Mutex))
 
 	mutex.Lock()

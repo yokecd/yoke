@@ -1,8 +1,13 @@
 package internal
 
 import (
+	"encoding"
+	"fmt"
+	"net/url"
+	"path"
 	"strings"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -51,4 +56,48 @@ func parseMatcherExpr(matcher string) (string, string, string) {
 		name = "*"
 	}
 	return ns, gk, name
+}
+
+type URLGlobs []url.URL
+
+var _ encoding.TextUnmarshaler = (*URLGlobs)(nil)
+
+func (globs *URLGlobs) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	return &apiextensionsv1.JSONSchemaProps{
+		Type:  "array",
+		Items: &apiextensionsv1.JSONSchemaPropsOrArray{Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"}},
+	}
+}
+
+func (globs *URLGlobs) UnmarshalText(data []byte) error {
+	for value := range strings.SplitSeq(string(data), ",") {
+		uri, err := url.Parse(value)
+		if err != nil {
+			return fmt.Errorf("failed to parse %q: %w", value, err)
+		}
+		*globs = append(*globs, *uri)
+	}
+	return nil
+}
+
+func (globs URLGlobs) Match(value string) (bool, error) {
+	if len(globs) == 0 {
+		return true, nil
+	}
+
+	target, err := url.Parse(value)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse url: %w", err)
+	}
+
+	for _, glob := range globs {
+		if target.Scheme != glob.Scheme {
+			continue
+		}
+		if ok, _ := path.Match(path.Join(glob.Host, glob.Path), path.Join(target.Host, target.Path)); ok {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/yokecd/yoke/internal/home"
-	"github.com/yokecd/yoke/internal/k8s"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+
+	"github.com/yokecd/yoke/internal/home"
+	"github.com/yokecd/yoke/internal/k8s"
 )
 
 // func lookup(ptr wasm.Ptr, name, namespace, kind, apiversion wasm.String) wasm.Buffer {

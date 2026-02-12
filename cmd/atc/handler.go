@@ -611,18 +611,53 @@ func Handler(params HandlerParams) http.Handler {
 			return
 		}
 
-		crd, err := internal.ToUnstructured(airway.CRD())
-		if err != nil {
-			xhttp.AddRequestAttrs(r.Context(), slog.String("error", err.Error()))
-			http.Error(w, fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err), http.StatusInternalServerError)
-			return
-		}
+		defer func() {
+			if err := json.NewEncoder(w).Encode(review); err != nil {
+				params.Logger.Error("unexpected: failed to write response to connection", "error", err)
+			}
+		}()
 
 		review.Response = &admissionv1.AdmissionResponse{
 			UID:     review.Request.UID,
 			Allowed: true,
 		}
 		review.Request = nil
+
+		for _, uri := range []string{airway.Spec.WasmURLs.Flight, airway.Spec.WasmURLs.Converter} {
+			if uri == "" {
+				continue
+			}
+			ok, err := params.Cache.Globs.Match(uri)
+			if err != nil {
+				review.Response.Allowed = false
+				review.Response.Result = &metav1.Status{
+					Status:  metav1.StatusFailure,
+					Message: fmt.Sprintf("failed to match %q against allow-list: %v", uri, err),
+					Reason:  metav1.StatusReasonInvalid,
+				}
+				return
+			}
+			if !ok {
+				review.Response.Allowed = false
+				review.Response.Result = &metav1.Status{
+					Status:  metav1.StatusFailure,
+					Message: fmt.Sprintf("%q disallowed by allow-list", uri),
+					Reason:  metav1.StatusReasonInvalid,
+				}
+				return
+			}
+		}
+
+		crd, err := internal.ToUnstructured(airway.CRD())
+		if err != nil {
+			review.Response.Allowed = false
+			review.Response.Result = &metav1.Status{
+				Status:  metav1.StatusFailure,
+				Message: fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err),
+				Reason:  metav1.StatusReasonInternalError,
+			}
+			return
+		}
 
 		if err := params.Client.ApplyResource(r.Context(), crd, k8s.ApplyOpts{DryRun: true}); err != nil {
 			review.Response.Allowed = false
@@ -631,10 +666,7 @@ func Handler(params HandlerParams) http.Handler {
 				Message: fmt.Sprintf("invalid crd template: %v", err),
 				Reason:  metav1.StatusReasonInvalid,
 			}
-		}
-
-		if err := json.NewEncoder(w).Encode(review); err != nil {
-			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
+			return
 		}
 	})
 

@@ -77,7 +77,8 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	mods := cache.NewModuleCache(cfg.CacheFS)
+	// TODO: support globs in yokecd plugin!
+	mods := cache.NewModuleCache(cfg.CacheFS, nil)
 
 	svr := http.Server{
 		Addr:    addr,
