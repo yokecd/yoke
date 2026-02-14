@@ -15,7 +15,7 @@ type Config struct {
 	Concurrency int
 	Port        int
 
-	ModuleAllowList internal.URLGlobs
+	ModuleAllowList internal.Globs
 
 	CacheFS string
 

@@ -30,11 +30,13 @@ import (
 )
 
 type Config struct {
-	CacheFS string
+	CacheFS         string
+	ModuleAllowList internal.Globs
 }
 
 func ConfigFromEnv() (cfg Config) {
 	conf.Var(conf.Environ, &cfg.CacheFS, "YOKECD_CACHE_FS", conf.Default(os.TempDir()))
+	conf.Var(conf.Environ, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
 	conf.Environ.MustParse()
 	return cfg
 }
@@ -77,8 +79,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	// TODO: support globs in yokecd plugin!
-	mods := cache.NewModuleCache(cfg.CacheFS, nil)
+	mods := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList)
 
 	svr := http.Server{
 		Addr:    addr,
@@ -156,6 +157,10 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			return mods.FromURL(r.Context(), ex.Path, attrs)
 		}()
 		if err != nil {
+			if cache.IsDisallowedModuleError(err) {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -178,7 +183,12 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			return
 		}
 
-		json.NewEncoder(w).Encode(json.RawMessage(output))
+		if err := json.NewEncoder(w).Encode(json.RawMessage(output)); err != nil {
+			xhttp.AddRequestAttrs(
+				r.Context(),
+				slog.String("error", fmt.Sprintf("failed to write to http.ResponseWriter: %v", err)),
+			)
+		}
 	})
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

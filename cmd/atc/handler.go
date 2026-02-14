@@ -627,17 +627,7 @@ func Handler(params HandlerParams) http.Handler {
 			if uri == "" {
 				continue
 			}
-			ok, err := params.Cache.Globs.Match(uri)
-			if err != nil {
-				review.Response.Allowed = false
-				review.Response.Result = &metav1.Status{
-					Status:  metav1.StatusFailure,
-					Message: fmt.Sprintf("failed to match %q against allow-list: %v", uri, err),
-					Reason:  metav1.StatusReasonInvalid,
-				}
-				return
-			}
-			if !ok {
+			if !params.Cache.Globs.Match(uri) {
 				review.Response.Allowed = false
 				review.Response.Result = &metav1.Status{
 					Status:  metav1.StatusFailure,

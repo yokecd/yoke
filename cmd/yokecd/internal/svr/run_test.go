@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
@@ -42,9 +43,10 @@ func TestPluginServer(t *testing.T) {
 	sourceServer.Start()
 
 	var stdout bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(&stdout, t.Output()), nil))
 
-	mods := cache.NewModuleCache("./test_output", nil)
+	globs := internal.Globs{"http://localhost*"}
+	mods := cache.NewModuleCache("./test_output", globs)
 
 	modCount := func() (count int) {
 		for range mods.All() {
@@ -63,7 +65,7 @@ func TestPluginServer(t *testing.T) {
 	svr.Start()
 
 	echo, err := Exec(context.Background(), ExecuteReq{
-		Path:      sourceServer.URL,
+		Path:      "http://localhost:6663",
 		Release:   "foo",
 		Namespace: "bar",
 		Args:      []string{"a", "r", "g"},
@@ -93,7 +95,7 @@ func TestPluginServer(t *testing.T) {
 	require.Equal(t, 1, modCount())
 
 	_, err = Exec(context.Background(), ExecuteReq{
-		Path:      sourceServer.URL,
+		Path:      "http://localhost:6663",
 		Release:   "baz",
 		Namespace: "default",
 	})
@@ -101,8 +103,16 @@ func TestPluginServer(t *testing.T) {
 
 	require.Equal(t, 1, modCount())
 
+	_, err = Exec(context.Background(), ExecuteReq{
+		Path:      "oci://ghcr.io/yokecd/example", // Not allowed by allow list.
+		Release:   "baz",
+		Namespace: "default",
+	})
+	require.ErrorContains(t, err, `error: failed to load remote wasm: module "oci://ghcr.io/yokecd/example" disallowed by allow-list`)
+
 	type Log struct {
 		Elapsed metav1.Duration `json:"elapsed"`
+		Code    int             `json:"code"`
 	}
 
 	var logs []Log
@@ -114,12 +124,11 @@ func TestPluginServer(t *testing.T) {
 		}
 		logs = append(logs, log)
 
-		// for debugging purposes
-		_ = json.NewEncoder(t.Output()).Encode(log)
 	}
 
-	require.Len(t, logs, 2)
+	require.Len(t, logs, 3)
 	require.True(t, logs[0].Elapsed.Duration > logs[1].Elapsed.Duration, "expected compile time to be greater than cache time")
+	require.Equal(t, 403, logs[2].Code)
 }
 
 func TestPluginServerLookup(t *testing.T) {

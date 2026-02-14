@@ -1,9 +1,6 @@
 package internal
 
 import (
-	"encoding"
-	"fmt"
-	"net/url"
 	"path"
 	"strings"
 
@@ -58,46 +55,23 @@ func parseMatcherExpr(matcher string) (string, string, string) {
 	return ns, gk, name
 }
 
-type URLGlobs []url.URL
+type Globs []string
 
-var _ encoding.TextUnmarshaler = (*URLGlobs)(nil)
-
-func (globs *URLGlobs) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+func (globs *Globs) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	return &apiextensionsv1.JSONSchemaProps{
 		Type:  "array",
 		Items: &apiextensionsv1.JSONSchemaPropsOrArray{Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"}},
 	}
 }
 
-func (globs *URLGlobs) UnmarshalText(data []byte) error {
-	for value := range strings.SplitSeq(string(data), ",") {
-		uri, err := url.Parse(value)
-		if err != nil {
-			return fmt.Errorf("failed to parse %q: %w", value, err)
-		}
-		*globs = append(*globs, *uri)
-	}
-	return nil
-}
-
-func (globs URLGlobs) Match(value string) (bool, error) {
+func (globs Globs) Match(value string) bool {
 	if len(globs) == 0 {
-		return true, nil
+		return true
 	}
-
-	target, err := url.Parse(value)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse url: %w", err)
-	}
-
 	for _, glob := range globs {
-		if target.Scheme != glob.Scheme {
-			continue
-		}
-		if ok, _ := path.Match(path.Join(glob.Host, glob.Path), path.Join(target.Host, target.Path)); ok {
-			return true, nil
+		if ok, _ := path.Match(glob, value); ok {
+			return true
 		}
 	}
-
-	return false, nil
+	return false
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -27,10 +28,10 @@ type ModuleCache struct {
 	mods   *xsync.Map[string, *CachedModule]
 	paths  *xsync.Map[string, *sync.Mutex]
 	fsRoot string
-	Globs  internal.URLGlobs
+	Globs  internal.Globs
 }
 
-func NewModuleCache(fsRoot string, globs internal.URLGlobs) *ModuleCache {
+func NewModuleCache(fsRoot string, globs internal.Globs) *ModuleCache {
 	return &ModuleCache{
 		mods:   new(xsync.Map[string, *CachedModule]),
 		paths:  new(xsync.Map[string, *sync.Mutex]),
@@ -98,11 +99,24 @@ func (cache *ModuleCache) FromSource(ctx context.Context, source []byte, attrs M
 	return &instance, nil
 }
 
+type ErrDisallowedModule string
+
+func (err ErrDisallowedModule) Error() string {
+	return string(err)
+}
+
+func (ErrDisallowedModule) Is(err error) bool {
+	_, ok := err.(ErrDisallowedModule)
+	return ok
+}
+
+func IsDisallowedModuleError(err error) bool {
+	return errors.Is(err, ErrDisallowedModule(""))
+}
+
 func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byte, error) {
-	if ok, err := cache.Globs.Match(uri); err != nil {
-		return nil, fmt.Errorf("failed to match %q against allow-list globs: %w", uri, err)
-	} else if !ok {
-		return nil, fmt.Errorf("module %q disallowed by allow-list", uri)
+	if !cache.Globs.Match(uri) {
+		return nil, ErrDisallowedModule(fmt.Sprintf("module %q disallowed by allow-list", uri))
 	}
 
 	mutex, _ := cache.paths.LoadOrStore(uri, new(sync.Mutex))
