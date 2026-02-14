@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -47,6 +48,7 @@ type Values struct {
 	YokeCDServer         YokeCDServer   `json:"yokecdServer,omitzero"`
 	DockerAuthSecretName string         `json:"dockerAuthSecretName,omitzero" Description:"dockerconfig secret for pulling wasm modules from private oci registries"`
 	ArgoCD               map[string]any `json:"argocd,omitzero" Description:"arguments passed to ArgoCD helm chart"`
+	ModuleAllowList      []string       `json:"moduleAllowList,omitzero" Description:"list of patterns that define the module allow-list. If empty all modules are allowed."`
 }
 
 func run() error {
@@ -123,6 +125,10 @@ func run() error {
 			RunAsNonRoot: ptr.To(true),
 			RunAsUser:    ptr.To[int64](999),
 		},
+	}
+
+	if len(values.ModuleAllowList) > 0 {
+		plugin.Env = append(plugin.Env, corev1.EnvVar{Name: "MODULE_ALLOW_LIST", Value: strings.Join(values.ModuleAllowList, ",")})
 	}
 
 	cacheFS := cmp.Or(values.YokeCDServer.CacheFS, "/tmp")

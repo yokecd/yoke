@@ -37,7 +37,7 @@ type Config struct {
 	Verbose                bool              `json:"verbose,omitzero" Description:"verbose logging"`
 	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
 	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
-	ModuleAllowList        []string          `json:"moduleAllowList,omitzero" Description:"comma separated list of patterns that define the module allow-list. If empty all modules are allowed."`
+	ModuleAllowList        []string          `json:"moduleAllowList,omitzero" Description:"list of patterns that define the module allow-list. If empty all modules are allowed."`
 }
 
 func Run(cfg Config) (flight.Stages, error) {
