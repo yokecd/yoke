@@ -320,12 +320,11 @@ func Handler(params HandlerParams) http.Handler {
 		ctx := internal.WithStderr(r.Context(), io.Discard)
 
 		if err := commander.Takeoff(ctx, takeoffParams); err != nil && !internal.IsWarning(err) {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
+			failReview(&review, metav1.Status{
 				Status:  metav1.StatusFailure,
 				Message: fmt.Sprintf("applying resource returned errors during dry-run. Either the inputs are invalid or the package implementation has errors: %v", err),
 				Reason:  metav1.StatusReasonInvalid,
-			}
+			})
 		}
 
 		xhttp.AddRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
@@ -394,12 +393,11 @@ func Handler(params HandlerParams) http.Handler {
 			}
 
 			if err := xerr.MultiErrFrom("cannot modify yoke annotations", errs...); err != nil {
-				review.Response.Allowed = false
-				review.Response.Result = &metav1.Status{
+				failReview(&review, metav1.Status{
 					Message: err.Error(),
 					Status:  metav1.StatusFailure,
 					Reason:  metav1.StatusReasonBadRequest,
-				}
+				})
 				return
 			}
 		}
@@ -465,12 +463,11 @@ func Handler(params HandlerParams) http.Handler {
 					xhttp.AddRequestAttrs(r.Context(), slog.String("skipReason", "deletion requested by kube-system"))
 					return
 				}
-				review.Response.Allowed = false
-				review.Response.Result = &metav1.Status{
+				failReview(&review, metav1.Status{
 					Message: "cannot delete resources managed by Air-Traffic-Controller",
 					Status:  metav1.StatusFailure,
 					Reason:  metav1.StatusReasonBadRequest,
-				}
+				})
 				return
 			}
 
@@ -509,12 +506,12 @@ func Handler(params HandlerParams) http.Handler {
 			internal.RemoveAdditions(desired, next)
 
 			if !internal.ResourcesAreEqual(desired, next) {
-				review.Response.Allowed = false
-				review.Response.Result = &metav1.Status{
+				failReview(&review, metav1.Status{
 					Message: "cannot modify flight sub-resources",
 					Status:  metav1.StatusFailure,
 					Reason:  metav1.StatusReasonBadRequest,
-				}
+				})
+				return
 			}
 
 		case v1alpha1.AirwayModeDynamic, v1alpha1.AirwayModeSubscription:
@@ -613,6 +610,15 @@ func Handler(params HandlerParams) http.Handler {
 
 		defer func() {
 			if err := json.NewEncoder(w).Encode(review); err != nil {
+				xhttp.AddRequestAttrs(
+					r.Context(),
+					slog.Group(
+						"validation",
+						"status", review.Response.Result.Status,
+						"reason", review.Response.Result.Reason,
+						"msg", review.Response.Result.Message,
+					),
+				)
 				params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 			}
 		}()
@@ -628,34 +634,31 @@ func Handler(params HandlerParams) http.Handler {
 				continue
 			}
 			if !params.Cache.Globs.Match(uri) {
-				review.Response.Allowed = false
-				review.Response.Result = &metav1.Status{
+				failReview(&review, metav1.Status{
 					Status:  metav1.StatusFailure,
-					Message: fmt.Sprintf("%q disallowed by allow-list", uri),
+					Message: fmt.Sprintf("module %q not allowed", uri),
 					Reason:  metav1.StatusReasonInvalid,
-				}
+				})
 				return
 			}
 		}
 
 		crd, err := internal.ToUnstructured(airway.CRD())
 		if err != nil {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
+			failReview(&review, metav1.Status{
 				Status:  metav1.StatusFailure,
 				Message: fmt.Sprintf("failed to convert airway crd to unstructured object: %v", err),
 				Reason:  metav1.StatusReasonInternalError,
-			}
+			})
 			return
 		}
 
 		if err := params.Client.ApplyResource(r.Context(), crd, k8s.ApplyOpts{DryRun: true}); err != nil {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
+			failReview(&review, metav1.Status{
 				Status:  metav1.StatusFailure,
 				Message: fmt.Sprintf("invalid crd template: %v", err),
 				Reason:  metav1.StatusReasonInvalid,
-			}
+			})
 			return
 		}
 	})
@@ -711,12 +714,23 @@ func Handler(params HandlerParams) http.Handler {
 			HostFunctionMap: host.BuildFunctionMap(params.Client),
 		})
 		if err != nil {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
-				Status:  metav1.StatusFailure,
-				Reason:  metav1.StatusReasonInternalError,
-				Message: err.Error(),
-			}
+			failReview(
+				&review,
+				func() metav1.Status {
+					if cache.IsDisallowedModuleError(err) {
+						return metav1.Status{
+							Status:  metav1.StatusFailure,
+							Reason:  metav1.StatusReasonForbidden,
+							Message: fmt.Sprintf("module %q not allowed", flight.Spec.WasmURL),
+						}
+					}
+					return metav1.Status{
+						Status:  metav1.StatusFailure,
+						Reason:  metav1.StatusReasonInternalError,
+						Message: err.Error(),
+					}
+				}(),
+			)
 			return
 		}
 
@@ -747,12 +761,11 @@ func Handler(params HandlerParams) http.Handler {
 				},
 				ManagedBy: "atc.yoke",
 			}); err != nil {
-			review.Response.Allowed = false
-			review.Response.Result = &metav1.Status{
+			failReview(&review, metav1.Status{
 				Status:  metav1.StatusFailure,
 				Reason:  metav1.StatusReasonBadRequest,
 				Message: err.Error(),
-			}
+			})
 			return
 		}
 	})
@@ -774,4 +787,9 @@ func UnstructuredFromRawExt(ext runtime.RawExtension) (*unstructured.Unstructure
 	}
 
 	return &resource, nil
+}
+
+func failReview(review *admissionv1.AdmissionReview, status metav1.Status) {
+	review.Response.Allowed = false
+	review.Response.Result = &status
 }

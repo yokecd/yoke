@@ -108,7 +108,7 @@ func TestPluginServer(t *testing.T) {
 		Release:   "baz",
 		Namespace: "default",
 	})
-	require.ErrorContains(t, err, `error: failed to load remote wasm: module "oci://ghcr.io/yokecd/example" disallowed by allow-list`)
+	require.ErrorContains(t, err, `error: failed to load remote wasm: module "oci://ghcr.io/yokecd/example" not allowed`)
 
 	type Log struct {
 		Elapsed metav1.Duration `json:"elapsed"`

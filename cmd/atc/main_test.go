@@ -3678,5 +3678,5 @@ func TestInvalidFlightURL(t *testing.T) {
 		},
 		metav1.CreateOptions{},
 	)
-	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: "http://evil/main.wasm" disallowed by allow-list`)
+	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: module "http://evil/main.wasm" not allowed`)
 }
