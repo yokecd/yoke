@@ -3643,40 +3643,129 @@ func TestInvalidFlightURL(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	_, err = client.AirwayIntf.Create(
-		context.Background(),
-		&v1alpha1.Airway{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "tests.examples.com",
+	airway := &v1alpha1.Airway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "backends.examples.com",
+		},
+		Spec: v1alpha1.AirwaySpec{
+			WasmURLs: v1alpha1.WasmURLs{
+				Flight: "http://wasmcache/flight.v1.wasm",
 			},
-			Spec: v1alpha1.AirwaySpec{
-				WasmURLs: v1alpha1.WasmURLs{
-					Flight: "http://evil/main.wasm",
+			Mode:          v1alpha1.AirwayModeSubscription,
+			ClusterAccess: true,
+			Template: apiextv1.CustomResourceDefinitionSpec{
+				Group: "examples.com",
+				Names: apiextv1.CustomResourceDefinitionNames{
+					Plural:   "backends",
+					Singular: "backend",
+					Kind:     "Backend",
 				},
-				Mode:          v1alpha1.AirwayModeSubscription,
-				ClusterAccess: true,
-				Template: apiextv1.CustomResourceDefinitionSpec{
-					Group: "examples.com",
-					Names: apiextv1.CustomResourceDefinitionNames{
-						Plural:   "tests",
-						Singular: "test",
-						Kind:     "Test",
-					},
-					Scope: apiextv1.NamespaceScoped,
-					Versions: []apiextv1.CustomResourceDefinitionVersion{
-						{
-							Name:    "v1",
-							Served:  true,
-							Storage: true,
-							Schema: &apiextv1.CustomResourceValidation{
-								OpenAPIV3Schema: openapi.SchemaFor[EmptyCRD](),
-							},
+				Scope: apiextv1.NamespaceScoped,
+				Versions: []apiextv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextv1.CustomResourceValidation{
+							OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
 						},
 					},
 				},
 			},
 		},
+	}
+
+	airway, err = client.AirwayIntf.Create(context.Background(), airway, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			current, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			condition := meta.FindStatusCondition(current.Status.Conditions, "Ready")
+			if condition == nil {
+				return fmt.Errorf("no Ready condition found")
+			}
+			if condition.Status != metav1.ConditionTrue {
+				return fmt.Errorf("ready condition is not true: %v", condition.Status)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"expected airway to become ready",
+	)
+
+	defer func() {
+		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
+
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				_, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+				if !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expecte error not found but got: %v", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected airway to be removed from cluster",
+		)
+	}()
+
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		current.Spec.WasmURLs.Flight = "http://localhost/evil.wasm"
+		_, err = client.AirwayIntf.Update(context.Background(), current, metav1.UpdateOptions{})
+		return err
+	})
+	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: module "http://localhost/evil.wasm" not allowed`)
+
+	backendGVR := schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "backends",
+	}
+
+	backendIntf := k8s.TypedInterface[backendv1.Backend](client.Dynamic, backendGVR).Namespace("default")
+
+	be, err := backendIntf.Create(
+		context.Background(),
+		&backendv1.Backend{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Backend",
+				APIVersion: "examples.com/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test",
+			},
+			Spec: backendv1.BackendSpec{
+				Image:    "yokecd/c4ts:latest",
+				Replicas: 1,
+			},
+		},
 		metav1.CreateOptions{},
 	)
-	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: module "http://evil/main.wasm" not allowed`)
+	require.NoError(t, err)
+
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		backend, err := backendIntf.Get(context.Background(), be.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if backend.Annotations == nil {
+			backend.Annotations = map[string]string{}
+		}
+		backend.Annotations[flight.AnnotationOverrideFlight] = "http://localhost/evilmodule"
+		_, err = backendIntf.Update(context.Background(), backend, metav1.UpdateOptions{})
+		return err
+	})
+	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: module "http://localhost/evilmodule" not allowed`)
 }

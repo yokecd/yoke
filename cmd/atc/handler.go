@@ -158,6 +158,31 @@ func Handler(params HandlerParams) http.Handler {
 			return
 		}
 
+		review.Response = &admissionv1.AdmissionResponse{
+			UID:     review.Request.UID,
+			Allowed: true,
+			Result: &metav1.Status{
+				Status:  metav1.StatusSuccess,
+				Message: "validation passed",
+			},
+		}
+
+		defer func() {
+			xhttp.AddRequestAttrs(
+				r.Context(),
+				slog.Group(
+					"validation",
+					"allowed", review.Response.Allowed,
+					"reason", review.Response.Result.Reason,
+					"reason", review.Response.Result.Reason,
+					"msg", review.Response.Result.Message,
+				),
+			)
+			if err := json.NewEncoder(w).Encode(review); err != nil {
+				params.Logger.Error("failed to write response to connection", "error", err)
+			}
+		}()
+
 		shouldCheckAirwayPerms, err := func() (bool, error) {
 			switch review.Request.Operation {
 			case admissionv1.Create:
@@ -209,17 +234,11 @@ func Handler(params HandlerParams) http.Handler {
 			}
 
 			if !accessReview.Status.Allowed {
-				review.Response = &admissionv1.AdmissionResponse{
-					UID:     review.Request.UID,
-					Allowed: false,
-					Result: &metav1.Status{
-						Status:  metav1.StatusFailure,
-						Reason:  metav1.StatusReasonForbidden,
-						Message: "user does not have permissions to create or update override annotations",
-					},
-				}
-				review.Request = nil
-				json.NewEncoder(w).Encode(&review)
+				failReview(&review, metav1.Status{
+					Status:  metav1.StatusFailure,
+					Reason:  metav1.StatusReasonForbidden,
+					Message: "user does not have permissions to create or update override annotations",
+				})
 				return
 			}
 		}
@@ -231,35 +250,29 @@ func Handler(params HandlerParams) http.Handler {
 		}
 
 		if airway.Spec.SkipAdmissionWebhook {
-			review.Response = &admissionv1.AdmissionResponse{
-				UID:     review.Request.UID,
-				Allowed: true,
-				Result:  &metav1.Status{Status: metav1.StatusSuccess, Message: "admission skipped"},
-			}
-			review.Request = nil
-
+			review.Response.Result.Message = "admission skipped"
 			xhttp.AddRequestAttrs(r.Context(), slog.Bool("skipped", true))
-
-			json.NewEncoder(w).Encode(&review)
 			return
 		}
 
 		object, _, err := unstructured.NestedFieldNoCopy(cr.Object, airway.Spec.ObjectPath...)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to get object path: %v", err), http.StatusInternalServerError)
+			failReview(&review, metav1.Status{
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonInvalid,
+				Message: fmt.Sprintf("failed to get object path: %v", err),
+			})
 			return
 		}
 
 		data, err := json.Marshal(object)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to serialize flight input: %v", err), http.StatusInternalServerError)
+			failReview(&review, metav1.Status{
+				Status:  metav1.StatusFailure,
+				Reason:  metav1.StatusReasonInternalError,
+				Message: fmt.Sprintf("failed to serialize flight input: %v", err),
+			})
 			return
-		}
-
-		review.Response = &admissionv1.AdmissionResponse{
-			UID:     review.Request.UID,
-			Allowed: true,
-			Result:  &metav1.Status{Status: metav1.StatusSuccess},
 		}
 
 		takeoffParams := yoke.TakeoffParams{
@@ -298,6 +311,14 @@ func Handler(params HandlerParams) http.Handler {
 
 		if overrideURL, _, _ := unstructured.NestedString(cr.Object, "metadata", "annotations", flight.AnnotationOverrideFlight); overrideURL != "" {
 			xhttp.AddRequestAttrs(r.Context(), slog.Group("overrides", "flight", overrideURL))
+			if !params.Cache.Globs.Match(overrideURL) {
+				failReview(&review, metav1.Status{
+					Status:  metav1.StatusFailure,
+					Reason:  metav1.StatusReasonForbidden,
+					Message: fmt.Sprintf("module %q not allowed", overrideURL),
+				})
+				return
+			}
 			takeoffParams.Flight.Path = overrideURL
 		} else {
 			flightMod, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
@@ -325,12 +346,6 @@ func Handler(params HandlerParams) http.Handler {
 				Message: fmt.Sprintf("applying resource returned errors during dry-run. Either the inputs are invalid or the package implementation has errors: %v", err),
 				Reason:  metav1.StatusReasonInvalid,
 			})
-		}
-
-		xhttp.AddRequestAttrs(r.Context(), slog.Group("validation", "allowed", review.Response.Allowed, "status", review.Response.Result.Reason))
-
-		if err := json.NewEncoder(w).Encode(&review); err != nil {
-			params.Logger.Error("unexpected: failed to write response to connection", "error", err)
 		}
 	})
 
