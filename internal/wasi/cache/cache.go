@@ -116,7 +116,7 @@ func IsDisallowedModuleError(err error) bool {
 
 func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byte, error) {
 	if !cache.Globs.Match(uri) {
-		return nil, ErrDisallowedModule(fmt.Sprintf("module %q disallowed by allow-list", uri))
+		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", uri))
 	}
 
 	mutex, _ := cache.paths.LoadOrStore(uri, new(sync.Mutex))
