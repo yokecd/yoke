@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -27,13 +28,15 @@ type ModuleCache struct {
 	mods   *xsync.Map[string, *CachedModule]
 	paths  *xsync.Map[string, *sync.Mutex]
 	fsRoot string
+	Globs  internal.Globs
 }
 
-func NewModuleCache(fsRoot string) *ModuleCache {
+func NewModuleCache(fsRoot string, globs internal.Globs) *ModuleCache {
 	return &ModuleCache{
 		mods:   new(xsync.Map[string, *CachedModule]),
 		paths:  new(xsync.Map[string, *sync.Mutex]),
 		fsRoot: fsRoot,
+		Globs:  globs,
 	}
 }
 
@@ -96,7 +99,26 @@ func (cache *ModuleCache) FromSource(ctx context.Context, source []byte, attrs M
 	return &instance, nil
 }
 
+type ErrDisallowedModule string
+
+func (err ErrDisallowedModule) Error() string {
+	return string(err)
+}
+
+func (ErrDisallowedModule) Is(err error) bool {
+	_, ok := err.(ErrDisallowedModule)
+	return ok
+}
+
+func IsDisallowedModuleError(err error) bool {
+	return errors.Is(err, ErrDisallowedModule(""))
+}
+
 func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byte, error) {
+	if !cache.Globs.Match(uri) {
+		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", uri))
+	}
+
 	mutex, _ := cache.paths.LoadOrStore(uri, new(sync.Mutex))
 
 	mutex.Lock()

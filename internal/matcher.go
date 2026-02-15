@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"path"
 	"strings"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -51,4 +53,25 @@ func parseMatcherExpr(matcher string) (string, string, string) {
 		name = "*"
 	}
 	return ns, gk, name
+}
+
+type Globs []string
+
+func (globs *Globs) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
+	return &apiextensionsv1.JSONSchemaProps{
+		Type:  "array",
+		Items: &apiextensionsv1.JSONSchemaPropsOrArray{Schema: &apiextensionsv1.JSONSchemaProps{Type: "string"}},
+	}
+}
+
+func (globs Globs) Match(value string) bool {
+	if len(globs) == 0 {
+		return true
+	}
+	for _, glob := range globs {
+		if ok, _ := path.Match(glob, value); ok {
+			return true
+		}
+	}
+	return false
 }

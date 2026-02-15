@@ -266,3 +266,20 @@ func TestFlightValidationWebhook(t *testing.T) {
 	)
 	require.ErrorContains(t, err, "failed to decode input: json: cannot unmarshal number into Go value of type string")
 }
+
+func TestNotAllowedFlightWasmURL(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
+
+	_, err = flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec:       v1alpha1.FlightSpec{WasmURL: "http://localhost/basic.wasm"},
+		},
+		metav1.CreateOptions{},
+	)
+	require.ErrorContains(t, err, `admission webhook "flights.yoke.cd" denied the request: module "http://localhost/basic.wasm" not allowed`)
+}
