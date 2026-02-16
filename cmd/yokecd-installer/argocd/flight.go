@@ -9,11 +9,11 @@ import (
 	"github.com/yokecd/yoke/pkg/helm"
 )
 
-//go:embed argo-cd-9.3.7.tgz
+//go:embed argo-cd-9.4.2.tgz
 var archive []byte
 
 // RenderChart renders the chart downloaded from https://argoproj.github.io/argo-helm/argo-cd
-// Producing version: 9.3.7
+// Producing version: 9.4.2
 func RenderChart(release, namespace string, values map[string]any) ([]*unstructured.Unstructured, error) {
 	chart, err := helm.LoadChartFromZippedArchive(archive)
 	if err != nil {
