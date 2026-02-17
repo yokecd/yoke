@@ -91,13 +91,13 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 	case reflect.Interface:
 		return &apiext.JSONSchemaProps{
 			Type:                   "object",
-			XPreserveUnknownFields: ptr.To(true),
+			XPreserveUnknownFields: new(true),
 		}
 	case reflect.Map:
 		if elementType := typ.Elem(); elementType.Kind() == reflect.Interface {
 			return &apiext.JSONSchemaProps{
 				Type:                   "object",
-				XPreserveUnknownFields: ptr.To(true),
+				XPreserveUnknownFields: new(true),
 			}
 		}
 		return &apiext.JSONSchemaProps{
@@ -107,7 +107,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 					if _, ok := cache[typ.Elem()]; ok {
 						return &apiext.JSONSchemaProps{
 							Type:                   "object",
-							XPreserveUnknownFields: ptr.To(true),
+							XPreserveUnknownFields: new(true),
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
@@ -123,7 +123,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 					if _, ok := cache[typ.Elem()]; ok {
 						return &apiext.JSONSchemaProps{
 							Type:                   "object",
-							XPreserveUnknownFields: ptr.To(true),
+							XPreserveUnknownFields: new(true),
 							Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 						}
 					}
@@ -281,7 +281,7 @@ func generateSchema(typ reflect.Type, top bool, cache typeCache) *apiext.JSONSch
 		if _, ok := cache[typ.Elem()]; ok {
 			return &apiext.JSONSchemaProps{
 				Type:                   "object",
-				XPreserveUnknownFields: ptr.To(true),
+				XPreserveUnknownFields: new(true),
 				Description:            fmt.Sprintf("%s:%s", typ.Elem().PkgPath(), typ.Elem().Name()),
 			}
 		}

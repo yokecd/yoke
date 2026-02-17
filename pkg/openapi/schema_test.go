@@ -81,7 +81,7 @@ func TestGenerateSchema(t *testing.T) {
 				},
 				"map": {
 					Type:                   "object",
-					XPreserveUnknownFields: ptr.To(true),
+					XPreserveUnknownFields: new(true),
 				},
 				"intOrString": {
 					XIntOrString: true,

@@ -234,8 +234,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 					Service: &apiextv1.ServiceReference{
 						Name:      atc.service.Name,
 						Namespace: atc.service.Namespace,
-						Path:      ptr.To("/crdconvert/" + airway.Name),
-						Port:      ptr.To(atc.service.Port),
+						Path:      new("/crdconvert/" + airway.Name),
+						Port:      new(atc.service.Port),
 					},
 					CABundle: atc.service.CABundle,
 				},
@@ -282,7 +282,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: atc.service.Namespace,
 						Name:      atc.service.Name,
-						Path:      ptr.To("/validations/" + airway.Name),
+						Path:      new("/validations/" + airway.Name),
 						Port:      &atc.service.Port,
 					},
 					CABundle: atc.service.CABundle,

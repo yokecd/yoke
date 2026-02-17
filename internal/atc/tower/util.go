@@ -50,16 +50,16 @@ type HeaderActionItems []HeaderActionItem
 
 func (items HeaderActionItems) String() string {
 	var keys string
-	var description string
+	var description strings.Builder
 	var maxKeyLen int
 	for i, item := range items {
 		if i != 0 {
 			keys += "\n"
-			description += "\n"
+			description.WriteString("\n")
 		}
 
 		keys += "<" + item.Key + ">"
-		description += item.Description
+		description.WriteString(item.Description)
 
 		if length := len(item.Key) + 2; length > maxKeyLen {
 			maxKeyLen = length
@@ -68,7 +68,7 @@ func (items HeaderActionItems) String() string {
 	}
 
 	keys = lipgloss.NewStyle().Width(maxKeyLen + 2).Foreground(lipgloss.Color("#7266ee")).Render(keys)
-	content := lipgloss.JoinHorizontal(lipgloss.Top, keys, description)
+	content := lipgloss.JoinHorizontal(lipgloss.Top, keys, description.String())
 
 	return lipgloss.NewStyle().MarginLeft(3).Render(content)
 }

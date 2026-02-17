@@ -40,7 +40,7 @@ func run() error {
 			Labels: labels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr(int32(replicas)),
+			Replicas: new(int32(replicas)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -64,4 +64,5 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode([]any{dep})
 }
 
-func ptr[T any](value T) *T { return &value }
+//go:fix inline
+func ptr[T any](value T) *T { return new(value) }

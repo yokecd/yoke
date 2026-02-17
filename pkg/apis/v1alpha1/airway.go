@@ -8,7 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/apis"
 	"github.com/yokecd/yoke/pkg/flight"
@@ -232,7 +231,7 @@ func (airway Airway) CRD() *apiextensionsv1.CustomResourceDefinition {
 					Kind:               airway.Kind,
 					Name:               airway.Name,
 					UID:                airway.UID,
-					BlockOwnerDeletion: ptr.To(true),
+					BlockOwnerDeletion: new(true),
 				},
 			},
 		},

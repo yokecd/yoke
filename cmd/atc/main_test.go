@@ -102,7 +102,7 @@ func TestMain(m *testing.M) {
 	client := internal.Must2(k8s.NewClientFromKubeConfig(home.Kubeconfig))
 	commander := yoke.FromK8Client(client)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	must(commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release:   "atc",
@@ -608,7 +608,7 @@ func TestRestarts(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -701,7 +701,7 @@ func TestRestarts(t *testing.T) {
 		atc, err := client.Clientset.AppsV1().Deployments("atc").Get(ctx, "atc-atc", metav1.GetOptions{})
 		require.NoError(t, err)
 
-		atc.Spec.Replicas = ptr.To(scale)
+		atc.Spec.Replicas = new(scale)
 
 		_, err = client.Clientset.AppsV1().Deployments("atc").Update(ctx, atc, metav1.UpdateOptions{FieldManager: "yoke"})
 		require.NoError(t, err)
@@ -784,7 +784,7 @@ func TestCrossNamespace(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -924,7 +924,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -1302,7 +1302,7 @@ func TestFixDriftInterval(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -1438,7 +1438,7 @@ func TestStatusReadiness(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -1550,7 +1550,7 @@ func TestResourceAccessMatchers(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -1758,7 +1758,7 @@ func TestAirwayModes(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -2013,7 +2013,7 @@ func TestDynamicWithExternalResource(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	secret, err := client.Clientset.CoreV1().Secrets("default").Create(
 		ctx,
@@ -2210,7 +2210,7 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	type Spec struct {
 		Source string `json:"source"`
@@ -2371,7 +2371,7 @@ func TestStatusUpdates(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -2606,7 +2606,7 @@ func TestDeploymentStatus(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -2732,7 +2732,7 @@ func TestPruning(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -3142,7 +3142,7 @@ func TestTimeout(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 
@@ -3232,7 +3232,7 @@ func TestSubscriptionMode(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	ctx := internal.WithDebugFlag(context.Background(), ptr.To(true))
+	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
 	commander := yoke.FromK8Client(client)
 

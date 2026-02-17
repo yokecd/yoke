@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/utils/ptr"
 )
 
 func TestConfigUnmarshalling(t *testing.T) {
@@ -195,7 +193,7 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 				{ name: input, string: 'override' },
 				{ name: inputFiles, array: ['values.yaml']}
 			]`,
-			ExpectedInput: ptr.To("override"),
+			ExpectedInput: new("override"),
 		},
 		{
 			Name: "properly combines YAML and JSON files",
@@ -237,7 +235,7 @@ func TestConfigUnmarshallingInput(t *testing.T) {
 			Input: `[
 				{ name: wasm, string: main.wasm }
 			]`,
-			ExpectedInput: ptr.To(""),
+			ExpectedInput: new(""),
 		},
 		{
 			Name: "handles errors - not being able to read file",
