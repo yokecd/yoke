@@ -191,7 +191,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: cfg.Service.Namespace,
 						Name:      cfg.Service.Name,
-						Path:      ptr.To("/validations/airways.yoke.cd"),
+						Path:      new("/validations/airways.yoke.cd"),
 						Port:      &cfg.Service.Port,
 					},
 					CABundle: cfg.Service.CABundle,
@@ -231,7 +231,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: cfg.Service.Namespace,
 						Name:      cfg.Service.Name,
-						Path:      ptr.To("/validations/flights.yoke.cd"),
+						Path:      new("/validations/flights.yoke.cd"),
 						Port:      &cfg.Service.Port,
 					},
 					CABundle: cfg.Service.CABundle,
@@ -241,7 +241,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 				// We are using the maximum timeout.
 				// It is likely that for this webhook handles the download and compilation of the flights wasm.
 				// In general this should be fast, on the order of a couple seconds, but lets stay on the side of caution for now.
-				TimeoutSeconds: ptr.To(int32(30)),
+				TimeoutSeconds: new(int32(30)),
 				MatchPolicy:    ptr.To(admissionregistrationv1.Exact),
 				MatchConditions: []admissionregistrationv1.MatchCondition{
 					{
@@ -285,7 +285,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: cfg.Service.Namespace,
 						Name:      cfg.Service.Name,
-						Path:      ptr.To("/validations/resources"),
+						Path:      new("/validations/resources"),
 						Port:      &cfg.Service.Port,
 					},
 					CABundle: cfg.Service.CABundle,
@@ -341,7 +341,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: cfg.Service.Namespace,
 						Name:      cfg.Service.Name,
-						Path:      ptr.To("/validations/external-resources"),
+						Path:      new("/validations/external-resources"),
 						Port:      &cfg.Service.Port,
 					},
 					CABundle: cfg.Service.CABundle,

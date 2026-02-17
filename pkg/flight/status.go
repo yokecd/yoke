@@ -3,7 +3,6 @@ package flight
 import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/pkg/openapi"
 )
@@ -19,7 +18,7 @@ type Conditions []metav1.Condition
 
 func (conditions Conditions) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
 	schema := openapi.SchemaFor[[]metav1.Condition]()
-	schema.XListType = ptr.To("map")
+	schema.XListType = new("map")
 	schema.XListMapKeys = []string{"type"}
 	return schema
 }

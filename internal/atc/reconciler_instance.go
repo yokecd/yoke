@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -171,7 +170,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				APIVersion:         v1alpha1.APIVersion,
 				Name:               params.Airway.Name,
 				UID:                params.Airway.UID,
-				BlockOwnerDeletion: ptr.To(true),
+				BlockOwnerDeletion: new(true),
 			}))
 			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to add airway as owner reference: %w", err)

@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -15,7 +15,7 @@ COPY ./pkg ./pkg
 
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/yokecd ./cmd/yokecd
 
-FROM golang:1.25-alpine
+FROM golang:1.26-alpine
 
 COPY --from=builder /bin/yokecd /bin/yokecd
 COPY ./cmd/yokecd/plugin.yaml /home/argocd/cmp-server/config/plugin.yaml

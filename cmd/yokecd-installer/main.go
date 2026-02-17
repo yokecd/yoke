@@ -122,7 +122,7 @@ func run() error {
 		},
 
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: ptr.To(true),
+			RunAsNonRoot: new(true),
 			RunAsUser:    ptr.To[int64](999),
 		},
 	}

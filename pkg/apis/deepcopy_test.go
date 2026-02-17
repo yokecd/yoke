@@ -5,8 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/yokecd/yoke/pkg/apis"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
@@ -20,8 +18,8 @@ func TestDeepCopy(t *testing.T) {
 
 	t.Run("map", func(t *testing.T) {
 		original := map[string]*int{
-			"a": ptr.To(1),
-			"b": ptr.To(2),
+			"a": new(1),
+			"b": new(2),
 		}
 
 		copy := apis.DeepCopy(original)
@@ -32,7 +30,7 @@ func TestDeepCopy(t *testing.T) {
 			require.NotSame(t, original[key], copy[key])
 		}
 
-		original["c"] = ptr.To(3)
+		original["c"] = new(3)
 		require.Len(t, original, 3)
 		require.Len(t, copy, 2)
 	})
@@ -65,7 +63,7 @@ func TestDeepCopy(t *testing.T) {
 		original := struct {
 			A *int
 		}{
-			A: ptr.To(1),
+			A: new(1),
 		}
 
 		copy := apis.DeepCopy(original)
@@ -75,7 +73,7 @@ func TestDeepCopy(t *testing.T) {
 	})
 
 	t.Run("pointers", func(t *testing.T) {
-		x := ptr.To(420)
+		x := new(420)
 		y := apis.DeepCopy(x)
 		require.NotSame(t, x, y)
 		require.Equal(t, *x, *y)
