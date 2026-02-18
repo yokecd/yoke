@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -145,6 +146,113 @@ ports:
 	}))
 
 	os.Exit(m.Run())
+}
+
+func TestAdmissionExclusiveToKubeSystem(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	commander := yoke.FromK8Client(client)
+
+	// Create a test namespace
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-admission-exclusive",
+		},
+	}
+	// Create the namespace via yoke
+	require.NoError(t, client.EnsureNamespace(ctx, testNamespace.Name))
+
+	defer func() {
+		// Clean up the test namespace
+		require.NoError(t, client.Clientset.CoreV1().Namespaces().Delete(ctx, testNamespace.Name, metav1.DeleteOptions{}))
+	}()
+
+	releaseName := "test-admission-curl"
+	//Deploy the curl pod as a yoke release
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:   releaseName,
+		Namespace: testNamespace.Name,
+		Flight: yoke.FlightParams{
+			Input: internal.JSONReader(corev1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      releaseName,
+					Namespace: testNamespace.Name,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "curl",
+							Image: "curlimages/curl:latest",
+							Command: []string{
+								"sh", "-c",
+								"curl -v http://atc-atc.atc:80/live && sleep 3600",
+							},
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyNever,
+				},
+			}),
+		},
+		CrossNamespace: true, // pod namespace differs from release namespace? No, same here — omit if same
+		Wait:           30 * time.Second,
+		Poll:           time.Second,
+	}))
+
+	// Mayday to ensure cleanup of the release and its resources.
+	defer func() {
+		require.NoError(t, commander.Mayday(ctx, yoke.MaydayParams{
+			Release:   releaseName,
+			Namespace: testNamespace.Name,
+		}))
+	}()
+
+	// Poll pod state and logs using client-go
+	testutils.EventuallyNoErrorf(
+		t,
+		func() error {
+			pod, err := client.Clientset.CoreV1().Pods(testNamespace.Name).Get(ctx, releaseName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			switch pod.Status.Phase {
+			case corev1.PodPending, corev1.PodRunning:
+				return fmt.Errorf("pod is in %s state, waiting", pod.Status.Phase)
+			case corev1.PodSucceeded:
+				// curl exited 0 — it connected to ATC, which should not be allowed
+				return fmt.Errorf("pod curl succeeded unexpectedly: ATC should be inaccessible from non-kube-system namespace")
+			}
+			// PodFailed: curl exited non-zero — expected; fall through to log check
+			logs, err := client.Clientset.CoreV1().Pods(testNamespace.Name).
+				GetLogs(releaseName, &corev1.PodLogOptions{}).Stream(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get pod logs: %w", err)
+			}
+			defer func(logs io.ReadCloser) {
+				err := logs.Close()
+				if err != nil {
+					fmt.Printf("failed to close logs stream: %v", err)
+				}
+			}(logs)
+			logData, err := io.ReadAll(logs)
+			if err != nil {
+				return fmt.Errorf("failed to read pod logs: %w", err)
+			}
+			logStr := string(logData)
+			if strings.Contains(logStr, "Connected to") || strings.Contains(logStr, "200 OK") {
+				return fmt.Errorf("pod should not access ATC, but logs show success: %s", logStr)
+			}
+			return nil
+		},
+		time.Second,
+		30*time.Second,
+		"pod curl to ATC should fail, but it did not",
+	)
 }
 
 func TestAirTrafficController(t *testing.T) {
