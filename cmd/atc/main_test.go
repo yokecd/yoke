@@ -62,17 +62,17 @@ func TestMain(m *testing.M) {
 	must(x.X("k3d cluster delete atc-test"))
 
 	must(x.X("k3d cluster create --config -", x.Input(strings.NewReader(`
-    apiVersion: k3d.io/v1alpha5
-	kind: Simple
-	metadata:
-      name: atc-test
- 	  servers: 1
-	  agents: 0
-      ports:
-        - port: 0.0.0.0:80:30000@server:0
-          nodeFilters:
-            - loadbalancer
-	`))))
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: atc-test
+servers: 1
+agents: 0
+ports:
+  - port: 0.0.0.0:80:30000@server:0
+    nodeFilters:
+      - loadbalancer
+`))))
 
 	if ci, _ := strconv.ParseBool(os.Getenv("CI")); !ci {
 		must(x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
