@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           go install github.com/go-task/task/v3/cmd/task@latest
-          go install sigs.k8s.io/kind@latest
+          go install github.com/k3d-io/k3d/v5@latest
 
           task test
 

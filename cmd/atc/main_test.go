@@ -59,19 +59,20 @@ func TestMain(m *testing.M) {
 	must(os.RemoveAll("./test_output"))
 	must(os.MkdirAll("./test_output", 0o755))
 
-	must(x.X("kind delete cluster --name=atc-test"))
+	must(x.X("k3d cluster delete atc-test"))
 
-	must(x.X("kind create cluster --name=atc-test --config -", x.Input(strings.NewReader(`
-    kind: Cluster
-    apiVersion: kind.x-k8s.io/v1alpha4
-    nodes:
-    - role: control-plane
-      extraPortMappings:
-      - containerPort: 30000
-        hostPort: 80
-        listenAddress: "127.0.0.1"
-        protocol: TCP
-    `))))
+	must(x.X("k3d cluster create --config -", x.Input(strings.NewReader(`
+    apiVersion: k3d.io/v1alpha5
+	kind: Simple
+	metadata:
+      name: atc-test
+ 	  servers: 1
+	  agents: 0
+      ports:
+        - port: 0.0.0.0:80:30000@server:0
+          nodeFilters:
+            - loadbalancer
+	`))))
 
 	if ci, _ := strconv.ParseBool(os.Getenv("CI")); !ci {
 		must(x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
@@ -91,13 +92,13 @@ func TestMain(m *testing.M) {
 		"docker build -t yokecd/atc:test -f Dockerfile.atc .",
 		x.Dir("../.."),
 	))
-	must(x.X("kind load --name=atc-test docker-image yokecd/atc:test"))
+	must(x.X("k3d image import yokecd/atc:test --cluster atc-test"))
 
 	must(x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
-	must(x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
+	must(x.X("k3d image import yokecd/wasmcache:test --cluster atc-test"))
 
 	must(x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
-	must(x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
+	must(x.X("k3d image import yokecd/c4ts:test --cluster atc-test"))
 
 	client := internal.Must2(k8s.NewClientFromKubeConfig(home.Kubeconfig))
 	commander := yoke.FromK8Client(client)
