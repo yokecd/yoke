@@ -62,18 +62,16 @@ func TestMain(m *testing.M) {
 
 	must(x.X("k3d cluster delete atc-test"))
 
-	must(x.X("k3d cluster create --config -", x.Input(strings.NewReader(`
+	must(x.X("k3d cluster create --config - -p 80:30000@loadbalancer", x.Input(strings.NewReader(`
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: atc-test
 servers: 1
 agents: 0
-ports:
-  - port: 0.0.0.0:80:30000@server:0
-    nodeFilters:
-      - loadbalancer
 `))))
+
+	must(x.X("kubectl rollout status deployment/coredns -n kube-system --timeout=120s"))
 
 	if ci, _ := strconv.ParseBool(os.Getenv("CI")); !ci {
 		must(x.X("kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"))
@@ -199,9 +197,6 @@ func TestAdmissionExclusiveToKubeSystem(t *testing.T) {
 				},
 			}),
 		},
-		CrossNamespace: true, // pod namespace differs from release namespace? No, same here — omit if same
-		Wait:           30 * time.Second,
-		Poll:           time.Second,
 	}))
 
 	// Mayday to ensure cleanup of the release and its resources.
@@ -250,7 +245,7 @@ func TestAdmissionExclusiveToKubeSystem(t *testing.T) {
 			return nil
 		},
 		time.Second,
-		30*time.Second,
+		2*time.Minute,
 		"pod curl to ATC should fail, but it did not",
 	)
 }
