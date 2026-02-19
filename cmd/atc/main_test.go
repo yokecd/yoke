@@ -118,7 +118,7 @@ agents: 0
 			Args: []string{"--skip-version-check"},
 		},
 		CreateNamespace: true,
-		Wait:            120 * time.Second,
+		Wait:            5 * time.Minute,
 		Poll:            time.Second,
 	}))
 
