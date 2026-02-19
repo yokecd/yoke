@@ -4,7 +4,27 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-02-06) atc/v0.19.0 - latest - v0.20.0 - yokecd/v0.19.0 - yokecd-installer/v0.19.0
+## (2026-02-17) atc/v0.19.3 - atc-installer/v0.18.2 - latest - v0.20.3 - yokecd/v0.19.3 - yokecd-installer/v0.19.4
+
+- deps: update go to 1.26 and modernize ([5b0b0bc](https://github.com/yokecd/yoke/commit/5b0b0bc87294f293226f219a67d57268c06edbc4))
+
+## (2026-02-17) yokecd-installer/v0.19.3
+
+- yokecd-installer: use ArgoCD Helm Chart version 9.4.2 ([ffa41e1](https://github.com/yokecd/yoke/commit/ffa41e1be04508fc793bc9e739cb4d2cb9f19c05))
+
+## (2026-02-15) atc/v0.19.2 - atc-installer/v0.18.1 - v0.20.2 - yokecd/v0.19.2 - yokecd-installer/v0.19.2
+
+- atc: validate flight override against module allow list ([ead3464](https://github.com/yokecd/yoke/commit/ead34642fb2eb3f26516aeb7fe1a384dd85388b7))
+- atc: test Flight resource respects moduleAllowList ([b738e87](https://github.com/yokecd/yoke/commit/b738e87679ca311360c64f97a606dfa1b42d2f0f))
+- yokecd: add moduleAllowList to installer and server logic ([ede3f15](https://github.com/yokecd/yoke/commit/ede3f151dbc750391bc4770466a75bc8740e37b2))
+- atc: implement module allow-list using globs ([5cb2fa1](https://github.com/yokecd/yoke/commit/5cb2fa1ab4f338950903bcbdd955c10c4a7de4fa))
+
+## (2026-02-10) atc/v0.19.1 - atc-installer/v0.18.0 - v0.20.1 - yokecd/v0.19.1 - yokecd-installer/v0.19.1
+
+- wasi/k8s: support running wasi/k8s package on other os for development purposes ([bc9c576](https://github.com/yokecd/yoke/commit/bc9c576a790df8c42aa06b90fb406220f1de22a0))
+- internal/unstructured: use apimachinery unstructured converter for casting to unstructured instead of naive json impl ([f9301b3](https://github.com/yokecd/yoke/commit/f9301b328fd5b80ceca5588af1e2b8a4d7eb5081))
+
+## (2026-02-06) atc/v0.19.0 - v0.20.0 - yokecd/v0.19.0 - yokecd-installer/v0.19.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
