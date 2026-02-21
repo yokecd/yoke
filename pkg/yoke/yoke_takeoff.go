@@ -314,9 +314,24 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 
 	fullReleaseName := params.ReleasePrefix + params.Release
 
+	source := func() internal.Source {
+		if params.Flight.Path == "" {
+			return params.Flight.Module.SourceMetadata
+		}
+		return internal.SourceFrom(params.Flight.Path, wasm)
+	}()
+
 	release, err := commander.k8s.GetRelease(ctx, fullReleaseName, targetNS)
 	if err != nil {
 		return fmt.Errorf("failed to get revision history for release %q: %w", params.Release, err)
+	}
+
+	if internal.IsPinnableReference(source.Ref) {
+		if _, ok := internal.Find(release.History, func(revision internal.Revision) bool {
+			return revision.Source.Ref == source.Ref && revision.Source.Checksum != source.Checksum
+		}); ok {
+			return fmt.Errorf("module %q has changed since last use", source.Ref)
+		}
 	}
 
 	if !params.DryRun && params.Lock {
@@ -394,12 +409,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		fullReleaseName,
 		targetNS,
 		internal.Revision{
-			Source: func() internal.Source {
-				if params.Flight.Path == "" {
-					return params.Flight.Module.SourceMetadata
-				}
-				return internal.SourceFrom(params.Flight.Path, wasm)
-			}(),
+			Source:    source,
 			CreatedAt: now,
 			ActiveAt:  now,
 			Resources: len(stages.Flatten()),

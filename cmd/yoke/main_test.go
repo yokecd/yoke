@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -1145,6 +1147,10 @@ func TestOciFlight(t *testing.T) {
 			Path: "oci://localhost:5001/test:v1",
 		},
 	}))
+	defer func() {
+		require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "registry"}))
+	}()
+
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "registry",
 		Flight: yoke.FlightParams{
@@ -1970,4 +1976,50 @@ func TestDeprecatedReleaseLabelsCompat(t *testing.T) {
 	require.Equal(t, "default", foo.Annotations[internal.AnnotationYokeNamespace])
 
 	require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "test"}))
+}
+
+func TestDigestPinning(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	flightModule, err := os.ReadFile("./test_output/flight.wasm")
+	require.NoError(t, err)
+
+	baseModule, err := os.ReadFile("./test_output/basic.wasm")
+	require.NoError(t, err)
+
+	svr := httptest.NewServer(func() http.HandlerFunc {
+		var i int
+		return func(w http.ResponseWriter, r *http.Request) {
+			i++
+			_, _ = w.Write(func() []byte {
+				if i%2 == 0 {
+					return flightModule
+				}
+				return baseModule
+			}())
+		}
+	}())
+
+	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	require.NoError(t, commander.Takeoff(background, yoke.TakeoffParams{
+		Release: "foo",
+		Flight:  yoke.FlightParams{Path: svr.URL},
+	}))
+
+	defer func() {
+		require.NoError(t, commander.Mayday(background, yoke.MaydayParams{Release: "foo"}))
+	}()
+
+	require.ErrorContains(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release:       "foo",
+			Flight:        yoke.FlightParams{Path: svr.URL},
+			ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		}),
+		fmt.Sprintf("module %q has changed since last use", svr.URL),
+	)
 }
