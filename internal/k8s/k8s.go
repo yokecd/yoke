@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
+	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
@@ -731,6 +733,9 @@ func (client Client) WaitForReady(ctx context.Context, resource *unstructured.Un
 		case <-timer.C:
 			ready, err := client.IsReady(ctx, resource)
 			if err != nil {
+				if ok, _ := strconv.ParseBool(os.Getenv("CI")); ok {
+					_ = x.Xf("kubectl describe -n %s %s %s", []any{resource.GetNamespace(), strings.ToLower(resource.GetKind()), resource.GetName()})
+				}
 				return err
 			}
 			if ready {
