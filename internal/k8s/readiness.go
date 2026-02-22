@@ -3,6 +3,9 @@ package k8s
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"strconv"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +38,10 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 	case "apps":
 		switch gvk.Kind {
 		case "Deployment":
+			// TODO: remove this. Intended for debugging in CI only.
+			if ok, _ := strconv.ParseBool(os.Getenv("CI")); ok {
+				fmt.Printf("[[DEBUG]] %#v\n", resource.Object["status"])
+			}
 			return true &&
 				meetsConditions(resource, "Available") &&
 				equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
