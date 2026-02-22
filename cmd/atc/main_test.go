@@ -104,7 +104,7 @@ agents: 0
 
 	ctx := internal.WithDebugFlag(context.Background(), new(true))
 
-	must(commander.Takeoff(ctx, yoke.TakeoffParams{
+	if takeoffErr := commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release:   "atc",
 		Namespace: "atc",
 		Flight: yoke.FlightParams{
@@ -118,10 +118,29 @@ agents: 0
 			Args: []string{"--skip-version-check"},
 		},
 		CreateNamespace: true,
-		Wait:            5 * time.Minute,
+		Wait:            2 * time.Minute,
 		Poll:            time.Second,
-	}))
+	}); takeoffErr != nil {
+		fmt.Println("[[DEBUG ATC LOG STREAM]]")
+		pods, err := client.Clientset.CoreV1().Pods("atc").List(ctx, metav1.ListOptions{LabelSelector: "yoke.cd/app=atc"})
+		if err != nil {
+			panic(err)
+		}
+		if len(pods.Items) != 1 {
+			panic(fmt.Errorf("expected 1 atc pod but got: %d", len(pods.Items)))
+		}
 
+		req := client.Clientset.CoreV1().Pods("atc").GetLogs(pods.Items[0].Name, &corev1.PodLogOptions{})
+
+		rc, err := req.Stream(ctx)
+		if err != nil {
+			panic(fmt.Errorf("failed to get atc log stream: %v", err))
+		}
+		if _, err := io.Copy(os.Stdout, rc); err != nil {
+			panic(fmt.Errorf("failed to copy atc log stream to stdout: %v", err))
+		}
+		panic(takeoffErr)
+	}
 	must(commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release:   "wasmcache",
 		Namespace: "atc",
@@ -168,7 +187,7 @@ func TestAdmissionExclusiveToKubeSystem(t *testing.T) {
 	}()
 
 	releaseName := "test-admission-curl"
-	//Deploy the curl pod as a yoke release
+	// Deploy the curl pod as a yoke release
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release:   releaseName,
 		Namespace: testNamespace.Name,
