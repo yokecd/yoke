@@ -75,6 +75,8 @@ github.com/davidmdm/ansi v0.0.7 h1:x59My+oKSQdGOnwKNKJRbqTLN98kz4fUXPxlw/emINQ=
 github.com/davidmdm/ansi v0.0.7/go.mod h1:En92c514AKUGa+HLY43mQfVImaVtBtAr5fako6mQa6w=
 github.com/davidmdm/conf v0.0.10 h1:Q6N7207o+cM66PZM6m4dnVQ2J2c9rPH/voBpaahRGrU=
 github.com/davidmdm/conf v0.0.10/go.mod h1:6j/z/ejCbH0cgrdFErvat4h1wg3Sfxhh3ikyVJYbtzs=
+github.com/davidmdm/x/xcontainer v0.0.2 h1:sHjuH1tva2Pl5oTmcJYtWSuc0amQj9kCUiUQA/R2/is=
+github.com/davidmdm/x/xcontainer v0.0.2/go.mod h1:x2GWf+20spxXCAqCYF3nZVKoJPxS8xfXKQYi+0wAsEU=
 github.com/davidmdm/x/xcontext v0.0.3 h1:PuqBczX15qx/4128vRVyK+xbLi2ffCWG6JT8rCKJY+U=
 github.com/davidmdm/x/xcontext v0.0.3/go.mod h1:ER3jrDtsl/eNmxrGpbO0/7Ep+0waYnohBR1vKznub1U=
 github.com/davidmdm/x/xerr v0.0.5 h1:ujuZnokjAfD1bJvnfj31lV3c0QnJ0BEyr01ah5JK++Y=
@@ -264,8 +266,6 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tetratelabs/wazero v1.6.0 h1:z0H1iikCdP8t+q341xqepY4EWvHEw8Es7tlqiVzlP3g=
 github.com/tetratelabs/wazero v1.6.0/go.mod h1:0U0G41+ochRKoPKCJlh0jMg1CHkyfK8kDqiirMmKY8A=
-github.com/tetratelabs/wazero v1.11.0 h1:+gKemEuKCTevU4d7ZTzlsvgd1uaToIDtlQlmNbwqYhA=
-github.com/tetratelabs/wazero v1.11.0/go.mod h1:eV28rsN8Q+xwjogd7f4/Pp4xFxO7uOGbLcD/LzB1wiU=
 github.com/tidwall/gjson v1.14.2 h1:6BBkirS0rAHjumnjHF6qgy5d2YAJ1TLIaFE2lzfOLqo=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=

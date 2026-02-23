@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/davidmdm/x/xcontainer"
 	"github.com/davidmdm/x/xerr"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -285,11 +286,13 @@ func Stow(ctx context.Context, params StowParams) error {
 		return fmt.Errorf("invalid wasm module: %w", err)
 	}
 
+	params.Tags = append(params.Tags, "sha256_"+internal.SHA256HexString(wasm))
+
 	digestURL, err := oci.PushArtifact(ctx, oci.PushArtifactParams{
 		Data:     wasm,
 		URL:      params.URL,
 		Insecure: params.Insecure,
-		Tags:     params.Tags,
+		Tags:     xcontainer.ToSet(params.Tags).Collect(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to stow wasm artifact: %w", err)

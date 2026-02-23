@@ -1116,16 +1116,13 @@ func TestBadVersion(t *testing.T) {
 }
 
 func TestOciFlight(t *testing.T) {
-	require.NoError(
-		t,
-		x.X(
-			"go build -o ./test_output/basic.wasm ../../examples/basic",
-			x.Env("GOOS=wasip1", "GOARCH=wasm"),
-		),
-	)
-
+	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 	require.NoError(t, x.X("docker rm -f registry"))
-	require.NoError(t, x.X("docker run -d -p 5001:5000 --name registry registry:2.7"))
+	require.NoError(t, x.X("docker run -d -p 5001:5000 --name registry registry:3"))
+
+	defer func() {
+		require.NoError(t, x.X("docker rm -f registry"))
+	}()
 
 	require.NoError(t, yoke.Stow(context.Background(), yoke.StowParams{
 		WasmFile: "./test_output/basic.wasm",
@@ -1157,6 +1154,22 @@ func TestOciFlight(t *testing.T) {
 			Path: "oci://localhost:5001/test:alt",
 		},
 	}))
+
+	resp, err := http.Get("http://localhost:5001/v2/test/tags/list")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	var response struct {
+		Tags []string `json:"tags"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&response))
+
+	wasm, err := os.ReadFile("./test_output/basic.wasm")
+	require.NoError(t, err)
+
+	for _, tag := range []string{"alt", "v1", "sha256_" + internal.SHA256HexString(wasm)} {
+		require.Contains(t, response.Tags, tag)
+	}
 }
 
 func TestTakeoffAssertsDesiredState(t *testing.T) {
