@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/davidmdm/ansi v0.0.7
 	github.com/davidmdm/conf v0.0.10
+	github.com/davidmdm/x/xcontainer v0.0.2
 	github.com/davidmdm/x/xcontext v0.0.3
 	github.com/davidmdm/x/xerr v0.0.5
 	github.com/davidmdm/x/xruntime v0.0.5
