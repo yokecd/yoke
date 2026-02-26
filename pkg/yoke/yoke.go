@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/davidmdm/x/xcontainer"
 	"github.com/davidmdm/x/xerr"
+	"gopkg.in/yaml.v3"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -286,21 +288,25 @@ func Stow(ctx context.Context, params StowParams) error {
 		return fmt.Errorf("invalid wasm module: %w", err)
 	}
 
-	params.Tags = append(params.Tags, "sha256_"+internal.SHA256HexString(wasm))
+	sha256 := internal.SHA256HexString(wasm)
+
+	tags := slices.Sorted(xcontainer.ToSet(append(params.Tags, "sha256_"+sha256)).All())
 
 	digestURL, err := oci.PushArtifact(ctx, oci.PushArtifactParams{
 		Data:     wasm,
 		URL:      params.URL,
 		Insecure: params.Insecure,
-		Tags:     xcontainer.ToSet(params.Tags).Collect(),
+		Tags:     tags,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to stow wasm artifact: %w", err)
 	}
 
-	fmt.Fprintf(internal.Stderr(ctx), "stowed wasm artifact at %s\n", digestURL)
-
-	return nil
+	return yaml.NewEncoder(internal.Stderr(ctx)).Encode(struct {
+		DigestURL string   `yaml:"digestUrl"`
+		ModuleSHA string   `yaml:"moduleSHA"`
+		Tags      []string `yaml:"tags"`
+	}{digestURL, sha256, tags})
 }
 
 type UnlockParams struct {
