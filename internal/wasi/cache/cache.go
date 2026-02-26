@@ -131,9 +131,15 @@ func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byt
 		return data, err
 	}
 
-	data, err = yoke.LoadWasm(ctx, uri, false)
+	data, err = yoke.LoadWasmFromURL(ctx, uri, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
+	}
+
+	if expected := internal.ChecksumFromPath(uri); expected != "" {
+		if actual := internal.SHA256HexString(data); actual != expected {
+			return nil, fmt.Errorf("failed to validate checksum for module: expected %q but got %q", expected, actual)
+		}
 	}
 
 	var compressed bytes.Buffer

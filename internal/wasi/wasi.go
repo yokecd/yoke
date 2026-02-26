@@ -41,12 +41,10 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 			// If the module was passed via params, we do not own its lifetime and so do not close.
 			return params.Module, func(context.Context) error { return nil }, nil
 		}
-
 		mod, err := Compile(ctx, params.CompileParams)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to compile module: %w", err)
 		}
-
 		return &mod, mod.Close, nil
 	}()
 	if err != nil {
@@ -150,7 +148,8 @@ type Module struct {
 	wazero.CompiledModule
 	wazero.Runtime
 	maxMemoryMib uint32
-	checksum     string
+	sha1         string
+	sha256       string
 }
 
 func (mod Module) Instantiate(ctx context.Context, cfg wazero.ModuleConfig) error {
@@ -230,7 +229,8 @@ func Compile(ctx context.Context, params CompileParams) (Module, error) {
 		Runtime:        runtime,
 		CompiledModule: mod,
 		maxMemoryMib:   params.MaxMemoryMib,
-		checksum:       internal.SHA1HexString(params.Wasm),
+		sha1:           internal.SHA1HexString(params.Wasm),
+		sha256:         internal.SHA256HexString(params.Wasm),
 	}, nil
 }
 
@@ -239,7 +239,11 @@ func (mod Module) MaxMemoryMib() uint32 {
 }
 
 func (mod Module) Checksum() string {
-	return mod.checksum
+	return mod.sha1
+}
+
+func (mod Module) SHA256Checksum() string {
+	return mod.sha256
 }
 
 func Error(ctx context.Context, module api.Module, ptr wasm.Ptr, state wasm.State, err string) wasm.Buffer {

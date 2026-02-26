@@ -165,7 +165,7 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			return
 		}
 
-		output, _, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
+		output, err := yoke.EvalFlight(r.Context(), yoke.EvalParams{
 			Client:        client,
 			ClusterAccess: ex.ClusterAccess,
 			Release:       ex.Release,

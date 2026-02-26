@@ -77,6 +77,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.IntVar(&params.HistoryCapSize, "history-cap", 10, "max number of revisions to keep in release history. 0 or less is unbounded.")
 
 	flagset.StringVar(&params.Flight.CompilationCacheDir, "compilation-cache", "", "location to cache wasm compilations")
+	flagset.StringVar(&params.Checksum, "checksum", "", "sha256 checksum for desired module. If module does not match checksum takeoff will fail. Checksum can be inferred from oci tag or from  http basepath")
 
 	flagset.Func(
 		"resource-access",

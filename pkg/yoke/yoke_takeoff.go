@@ -39,8 +39,9 @@ type Module struct {
 
 type FlightParams struct {
 	Path                string
-	Insecure            bool
 	Module              Module
+	Wasm                []byte
+	Insecure            bool
 	Args                []string
 	CompilationCacheDir string
 
@@ -157,6 +158,18 @@ type TakeoffParams struct {
 	// This feature is opt-in since locking can cause conflicts with release namespaces that would be created by the namespace.
 	// This is an unfortunate reality of supporting kubectl apply yaml dumps.
 	Lock bool
+
+	// Checksum is the sha256 checksum of your referenced module. If provided this checksum is compared to the sha256 of the wasm module.
+	// If they do not match it results in an error.
+	// If not provided it will infer the sha256 from the oci tag or basepath of the url:
+	//
+	// for example:
+	// - not inferred: oci://registry/repo/module:v1.2.3
+	// - inferred: oci://registry/repo/module:sha256_5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03
+	// - inferred: https://domain.com/my/module_sha256_5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03.wasm.gz
+	//
+	// If checksum is not provided and cannot be inferred, this check is skipped.
+	Checksum string
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (err error) {
@@ -164,7 +177,27 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 
 	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 
-	output, wasm, err := EvalFlight(
+	if err := LoadWasm(ctx, &params.Flight); err != nil {
+		return fmt.Errorf("failed to load wasm: %w", err)
+	}
+
+	if expected := cmp.Or(params.Checksum, internal.ChecksumFromPath(params.Flight.Path)); expected != "" {
+		actual := func() string {
+			switch {
+			case params.Flight.Module.Instance != nil:
+				return params.Flight.Module.Instance.SHA256Checksum()
+			case len(params.Flight.Wasm) > 0:
+				return internal.SHA256HexString(params.Flight.Wasm)
+			default:
+				return ""
+			}
+		}()
+		if params.Checksum != actual {
+			return fmt.Errorf("cannot verify module against expected checksum: wanted %q but got %q", expected, actual)
+		}
+	}
+
+	output, err := EvalFlight(
 		ctx,
 		EvalParams{
 			Client:        commander.k8s,
@@ -318,7 +351,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		if params.Flight.Path == "" {
 			return params.Flight.Module.SourceMetadata
 		}
-		return internal.SourceFrom(params.Flight.Path, wasm)
+		return internal.SourceFrom(params.Flight.Path, params.Flight.Wasm)
 	}()
 
 	release, err := commander.k8s.GetRelease(ctx, fullReleaseName, targetNS)

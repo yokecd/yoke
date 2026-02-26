@@ -2036,3 +2036,47 @@ func TestDigestPinning(t *testing.T) {
 		fmt.Sprintf("module %q has changed since last use", svr.URL),
 	)
 }
+
+func TestChecksumVerification(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	flightModule, err := os.ReadFile("./test_output/flight.wasm")
+	require.NoError(t, err)
+
+	baseModule, err := os.ReadFile("./test_output/basic.wasm")
+	require.NoError(t, err)
+
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(flightModule)
+	}))
+
+	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	require.ErrorContains(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release:  "foo",
+			Flight:   yoke.FlightParams{Path: svr.URL},
+			Checksum: internal.SHA256HexString(baseModule),
+		}),
+		fmt.Sprintf(
+			`cannot verify module against expected checksum: wanted %q but got %q`,
+			internal.SHA256HexString(baseModule),
+			internal.SHA256HexString(flightModule),
+		),
+	)
+
+	require.ErrorContains(
+		t,
+		commander.Takeoff(background, yoke.TakeoffParams{
+			Release: "foo",
+			Flight:  yoke.FlightParams{Path: svr.URL + "/sha256_applebottomjeansbootwiththefur"},
+		}),
+		fmt.Sprintf(
+			`cannot verify module against expected checksum: wanted "applebottomjeansbootwiththefur" but got %q`,
+			internal.SHA256HexString(flightModule),
+		),
+	)
+}
