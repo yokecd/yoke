@@ -3,7 +3,6 @@ package yoke
 import (
 	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -23,20 +22,32 @@ import (
 	"github.com/yokecd/yoke/internal/wasi/host"
 )
 
-func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err error) {
+// LoadWasm serves to pull the flight params path and resolve its wasm on the flight params.
+// It has no effect if the flight params:
+// - Module is non-nil (used in pre-cached module calls)
+// - path is empty (when stdin is used as desired output)
+// - Wasm is non-empty
+func LoadWasm(ctx context.Context, params *FlightParams) (err error) {
+	if params.Module.Instance != nil || len(params.Wasm) > 0 || params.Path == "" {
+		return nil
+	}
 	defer internal.DebugTimer(ctx, "load wasm")()
 
-	uri, _ := url.Parse(path)
-	if uri.Scheme == "" {
-		wasm, err := loadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load file: %s: %w", path, err)
-		}
-		return wasm, nil
+	params.Wasm, err = LoadWasmFromURL(ctx, params.Path, params.Insecure)
+	return
+}
+
+func LoadWasmFromURL(ctx context.Context, path string, insecure bool) ([]byte, error) {
+	uri, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path url: %w", err)
+	}
+	if uri.Scheme == "" || uri.Scheme == "file" {
+		return loadFile(path)
 	}
 
 	if !slices.Contains([]string{"http", "https", "oci"}, uri.Scheme) {
-		return nil, errors.New("unsupported protocol: %s - http(s) and oci supported only")
+		return nil, fmt.Errorf("unsupported protocol: %s - http(s) and oci supported only", uri.Scheme)
 	}
 
 	if uri.Scheme == "oci" {
@@ -63,11 +74,14 @@ func LoadWasm(ctx context.Context, path string, insecure bool) (wasm []byte, err
 		return nil, fmt.Errorf("unexpected statuscode fetching %s: %d", uri.String(), resp.StatusCode)
 	}
 
-	if resp.Header.Get("Content-Encoding") == "gzip" || strings.HasSuffix(req.URL.Path, ".gz") {
-		return io.ReadAll(gzipReader(resp.Body))
-	}
+	r := func() io.Reader {
+		if resp.Header.Get("Content-Encoding") == "gzip" || strings.HasSuffix(req.URL.Path, ".gz") {
+			return gzipReader(resp.Body)
+		}
+		return resp.Body
+	}()
 
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(r)
 }
 
 func loadFile(path string) (result []byte, err error) {
@@ -113,20 +127,14 @@ type EvalParams struct {
 	Flight        FlightParams
 }
 
-func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) {
-	if params.Flight.Input != nil && params.Flight.Path == "" && params.Flight.Module.Instance == nil {
+func EvalFlight(ctx context.Context, params EvalParams) ([]byte, error) {
+	if params.Flight.Input != nil && params.Flight.Path == "" && params.Flight.Module.Instance == nil && len(params.Flight.Wasm) == 0 {
 		output, err := io.ReadAll(params.Flight.Input)
-		return output, nil, err
+		return output, err
 	}
 
-	wasm, err := func() ([]byte, error) {
-		if params.Flight.Module.Instance != nil {
-			return nil, nil
-		}
-		return LoadWasm(ctx, params.Flight.Path, params.Flight.Insecure)
-	}()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read wasm program: %w", err)
+	if err := LoadWasm(ctx, &params.Flight); err != nil {
+		return nil, fmt.Errorf("failed to load wasm program: %w", err)
 	}
 
 	yokeEnvVars := map[string]string{
@@ -153,12 +161,12 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, []byte, error) 
 		Timeout: params.Flight.Timeout,
 		Env:     env,
 		CompileParams: wasi.CompileParams{
-			Wasm:            wasm,
+			Wasm:            params.Flight.Wasm,
 			CacheDir:        params.Flight.CompilationCacheDir,
 			HostFunctionMap: host.BuildFunctionMap(params.Client),
 			MaxMemoryMib:    uint32(params.Flight.MaxMemoryMib),
 		},
 	})
 
-	return output, wasm, err
+	return output, err
 }

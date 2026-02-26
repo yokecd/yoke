@@ -22,7 +22,7 @@ type ListSchematicsParams struct {
 }
 
 func ListSchematics(ctx context.Context, params ListSchematicsParams) ([]string, error) {
-	wasm, err := LoadWasm(ctx, params.WasmURL, false)
+	wasm, err := LoadWasmFromURL(ctx, params.WasmURL, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
 	}
@@ -47,7 +47,7 @@ type GetSchematicParams struct {
 }
 
 func GetSchematic(ctx context.Context, params GetSchematicParams) ([]byte, error) {
-	wasm, err := LoadWasm(ctx, params.WasmURL, false)
+	wasm, err := LoadWasmFromURL(ctx, params.WasmURL, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
 	}
@@ -103,7 +103,7 @@ func SetSchematic(ctx context.Context, params SetSchematicParams) error {
 		return fmt.Errorf("failed to set schematics: cannot set schematics on remote wasm asset")
 	}
 
-	wasm, err := LoadWasm(ctx, params.WasmPath, false)
+	wasm, err := LoadWasmFromURL(ctx, params.WasmPath, false)
 	if err != nil {
 		return fmt.Errorf("failed to load wasm: %w", err)
 	}
