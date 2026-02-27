@@ -21,6 +21,7 @@ import (
 	"github.com/yokecd/yoke/cmd/yokecd/internal/svr"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/wasi/host"
 )
 
 const annotationArgocdSyncWave string = "argocd.argoproj.io/sync-wave"
@@ -136,6 +137,11 @@ func Run(ctx context.Context, cfg Config) (err error) {
 			Input:        cfg.Flight.Input,
 			MaxMemoryMib: cfg.Flight.MaxMemoryMib,
 			Timeout:      cfg.Flight.Timeout,
+			Checksum:     cfg.Flight.Checksum,
+			ClusterAccess: host.ClusterAccessParams{
+				Enabled:          cfg.Flight.ClusterAccess,
+				ResourceMatchers: cfg.Flight.ResourceMatchers,
+			},
 		})
 	}()
 	if err != nil {

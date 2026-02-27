@@ -36,6 +36,7 @@ type Parameters struct {
 	ClusterAccess    bool
 	MaxMemoryMib     uint32
 	Timeout          time.Duration
+	Checksum         string
 }
 
 // structure of individual CMP parameters
@@ -131,6 +132,13 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to parse parameter timeout: %w", err)
 	}
+
+	parameters.Checksum = func() string {
+		param, _ := internal.Find(elems, func(param CmpParam) bool {
+			return param.Name == "checksum"
+		})
+		return param.String
+	}()
 
 	return nil
 }
