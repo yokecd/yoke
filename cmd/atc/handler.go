@@ -69,7 +69,12 @@ func Handler(params HandlerParams) http.Handler {
 
 		}
 
-		converter, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Converter, cache.ModuleAttrs{})
+		converter, err := params.Cache.FromURL(
+			r.Context(),
+			airway.Spec.WasmURLs.Converter,
+			airway.Spec.WasmURLs.ConverterChecksum,
+			cache.ModuleAttrs{},
+		)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get converter module from cache: %v", err), http.StatusInternalServerError)
 			return
@@ -321,10 +326,15 @@ func Handler(params HandlerParams) http.Handler {
 			}
 			takeoffParams.Flight.Path = overrideURL
 		} else {
-			flightMod, err := params.Cache.FromURL(r.Context(), airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
-				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
-				HostFunctionMap: host.BuildFunctionMap(params.Client),
-			})
+			flightMod, err := params.Cache.FromURL(
+				r.Context(),
+				airway.Spec.WasmURLs.Flight,
+				airway.Spec.WasmURLs.FlightChecksum,
+				cache.ModuleAttrs{
+					MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+					HostFunctionMap: host.BuildFunctionMap(params.Client),
+				},
+			)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("failed to get flight module from cache: %v", err), http.StatusNotFound)
 				return
@@ -724,10 +734,12 @@ func Handler(params HandlerParams) http.Handler {
 			}
 		}()
 
-		mod, err := params.Cache.FromURL(r.Context(), flight.Spec.WasmURL, cache.ModuleAttrs{
-			MaxMemoryMib:    flight.Spec.MaxMemoryMib,
-			HostFunctionMap: host.BuildFunctionMap(params.Client),
-		})
+		mod, err := params.Cache.FromURL(
+			r.Context(),
+			flight.Spec.WasmURL,
+			flight.Spec.Checksum,
+			cache.ModuleAttrs{MaxMemoryMib: flight.Spec.MaxMemoryMib, HostFunctionMap: host.BuildFunctionMap(params.Client)},
+		)
 		if err != nil {
 			failReview(
 				&review,

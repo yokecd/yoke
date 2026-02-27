@@ -156,14 +156,17 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}()
 
 	if err := func() error {
-		for _, value := range []string{
-			airway.Spec.WasmURLs.Flight,
-			airway.Spec.WasmURLs.Converter,
+		for _, value := range []struct {
+			URL      string
+			Checksum string
+		}{
+			{airway.Spec.WasmURLs.Flight, airway.Spec.WasmURLs.FlightChecksum},
+			{airway.Spec.WasmURLs.Converter, airway.Spec.WasmURLs.ConverterChecksum},
 		} {
-			if value == "" {
+			if value.URL == "" {
 				continue
 			}
-			if _, err := atc.moduleCache.FromURL(ctx, value, cache.ModuleAttrs{
+			if _, err := atc.moduleCache.FromURL(ctx, value.URL, value.Checksum, cache.ModuleAttrs{
 				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
 				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
 			}); err != nil {
