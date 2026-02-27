@@ -2,6 +2,7 @@ package svr
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -119,14 +120,16 @@ type Mod struct {
 type ExecuteReq struct {
 	Source        []byte
 	ClusterAccess yoke.ClusterAccessParams
-	Path          string
-	Release       string
-	Namespace     string
-	Args          []string
-	Env           map[string]string
-	Input         string
-	MaxMemoryMib  uint32
-	Timeout       time.Duration
+
+	Path         string
+	Checksum     string
+	Release      string
+	Namespace    string
+	Args         []string
+	Env          map[string]string
+	Input        string
+	MaxMemoryMib uint32
+	Timeout      time.Duration
 }
 
 type ExecResponse struct {
@@ -154,8 +157,7 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			if len(ex.Source) > 0 {
 				return mods.FromSource(r.Context(), ex.Source, attrs)
 			}
-			// TODO: support checksums
-			return mods.FromURL(r.Context(), ex.Path, "", attrs)
+			return mods.FromURL(r.Context(), ex.Path, cmp.Or(ex.Checksum, internal.ChecksumFromPath(ex.Path)), attrs)
 		}()
 		if err != nil {
 			if cache.IsDisallowedModuleError(err) {
