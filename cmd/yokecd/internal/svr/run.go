@@ -154,7 +154,8 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			if len(ex.Source) > 0 {
 				return mods.FromSource(r.Context(), ex.Source, attrs)
 			}
-			return mods.FromURL(r.Context(), ex.Path, attrs)
+			// TODO: support checksums
+			return mods.FromURL(r.Context(), ex.Path, "", attrs)
 		}()
 		if err != nil {
 			if cache.IsDisallowedModuleError(err) {

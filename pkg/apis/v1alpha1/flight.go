@@ -64,6 +64,9 @@ type FlightSpec struct {
 	// WasmURLs defines the locations for the various implementations the AirTrafficController will invoke.
 	WasmURL string `json:"wasmUrl" Description:"URL of flight module. Can be http(s) or oci."`
 
+	// Checksum is the explicit sha256 checksum to verify wasm module against. If not present is inferred from url if possible.
+	Checksum string `json:"checksum,omitzero" Description:"Explicit sha256 checksum to verify wasm module against. If not present is inferred from url if possible."`
+
 	// Input will be passed to the flight over stdin. Flights are wasm programs and a string representation of the input
 	// is the most practical. This means that the input is not constrained to being json/yaml. It can be binary (base64), cue, toml,
 	// or any input expected by the underlying flight implementation.

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -114,7 +115,7 @@ func IsDisallowedModuleError(err error) bool {
 	return errors.Is(err, ErrDisallowedModule(""))
 }
 
-func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byte, error) {
+func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri, checksum string) ([]byte, error) {
 	if !cache.Globs.Match(uri) {
 		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", uri))
 	}
@@ -136,7 +137,7 @@ func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byt
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
 	}
 
-	if expected := internal.ChecksumFromPath(uri); expected != "" {
+	if expected := cmp.Or(checksum, internal.ChecksumFromPath(uri)); expected != "" {
 		if actual := internal.SHA256HexString(data); actual != expected {
 			return nil, fmt.Errorf("failed to validate checksum for module: expected %q but got %q", expected, actual)
 		}
@@ -160,7 +161,7 @@ func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri string) ([]byt
 	return compressed.Bytes(), nil
 }
 
-func (cache *ModuleCache) FromURL(ctx context.Context, url string, attrs ModuleAttrs) (*wasi.Module, error) {
+func (cache *ModuleCache) FromURL(ctx context.Context, url, checksum string, attrs ModuleAttrs) (*wasi.Module, error) {
 	if cachedMod, _ := cache.mods.Load(url); cachedMod != nil {
 		instance := func() *wasi.Module {
 			cachedMod.mutex.RLock()
@@ -172,7 +173,7 @@ func (cache *ModuleCache) FromURL(ctx context.Context, url string, attrs ModuleA
 		}
 	}
 
-	data, err := cache.loadRemoteWASM(ctx, url)
+	data, err := cache.loadRemoteWASM(ctx, url, checksum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load remote wasm: %w", err)
 	}

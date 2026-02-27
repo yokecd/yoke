@@ -203,9 +203,17 @@ type WasmURLs struct {
 	// the storage version of the Custom Resource. This property is required.
 	Flight string `json:"flight" Description:"URL to flight module. Supports http(s) or oci."`
 
+	// FlightChecksum is the explicit sha256 checksum to verify flight against.
+	// Useful when module cannot be referenced by its checksum implicity via tag or path components.
+	FlightChecksum string `json:"flightChecksum,omitzero" Description:"Explicit sha256 checksum to verify flight against. Useful when module cannot be referenced by its checksum implicity via tag or path components."`
+
 	// Converter is the implementation of the conversion webhook. If present, the ATC will automatically use it to serve conversion
 	// requests between the various served versions of the Custom Resource.
 	Converter string `json:"converter,omitempty" Description:"URL to converter module. Used for conversion webhooks. Supports http(s) or oci."`
+
+	// ConverterChecksum is the explicit sha256 checksum to verify converter against.
+	// Useful when module cannot be referenced by its checksum implicity via tag or path components.
+	ConverterChecksum string `json:"converterChecksum,omitzero" Description:"Explicit sha256 checksum to verify converter against. Useful when module cannot be referenced by its checksum implicity via tag or path components."`
 }
 
 func (airway Airway) MarshalJSON() ([]byte, error) {

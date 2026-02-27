@@ -394,12 +394,17 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			// It is not recommended to override in production. As so it is allowable that users don't version the overrideURL and that the content can change.
 			takeoffParams.Flight.Path = overrideURL
 		} else {
-			mod, err := atc.moduleCache.FromURL(ctx, params.Airway.Spec.WasmURLs.Flight, cache.ModuleAttrs{
-				MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
-				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
-			})
+			mod, err := atc.moduleCache.FromURL(
+				ctx,
+				params.Airway.Spec.WasmURLs.Flight,
+				params.Airway.Spec.WasmURLs.FlightChecksum,
+				cache.ModuleAttrs{
+					MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
+					HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+				},
+			)
 			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to fetch flight modile from cache: %w", err)
+				return ctrl.Result{}, fmt.Errorf("failed to fetch flight module from cache: %w", err)
 			}
 			takeoffParams.Flight.Module = yoke.Module{
 				Instance: mod,

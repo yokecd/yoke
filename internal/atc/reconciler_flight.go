@@ -136,7 +136,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 
 		setReadyCondition(metav1.ConditionFalse, "InProgress", "fetching flight wasm module")
 
-		mod, err := modules.FromURL(ctx, flight.Spec.WasmURL, cache.ModuleAttrs{
+		mod, err := modules.FromURL(ctx, flight.Spec.WasmURL, flight.Spec.Checksum, cache.ModuleAttrs{
 			MaxMemoryMib:    flight.Spec.MaxMemoryMib,
 			HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
 		})
