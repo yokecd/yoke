@@ -19,6 +19,10 @@
             "type": "string"
           }
         },
+        "checksum": {
+          "description": "Explicit sha256 checksum to verify wasm module against. If not present is inferred from url if possible.",
+          "type": "string"
+        },
         "clusterAccess": {
           "description": "Allow flight access to the cluster via WASI SDK.",
           "type": "boolean",

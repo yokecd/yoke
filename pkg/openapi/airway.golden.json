@@ -587,8 +587,16 @@
               "description": "URL to converter module. Used for conversion webhooks. Supports http(s) or oci.",
               "type": "string"
             },
+            "converterChecksum": {
+              "description": "Explicit sha256 checksum to verify converter against. Useful when module cannot be referenced by its checksum implicity via tag or path components.",
+              "type": "string"
+            },
             "flight": {
               "description": "URL to flight module. Supports http(s) or oci.",
+              "type": "string"
+            },
+            "flightChecksum": {
+              "description": "Explicit sha256 checksum to verify flight against. Useful when module cannot be referenced by its checksum implicity via tag or path components.",
               "type": "string"
             }
           }
