@@ -192,7 +192,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 				return ""
 			}
 		}()
-		if params.Checksum != actual {
+		if expected != actual {
 			return fmt.Errorf("cannot verify module against expected checksum: wanted %q but got %q", expected, actual)
 		}
 	}
