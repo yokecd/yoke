@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
 	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/davidmdm/x/xcontainer"
@@ -290,13 +292,18 @@ func Stow(ctx context.Context, params StowParams) error {
 
 	sha256 := internal.SHA256HexString(wasm)
 
-	tags := slices.Sorted(xcontainer.ToSet(append(params.Tags, "sha256_"+sha256)).All())
+	tags := xcontainer.ToSet(params.Tags)
+	tags.Add("sha256_"+sha256, "latest")
+
+	if _, tag, _ := strings.Cut(path.Base(params.URL), ":"); tag != "" {
+		tags.Add(tag)
+	}
 
 	digestURL, err := oci.PushArtifact(ctx, oci.PushArtifactParams{
 		Data:     wasm,
 		URL:      params.URL,
 		Insecure: params.Insecure,
-		Tags:     tags,
+		Tags:     tags.Collect(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to stow wasm artifact: %w", err)
@@ -306,7 +313,7 @@ func Stow(ctx context.Context, params StowParams) error {
 		DigestURL string   `yaml:"digestUrl"`
 		ModuleSHA string   `yaml:"moduleSHA"`
 		Tags      []string `yaml:"tags"`
-	}{digestURL, sha256, tags})
+	}{digestURL, sha256, slices.Sorted(tags.All())})
 }
 
 type UnlockParams struct {
