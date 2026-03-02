@@ -48,7 +48,8 @@ func ChecksumFromPath(value string) string {
 		}
 		return ""
 	default:
-		base := path.Base(uri.Path)
+		base, _, _ := strings.Cut(path.Base(uri.Path), ".")
+
 		if sha, ok := strings.CutPrefix(base, "sha256_"); ok {
 			return sha
 		}
