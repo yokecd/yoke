@@ -4,7 +4,26 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-02-17) atc/v0.19.3 - atc-installer/v0.18.2 - latest - v0.20.3 - yokecd/v0.19.3 - yokecd-installer/v0.19.4
+## (2026-03-01) atc/v0.19.5 - atc-installer/v0.18.4 - latest - v0.20.5 - yokecd/v0.19.5 - yokecd-installer/v0.19.7
+
+- yoke: infer checksum from path before first dot or extensions ([4434f07](https://github.com/yokecd/yoke/commit/4434f07f4d75316a54fd469baaf740d48f50af5e))
+- yoke: add all labels to stow output ([8015617](https://github.com/yokecd/yoke/commit/8015617649f9f728ab17d866f40894b2d21c912b))
+- atc: fix goldenfile tests for CRD schemas ([133a07f](https://github.com/yokecd/yoke/commit/133a07fdc8690b3d03dcc258aac18c65f3f9eae4))
+- yokecd: add checksum to argocd parameters ([a5e083e](https://github.com/yokecd/yoke/commit/a5e083eba4d94895ef1980d48e003cafe8eacd56))
+- atc: add checksum support to Airways and Flights ([6e8be13](https://github.com/yokecd/yoke/commit/6e8be13fbcb5f7bed8d115f12c52bb0545ce42b2))
+- yoke: add explicit and implicit checksum support to SDK and CLI ([793bb64](https://github.com/yokecd/yoke/commit/793bb64bca50803e1642cb1a41fe3aeaf48872bd))
+- yoke: update stow output to show digestUrl, moduleSha, and tags ([0d2bd14](https://github.com/yokecd/yoke/commit/0d2bd148d8e18ad90186abb63990c8e00baf242d))
+- yoke: stow now automatically adds a sha256 checksum tag ([16fb93c](https://github.com/yokecd/yoke/commit/16fb93cff3de121ccf3b09212da8e9d2daef6a0a))
+
+## (2026-03-01) yokecd-installer/v0.19.6
+
+- yokecd-installer: use ArgoCD Helm Chart version 9.4.5 ([3ddc485](https://github.com/yokecd/yoke/commit/3ddc4859a05adb49c205e1d77c4f31c6211fd4df))
+
+## (2026-02-21) atc/v0.19.4 - atc-installer/v0.18.3 - v0.20.4 - yokecd/v0.19.4 - yokecd-installer/v0.19.5
+
+- yoke: add digest pinning using release history ([9e0cb6d](https://github.com/yokecd/yoke/commit/9e0cb6df8ef5d1fb94a51e2ec95c876e8e2eb709))
+
+## (2026-02-17) atc/v0.19.3 - atc-installer/v0.18.2 - v0.20.3 - yokecd/v0.19.3 - yokecd-installer/v0.19.4
 
 - deps: update go to 1.26 and modernize ([5b0b0bc](https://github.com/yokecd/yoke/commit/5b0b0bc87294f293226f219a67d57268c06edbc4))
 
