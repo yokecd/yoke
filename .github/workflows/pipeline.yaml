@@ -36,6 +36,7 @@ jobs:
         shell: bash
         run: |
           go install github.com/go-task/task/v3/cmd/task@latest
+          go install github.com/k3d-io/k3d/v5@latest
           go install sigs.k8s.io/kind@latest
 
           task test
@@ -43,7 +44,7 @@ jobs:
       - name: Dump kubectl logs
         if: failure()
         run: |
-          kubectl config use-context kind-atc-test
+          kubectl config use-context k3d-atc-test
           kubectl cluster-info dump > k8s_dump.out
 
       - name: Upload k8s dump
