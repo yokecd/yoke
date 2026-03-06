@@ -350,7 +350,9 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		takeoffParams := yoke.TakeoffParams{
 			Release:   release,
 			Namespace: event.Namespace,
+			Checksum:  params.Airway.Spec.WasmURLs.FlightChecksum,
 			Flight: yoke.FlightParams{
+				Path:    params.Airway.Spec.WasmURLs.Flight,
 				Input:   bytes.NewReader(data),
 				Timeout: params.Airway.Spec.Timeout.Duration,
 			},
