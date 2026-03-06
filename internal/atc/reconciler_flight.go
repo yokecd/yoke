@@ -153,7 +153,9 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			ReleasePrefix:  releasePrefix,
 			Release:        flight.Name,
 			Namespace:      flight.Namespace,
+			Checksum:       flight.Spec.Checksum,
 			Flight: yoke.FlightParams{
+				Path: flight.Spec.WasmURL,
 				Module: yoke.Module{
 					Instance: mod,
 					SourceMetadata: internal.Source{

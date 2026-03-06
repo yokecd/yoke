@@ -2564,7 +2564,7 @@ func TestStatusUpdates(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			backendIntf.Delete(ctx, "test", metav1.DeleteOptions{})
+			_ = backendIntf.Delete(ctx, "test", metav1.DeleteOptions{})
 
 			testutils.EventuallyNoErrorf(
 				t,
@@ -3707,7 +3707,7 @@ func TestInvalidFlightURL(t *testing.T) {
 			func() error {
 				_, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
 				if !kerrors.IsNotFound(err) {
-					return fmt.Errorf("expecte error not found but got: %v", err)
+					return fmt.Errorf("expected error not found but got: %v", err)
 				}
 				return nil
 			},
@@ -3768,4 +3768,121 @@ func TestInvalidFlightURL(t *testing.T) {
 		return err
 	})
 	require.ErrorContains(t, err, `admission webhook "backends.examples.com" denied the request: module "http://localhost/evilmodule" not allowed`)
+}
+
+func TestInvalidChecksum(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	airway := &v1alpha1.Airway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "backends.examples.com",
+		},
+		Spec: v1alpha1.AirwaySpec{
+			WasmURLs: v1alpha1.WasmURLs{
+				Flight: "http://wasmcache/flight.v1.wasm",
+			},
+			Mode:          v1alpha1.AirwayModeSubscription,
+			ClusterAccess: true,
+			Template: apiextv1.CustomResourceDefinitionSpec{
+				Group: "examples.com",
+				Names: apiextv1.CustomResourceDefinitionNames{
+					Plural:   "backends",
+					Singular: "backend",
+					Kind:     "Backend",
+				},
+				Scope: apiextv1.NamespaceScoped,
+				Versions: []apiextv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextv1.CustomResourceValidation{
+							OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	airway, err = client.AirwayIntf.Create(context.Background(), airway, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expected error to be not found but got: %w", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected airway to be deleted proper",
+		)
+	}()
+
+	require.NoError(t,
+		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+			Timeout:  30 * time.Second,
+			Interval: time.Second,
+		}),
+	)
+
+	backendGVR := schema.GroupVersionResource{
+		Group:    "examples.com",
+		Version:  "v1",
+		Resource: "backends",
+	}
+
+	backendIntf := k8s.TypedInterface[backendv1.Backend](client.Dynamic, backendGVR).Namespace("default")
+
+	be, err := backendIntf.Create(
+		context.Background(),
+		&backendv1.Backend{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Backend",
+				APIVersion: "examples.com/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test",
+			},
+			Spec: backendv1.BackendSpec{
+				Image:    "yokecd/c4ts:latest",
+				Replicas: 1,
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			airway, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			airway.Spec.WasmURLs.FlightChecksum = "applebottomjeans"
+			_, err = client.AirwayIntf.Update(context.Background(), airway, metav1.UpdateOptions{})
+			return err
+		}),
+	)
+
+	require.ErrorContains(
+		t,
+		retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			be, err := backendIntf.Get(context.Background(), be.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			be.Spec.Replicas += 1
+			_, err = backendIntf.Update(context.Background(), be, metav1.UpdateOptions{})
+			return err
+		}),
+		`cannot verify module against expected checksum: wanted "applebottomjeans"`,
+	)
 }
