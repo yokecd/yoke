@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strconv"
@@ -143,7 +144,24 @@ func TestMain(m *testing.M) {
 		Poll:            time.Second,
 	}))
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+
+	if exitCode != 0 {
+		podintf := client.Clientset.CoreV1().Pods("atc")
+		list, err := podintf.List(context.Background(), metav1.ListOptions{LabelSelector: "yoke.cd/app=atc"})
+		if err != nil {
+			panic(err)
+		}
+		logs, err := podintf.GetLogs(list.Items[0].Name, &corev1.PodLogOptions{}).Stream(context.Background())
+		if err != nil {
+			panic(err)
+		}
+		if _, err := io.Copy(os.Stdout, logs); err != nil {
+			panic(err)
+		}
+	}
+
+	os.Exit(exitCode)
 }
 
 func TestAirTrafficController(t *testing.T) {
