@@ -283,12 +283,14 @@ func Handler(params HandlerParams) http.Handler {
 		takeoffParams := yoke.TakeoffParams{
 			Release:        atc.ReleaseName(&cr),
 			Namespace:      cmp.Or(cr.GetNamespace(), "default"),
+			Checksum:       airway.Spec.WasmURLs.FlightChecksum,
 			CrossNamespace: airway.Spec.Template.Scope == apiextv1.ClusterScoped,
 			ClusterAccess: host.ClusterAccessParams{
 				Enabled:          airway.Spec.ClusterAccess,
 				ResourceMatchers: airway.Spec.ResourceAccessMatchers,
 			},
 			Flight: yoke.FlightParams{
+				Path:         airway.Spec.WasmURLs.Flight,
 				Input:        bytes.NewReader(data),
 				MaxMemoryMib: uint64(airway.Spec.MaxMemoryMib),
 				Timeout:      airway.Spec.Timeout.Duration,
@@ -766,7 +768,9 @@ func Handler(params HandlerParams) http.Handler {
 			yoke.TakeoffParams{
 				Release:   flight.Name,
 				Namespace: flight.Namespace,
+				Checksum:  flight.Spec.Checksum,
 				Flight: yoke.FlightParams{
+					Path: flight.Spec.WasmURL,
 					Module: yoke.Module{
 						Instance: mod,
 						SourceMetadata: yoke.ModuleSourcetadata{

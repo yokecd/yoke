@@ -348,7 +348,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	fullReleaseName := params.ReleasePrefix + params.Release
 
 	source := func() internal.Source {
-		if params.Flight.Path == "" {
+		if params.Flight.Module.Instance != nil {
 			return params.Flight.Module.SourceMetadata
 		}
 		return internal.SourceFrom(params.Flight.Path, params.Flight.Wasm)
@@ -360,10 +360,10 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	}
 
 	if internal.IsPinnableReference(source.Ref) {
-		if _, ok := internal.Find(release.History, func(revision internal.Revision) bool {
+		if rev, ok := internal.Find(release.History, func(revision internal.Revision) bool {
 			return revision.Source.Ref == source.Ref && revision.Source.Checksum != source.Checksum
 		}); ok {
-			return fmt.Errorf("module %q has changed since last use", source.Ref)
+			return fmt.Errorf("module %q has changed since last use: got %q but wanted %q", source.Ref, source.Checksum, rev.Source.Checksum)
 		}
 	}
 

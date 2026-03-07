@@ -283,3 +283,59 @@ func TestNotAllowedFlightWasmURL(t *testing.T) {
 	)
 	require.ErrorContains(t, err, `admission webhook "flights.yoke.cd" denied the request: module "http://localhost/basic.wasm" not allowed`)
 }
+
+func TestFlightInvalidChecksum(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
+
+	// Create the flight initially so that we can warm the cache.
+	// Otherwise it'll behave different when we run this test alone versus with the rest of the test suite.
+	// Either it'll fail on first load if never loaded before, or at takeoff during dry-run if preloaded.
+	// Here we are testing the preloaded case.
+	flight, err := flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec: v1alpha1.FlightSpec{
+				WasmURL: "http://wasmcache/basic.wasm",
+				Input:   "{}",
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, flightIntf.Delete(context.Background(), flight.Name, metav1.DeleteOptions{}))
+		testutils.EventuallyNoErrorf(
+			t,
+			func() error {
+				if _, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+					return fmt.Errorf("expected error not found but got: %w", err)
+				}
+				return nil
+			},
+			time.Second,
+			30*time.Second,
+			"expected flight to be removed from cluster but was not",
+		)
+	}()
+
+	flight.Spec.Checksum = "applebottomjeans"
+
+	require.ErrorContains(
+		t,
+		retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			flight, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			flight.Spec.Checksum = "applebottomjeans"
+			_, err = flightIntf.Update(context.Background(), flight, metav1.UpdateOptions{})
+			return err
+		}),
+		`cannot verify module against expected checksum: wanted "applebottomjeans"`,
+	)
+}
