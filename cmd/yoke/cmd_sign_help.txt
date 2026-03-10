@@ -1,0 +1,16 @@
+!yellow yoke sign
+
+This commands signs a given local module and adds the signature as a module schematic with key "signature".
+The provided key must be an RSA, ECDSA, or ED25519 private key in pem format.
+
+!cyan Usage:
+  yoke sign [flags] <wasm-file>
+
+!cyan Examples:
+  # sign a local module in-place
+  yoke sign -key private.pem main.wasm
+
+  # sign a local module to an output file
+  yoke sign -key private.pem -o signed.wasm main.wasm
+
+!cyan Flags:
