@@ -135,6 +135,23 @@ func run() error {
 			return SchematicsCommand(ctx, subcmdArgs)
 		}
 
+	case "sign":
+		{
+			params, err := GetSignParams(subcmdArgs)
+			if err != nil {
+				return err
+			}
+			return yoke.Sign(*params)
+		}
+	case "verify":
+		{
+			params, err := GetVerifyParams(subcmdArgs)
+			if err != nil {
+				return err
+			}
+			return yoke.Verify(*params)
+		}
+
 	case "version":
 		{
 			return Version(ctx)

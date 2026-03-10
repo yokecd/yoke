@@ -1,0 +1,20 @@
+!yellow yoke verify
+
+This commands verifies a given local module's signature against a set of public keys.
+The key is loaded directly from the provided path if it is a file. If the provided path is a directory,
+all pem files are loaded recursively.
+
+Only RSA, ECDSA, and ED25519 keys are supported and must be in pem format. 
+If a private key is found, the public key will be inferred from it.
+
+!cyan Usage:
+  yoke verify [flags] <wasm-file>
+
+!cyan Examples:
+  # verify against a public key
+  yoke sign -key public.pem main.wasm
+
+  # verify against a set of keys loaded from a directory
+  yoke sign -key ./keys/ main.wasm
+
+!cyan Flags:

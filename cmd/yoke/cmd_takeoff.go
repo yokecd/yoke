@@ -16,13 +16,6 @@ import (
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
-type TakeoffFlightParams struct {
-	Path      string
-	Input     io.Reader
-	Args      []string
-	Namespace string
-}
-
 type TakeoffParams struct {
 	GlobalSettings
 	yoke.TakeoffParams
@@ -78,6 +71,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 
 	flagset.StringVar(&params.Flight.CompilationCacheDir, "compilation-cache", "", "location to cache wasm compilations")
 	flagset.StringVar(&params.Checksum, "checksum", "", "sha256 checksum for desired module. If module does not match checksum takeoff will fail. Checksum can be inferred from oci tag or from  http basepath")
+	flagset.StringVar(&params.VerifyKeyPath, "verify", "", "path to public key or directory of keys to verify module signature against.")
 
 	flagset.Func(
 		"resource-access",

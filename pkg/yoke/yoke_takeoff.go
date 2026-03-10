@@ -28,6 +28,7 @@ import (
 	"github.com/yokecd/yoke/internal/text"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/wasi/host"
+	"github.com/yokecd/yoke/internal/xcrypto"
 )
 
 type ModuleSourcetadata = internal.Source
@@ -170,6 +171,11 @@ type TakeoffParams struct {
 	//
 	// If checksum is not provided and cannot be inferred, this check is skipped.
 	Checksum string
+
+	// VerifyKeyPath is the path to the public key used to verify the module's signature if signed.
+	// If the path is to a folder, all PEM files are loaded. If the key is a private key, it will infer the public key from it.
+	// Only one key is loaded per PEM file.
+	VerifyKeyPath string
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (err error) {
@@ -194,6 +200,16 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		}()
 		if expected != actual {
 			return fmt.Errorf("cannot verify module against expected checksum: wanted %q but got %q", expected, actual)
+		}
+	}
+
+	if params.VerifyKeyPath != "" && len(params.Flight.Wasm) > 0 {
+		keys, err := xcrypto.LoadPublicKeysFromFS(params.VerifyKeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to load public keys from fs: %w", err)
+		}
+		if err := xcrypto.VerifyModule(keys, params.Flight.Wasm); err != nil {
+			return fmt.Errorf("failed to verify module: %w", err)
 		}
 	}
 

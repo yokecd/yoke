@@ -73,6 +73,7 @@ func GetCustomSections(wasm []byte) map[string][]byte {
 
 func withCustomSection(wasm []byte, prefix, name string, data []byte) []byte {
 	var buffer bytes.Buffer
+	buffer.Grow(len(wasm) + len(prefix+name) + len(data))
 
 	// Preamble
 	_, _ = buffer.Write(wasm[:8])
@@ -117,6 +118,38 @@ func withCustomSection(wasm []byte, prefix, name string, data []byte) []byte {
 	_, _ = buffer.Write(data)
 
 	return buffer.Bytes()
+}
+
+func WithoutCustomSection(wasm []byte, name string) ([]byte, []byte) {
+	var buffer bytes.Buffer
+	buffer.Grow(len(wasm))
+	buffer.Write(wasm[:8])
+	offset := 8
+
+	for offset < len(wasm) {
+		sectionStart := offset
+
+		sectionID := wasm[offset]
+		offset++
+
+		size, n := binary.Uvarint(wasm[offset:])
+		offset += n
+
+		if sectionID == 0 {
+			nameLength, n := binary.Uvarint(wasm[offset:])
+			sectionName := wasm[offset+n : offset+n+int(nameLength)]
+			if name == string(sectionName) {
+				data := wasm[offset+n+int(nameLength) : offset+int(size)]
+				buffer.Write(wasm[offset+int(size):])
+				return buffer.Bytes(), data
+			}
+		}
+
+		offset += int(size)
+		_, _ = buffer.Write(wasm[sectionStart:offset])
+	}
+
+	return buffer.Bytes(), nil
 }
 
 func WithCustomSectionCMD(wasm []byte, name string, cmd []string) []byte {

@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -33,7 +36,9 @@ import (
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/testutils"
+	"github.com/yokecd/yoke/internal/wasm/module"
 	"github.com/yokecd/yoke/internal/x"
+	"github.com/yokecd/yoke/internal/xcrypto"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -2078,5 +2083,93 @@ func TestChecksumVerification(t *testing.T) {
 			`cannot verify module against expected checksum: wanted "applebottomjeansbootwiththefur" but got %q`,
 			internal.SHA256HexString(flightModule),
 		),
+	)
+}
+
+func TestCodeSigning(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(
+		"./test_output/pub.pem",
+		pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}),
+		0o644,
+	))
+
+	require.NoError(t, x.X("go build -o ./test_output/name.wasm ./internal/testing/flights/name", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	wasm, err := os.ReadFile("./test_output/name.wasm")
+	require.NoError(t, err)
+
+	signed, err := xcrypto.SignModule(priv, wasm)
+	require.NoError(t, err)
+
+	commander, err := yoke.FromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	ctx := internal.WithStdout(context.Background(), io.Discard)
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:       "codesigning",
+		SendToStdout:  true,
+		VerifyKeyPath: "./test_output/pub.pem",
+		Flight: yoke.FlightParams{
+			Wasm: signed,
+		},
+	}))
+
+	{
+		pub, _, err := ed25519.GenerateKey(nil)
+		require.NoError(t, err)
+
+		der, err := x509.MarshalPKIXPublicKey(pub)
+		require.NoError(t, err)
+
+		require.NoError(t, os.WriteFile(
+			"./test_output/pub2.pem",
+			pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}),
+			0o644,
+		))
+	}
+
+	require.EqualError(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release:       "codesigning",
+			SendToStdout:  true,
+			VerifyKeyPath: "./test_output/pub2.pem",
+			Flight:        yoke.FlightParams{Wasm: signed},
+		}),
+		"failed to verify module: module's key fingerprint does not match provided key(s)",
+	)
+
+	fingerprint, err := xcrypto.PublicFingerprint(pub)
+	require.NoError(t, err)
+
+	signaturePayload := struct {
+		Fingerprint string
+		Signature   []byte
+	}{
+		Fingerprint: fingerprint,
+		Signature:   []byte("invalid"),
+	}
+
+	signatureData, err := json.Marshal(signaturePayload)
+	require.NoError(t, err)
+
+	evilSigned := module.WithCustomSectionData(wasm, "signature", signatureData)
+
+	require.EqualError(
+		t,
+		commander.Takeoff(ctx, yoke.TakeoffParams{
+			Release:       "codesigning",
+			SendToStdout:  true,
+			VerifyKeyPath: "./test_output/pub.pem",
+			Flight:        yoke.FlightParams{Wasm: evilSigned},
+		}),
+		"failed to verify module: invalid signature",
 	)
 }
