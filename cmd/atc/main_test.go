@@ -67,6 +67,7 @@ apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: atc-test
+image: rancher/k3s:v1.31.4-k3s1
 servers: 1
 agents: 0
 `))))
