@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,8 +19,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 
+	"github.com/yokecd/yoke/internal/xcrypto"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 )
@@ -38,6 +40,7 @@ type Config struct {
 	Concurrency            int               `json:"concurrency,omitzero" Description:"number of workers to process reconciliation events. Defaults to GOMAXPROCS if unset"`
 	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
 	ModuleAllowList        []string          `json:"moduleAllowList,omitzero" Description:"list of patterns that define the module allow-list. If empty all modules are allowed."`
+	ModuleVerificationKeys []string          `json:"moduleVerificationKeys,omitzero" Description:"list of public keys uses to verify modules. Allowlist takes precedence."`
 }
 
 func Run(cfg Config) (flight.Stages, error) {
@@ -132,7 +135,6 @@ func Run(cfg Config) (flight.Stages, error) {
 			if !k8s.IsErrNotFound(err) && !errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
 				return nil, fmt.Errorf("failed to lookup tls secret: %T: %v", err, err)
 			}
-
 			if errors.Is(err, k8s.ErrorClusterAccessNotGranted) {
 				fmt.Fprintln(os.Stderr, "Cluster-access not granted: enable cluster-access to reuse existing TLS certificates.")
 			}
@@ -225,7 +227,7 @@ func Run(cfg Config) (flight.Stages, error) {
 			Namespace: flight.Namespace(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To[int32](1),
+			Replicas: new(int32(1)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selector,
 			},
@@ -295,12 +297,61 @@ func Run(cfg Config) (flight.Stages, error) {
 		},
 	}
 
+	keySecret, err := func() (*corev1.Secret, error) {
+		if len(cfg.ModuleVerificationKeys) == 0 {
+			return nil, nil
+		}
+		data, err := json.Marshal(cfg.ModuleVerificationKeys)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal module verification keys: %w", err)
+		}
+		// Just validate that they are parseable.
+		var keys xcrypto.PublicKeySet
+		if err := json.Unmarshal(data, &keys); err != nil {
+			return nil, fmt.Errorf("invalid module verification keys: %w", err)
+		}
+
+		return &corev1.Secret{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
+			ObjectMeta: metav1.ObjectMeta{Name: flight.Release() + "-module-verification-keys"},
+			Immutable:  new(true),
+			Data:       map[string][]byte{"keys.json": data},
+			Type:       corev1.SecretTypeOpaque,
+		}, nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	if keySecret != nil {
+		var (
+			volume = corev1.Volume{
+				Name:         "module-verification-keys",
+				VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: keySecret.Name}},
+			}
+			mount = corev1.VolumeMount{
+				Name:      volume.Name,
+				MountPath: "/var/run/atc/keys",
+				ReadOnly:  true,
+			}
+			path = path.Join(mount.MountPath, "keys.json")
+		)
+
+		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volume)
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts, mount)
+		deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "MODULE_VERIFICATION_KEYS_PATH",
+			Value: path,
+		})
+	}
+
 	return flight.Stages{
 		{
 			svc,
 			tlsSecret,
 			account,
 			binding,
+			keySecret,
 		},
 		{
 			// By moving the deployment deletion into a later stage, this means we will also delete it first

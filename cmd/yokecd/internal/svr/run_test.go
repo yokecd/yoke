@@ -46,7 +46,7 @@ func TestPluginServer(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(&stdout, t.Output()), nil))
 
 	globs := internal.Globs{"http://localhost*"}
-	mods := cache.NewModuleCache("./test_output", globs)
+	mods := cache.NewModuleCache("./test_output", globs, nil)
 
 	modCount := func() (count int) {
 		for range mods.All() {
@@ -108,7 +108,7 @@ func TestPluginServer(t *testing.T) {
 		Release:   "baz",
 		Namespace: "default",
 	})
-	require.ErrorContains(t, err, `error: failed to load remote wasm: module "oci://ghcr.io/yokecd/example" not allowed`)
+	require.ErrorContains(t, err, `error: module "oci://ghcr.io/yokecd/example" not allowed`)
 
 	type Log struct {
 		Elapsed metav1.Duration `json:"elapsed"`
@@ -148,7 +148,7 @@ func TestPluginServerLookup(t *testing.T) {
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&stdout, nil))
 
-	mods := cache.NewModuleCache("./test_output", nil)
+	mods := cache.NewModuleCache("./test_output", nil, nil)
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)

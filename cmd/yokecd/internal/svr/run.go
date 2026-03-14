@@ -80,7 +80,8 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	mods := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList)
+	// TODO: support verification keys.
+	mods := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList, nil)
 
 	svr := http.Server{
 		Addr:    addr,
