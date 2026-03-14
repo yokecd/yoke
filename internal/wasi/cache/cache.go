@@ -10,12 +10,13 @@ import (
 	"io"
 	"iter"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 	"weak"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/wasi"
+	"github.com/yokecd/yoke/internal/xcrypto"
 	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -26,18 +27,21 @@ type CachedModule struct {
 }
 
 type ModuleCache struct {
-	mods   *xsync.Map[string, *CachedModule]
-	paths  *xsync.Map[string, *sync.Mutex]
+	mods  *xsync.Map[string, *CachedModule]
+	paths *xsync.Map[string, *sync.Mutex]
+
 	fsRoot string
 	Globs  internal.Globs
+	Keys   xcrypto.PublicKeySet
 }
 
-func NewModuleCache(fsRoot string, globs internal.Globs) *ModuleCache {
+func NewModuleCache(fsRoot string, globs internal.Globs, keys xcrypto.PublicKeySet) *ModuleCache {
 	return &ModuleCache{
 		mods:   new(xsync.Map[string, *CachedModule]),
 		paths:  new(xsync.Map[string, *sync.Mutex]),
 		fsRoot: fsRoot,
 		Globs:  globs,
+		Keys:   keys,
 	}
 }
 
@@ -63,27 +67,15 @@ func (cache *ModuleCache) All() iter.Seq[*wasi.Module] {
 	}
 }
 
-func (cache *ModuleCache) FromSource(ctx context.Context, source []byte, attrs ModuleAttrs) (*wasi.Module, error) {
-	key := internal.SHA1HexString(source)
+func (cache *ModuleCache) FromSource(ctx context.Context, wasm []byte, attrs ModuleAttrs) (*wasi.Module, error) {
+	key := internal.SHA1HexString(wasm)
 	mod, _ := cache.mods.LoadOrStore(key, &CachedModule{mutex: sync.RWMutex{}})
-
-	mod.mutex.Lock()
-	defer mod.mutex.Unlock()
-
 	if instance := mod.Instance.Value(); instance != nil && instance.MaxMemoryMib() == attrs.MaxMemoryMib {
 		return instance, nil
 	}
 
-	gr, err := gzip.NewReader(bytes.NewReader(source))
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = gr.Close() }()
-
-	wasm, err := io.ReadAll(gr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load wasm module: %w", err)
-	}
+	mod.mutex.Lock()
+	defer mod.mutex.Unlock()
 
 	instance, err := wasi.Compile(ctx, wasi.CompileParams{
 		Wasm:            wasm,
@@ -115,21 +107,14 @@ func IsDisallowedModuleError(err error) bool {
 	return errors.Is(err, ErrDisallowedModule(""))
 }
 
-func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri, checksum string) ([]byte, error) {
-	if !cache.Globs.Match(uri) {
-		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", uri))
-	}
-
-	mutex, _ := cache.paths.LoadOrStore(uri, new(sync.Mutex))
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	filepath := path.Join(cache.fsRoot, internal.SHA1HexString([]byte(uri)))
-
-	data, err := os.ReadFile(filepath)
+func (cache *ModuleCache) loadWasm(ctx context.Context, uri string) ([]byte, error) {
+	data, err := os.ReadFile(cache.fsPath(uri))
 	if err == nil {
-		return data, err
+		gr, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader for cached wasm file: %w", err)
+		}
+		return io.ReadAll(gr)
 	}
 
 	data, err = yoke.LoadWasmFromURL(ctx, uri, false)
@@ -137,54 +122,90 @@ func (cache *ModuleCache) loadRemoteWASM(ctx context.Context, uri, checksum stri
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
 	}
 
-	if expected := cmp.Or(checksum, internal.ChecksumFromPath(uri)); expected != "" {
-		if actual := internal.SHA256HexString(data); actual != expected {
+	return data, nil
+}
+
+func (cache *ModuleCache) FromURL(ctx context.Context, url, checksum string, attrs ModuleAttrs) (*wasi.Module, error) {
+	if mod := cache.pullFromCache(url, attrs); mod != nil {
+		return mod, nil
+	}
+
+	if !cache.Globs.Match(url) {
+		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", url))
+	}
+
+	mutex, _ := cache.paths.LoadOrStore(url, new(sync.Mutex))
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if mod := cache.pullFromCache(url, attrs); mod != nil {
+		return mod, nil
+	}
+
+	wasm, err := cache.loadWasm(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load remote wasm: %w", err)
+	}
+
+	if expected := cmp.Or(checksum, internal.ChecksumFromPath(url)); expected != "" {
+		if actual := internal.SHA256HexString(wasm); actual != expected {
 			return nil, fmt.Errorf("failed to validate checksum for module: expected %q but got %q", expected, actual)
 		}
 	}
 
-	var compressed bytes.Buffer
-
-	gw := gzip.NewWriter(&compressed)
-	if _, err := gw.Write(data); err != nil {
-		return nil, fmt.Errorf("failed to gzip wasm data: %w", err)
+	if len(cache.Keys) > 0 && (len(cache.Globs) == 0 || !cache.Globs.Match(url)) {
+		if err := xcrypto.VerifyModule(cache.Keys, wasm); err != nil {
+			return nil, fmt.Errorf("failed to verify module: %w", err)
+		}
 	}
 
-	if err := gw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	if err := cache.toDisk(url, wasm); err != nil {
+		return nil, fmt.Errorf("failed to cache module on disk: %w", err)
 	}
 
-	if err := os.WriteFile(filepath, compressed.Bytes(), 0o644); err != nil {
-		return nil, fmt.Errorf("failed to write gzip wasm to cache: %w", err)
+	module, err := cache.FromSource(ctx, wasm, attrs)
+	if err != nil {
+		return nil, err
 	}
 
-	return compressed.Bytes(), nil
+	cachedMod, _ := cache.mods.Load(internal.SHA1HexString(wasm))
+	cache.mods.Store(url, cachedMod)
+
+	return module, nil
 }
 
-func (cache *ModuleCache) FromURL(ctx context.Context, url, checksum string, attrs ModuleAttrs) (*wasi.Module, error) {
-	if cachedMod, _ := cache.mods.Load(url); cachedMod != nil {
+func (cache ModuleCache) fsPath(uri string) string {
+	return filepath.Join(cache.fsRoot, internal.SHA1HexString([]byte(uri)))
+}
+
+func (cache ModuleCache) toDisk(url string, wasm []byte) error {
+	var (
+		compressed bytes.Buffer
+		gw         = gzip.NewWriter(&compressed)
+	)
+	if _, err := gw.Write(wasm); err != nil {
+		return fmt.Errorf("failed to gzip wasm data: %w", err)
+	}
+	if err := gw.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+	if err := os.WriteFile(cache.fsPath(url), compressed.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("failed to write gzip wasm to cache: %w", err)
+	}
+	return nil
+}
+
+func (cache ModuleCache) pullFromCache(key string, attrs ModuleAttrs) *wasi.Module {
+	if cachedMod, _ := cache.mods.Load(key); cachedMod != nil {
 		instance := func() *wasi.Module {
 			cachedMod.mutex.RLock()
 			defer cachedMod.mutex.RUnlock()
 			return cachedMod.Instance.Value()
 		}()
 		if instance != nil && instance.MaxMemoryMib() == attrs.MaxMemoryMib {
-			return instance, nil
+			return instance
 		}
 	}
-
-	data, err := cache.loadRemoteWASM(ctx, url, checksum)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load remote wasm: %w", err)
-	}
-
-	module, err := cache.FromSource(ctx, data, attrs)
-	if err != nil {
-		return nil, err
-	}
-
-	cachedMod, _ := cache.mods.Load(internal.SHA1HexString(data))
-	cache.mods.Store(url, cachedMod)
-
-	return module, nil
+	return nil
 }

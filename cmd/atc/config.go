@@ -8,6 +8,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
+	"github.com/yokecd/yoke/internal/xcrypto"
 )
 
 type Config struct {
@@ -15,7 +16,8 @@ type Config struct {
 	Concurrency int
 	Port        int
 
-	ModuleAllowList internal.Globs
+	ModuleAllowList        internal.Globs
+	ModuleVerificationKeys xcrypto.PublicKeySet
 
 	CacheFS string
 
@@ -64,6 +66,9 @@ func LoadConfig() (*Config, error) {
 
 	conf.Var(parser, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
 
+	var verificationKeyPath string
+	conf.Var(parser, &verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
+
 	if err := parser.Parse(); err != nil {
 		return nil, err
 	}
@@ -73,6 +78,10 @@ func LoadConfig() (*Config, error) {
 	conf.Var(fs, &cfg.TLS.CA.Data, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
 	conf.Var(fs, &cfg.TLS.ServerCert.Data, cfg.TLS.ServerCert.Path, conf.RequiredNonEmpty[[]byte]())
 	conf.Var(fs, &cfg.TLS.ServerKey.Data, cfg.TLS.ServerKey.Path, conf.RequiredNonEmpty[[]byte]())
+
+	if verificationKeyPath != "" {
+		conf.Var(fs, &cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
+	}
 
 	if err := fs.Parse(); err != nil {
 		return nil, err

@@ -6,6 +6,8 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +35,10 @@ var getClient = sync.OnceValues(func() (client *k8s.Client, err error) {
 })
 
 func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
+	if clusterAccess, _ := strconv.ParseBool(os.Getenv("CLUSTER_ACCESS")); !clusterAccess {
+		return nil, ErrorClusterAccessNotGranted
+	}
+
 	client, err := getClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubernetes client: %w", err)
