@@ -160,7 +160,7 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "y", "Y":
-			if !view.Search.Focused() && view.Yaml != nil {
+			if !view.Search.Focused() && view.Yaml != nil && len(view.Data) < view.Table.Cursor() {
 				nav := view.Yaml(view.Data[view.Table.Cursor()])
 				return nav.Model(view.Dim), nav.Cmd
 			}
