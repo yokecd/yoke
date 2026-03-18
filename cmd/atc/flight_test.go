@@ -44,8 +44,9 @@ func TestFlightInstance(t *testing.T) {
 				Name: "basic",
 			},
 			Spec: v1alpha1.FlightSpec{
-				WasmURL: "http://wasmcache/basic.wasm",
-				Input:   toJSONString(t, map[string]string{"hello": "world"}),
+				WasmURL:  "oci://registry:80/basic.wasm",
+				Input:    toJSONString(t, map[string]string{"hello": "world"}),
+				Insecure: true,
 			},
 		},
 		metav1.CreateOptions{},
@@ -53,7 +54,6 @@ func TestFlightInstance(t *testing.T) {
 	require.NoError(t, err)
 
 	cmIntf := client.Clientset.CoreV1().ConfigMaps("default")
-
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
@@ -129,7 +129,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 		context.Background(),
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "crossname"},
-			Spec:       v1alpha1.FlightSpec{WasmURL: "http://wasmcache/crossnamespace.wasm"},
+			Spec:       v1alpha1.FlightSpec{WasmURL: "oci://registry:80/crossnamespace.wasm", Insecure: true},
 		},
 		metav1.CreateOptions{},
 	)
@@ -149,7 +149,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 		context.Background(),
 		&v1alpha1.ClusterFlight{
 			ObjectMeta: metav1.ObjectMeta{Name: "crossname"},
-			Spec:       v1alpha1.FlightSpec{WasmURL: "http://wasmcache/crossnamespace.wasm"},
+			Spec:       v1alpha1.FlightSpec{WasmURL: "oci://registry:80/crossnamespace.wasm", Insecure: true},
 		},
 		metav1.CreateOptions{},
 	)
@@ -203,7 +203,8 @@ func TestFlightInputObject(t *testing.T) {
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
 			Spec: v1alpha1.FlightSpec{
-				WasmURL:     "http://wasmcache/basic.wasm",
+				WasmURL:     "oci://registry:80/basic.wasm",
+				Insecure:    true,
 				InputObject: map[string]any{"banana": "hammock"},
 			},
 		},
@@ -258,8 +259,9 @@ func TestFlightValidationWebhook(t *testing.T) {
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
 			Spec: v1alpha1.FlightSpec{
-				WasmURL: "http://wasmcache/basic.wasm",
-				Input:   `{"answer":42}`, // basic expects a map of strings not ints
+				WasmURL:  "oci://registry:80/basic.wasm",
+				Insecure: true,
+				Input:    `{"answer":42}`, // basic expects a map of strings not ints
 			},
 		},
 		metav1.CreateOptions{},
@@ -277,7 +279,7 @@ func TestNotAllowedFlightWasmURL(t *testing.T) {
 		context.Background(),
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
-			Spec:       v1alpha1.FlightSpec{WasmURL: "http://localhost/basic.wasm"},
+			Spec:       v1alpha1.FlightSpec{WasmURL: "http://localhost/basic.wasm", Insecure: true},
 		},
 		metav1.CreateOptions{},
 	)
@@ -299,8 +301,9 @@ func TestFlightInvalidChecksum(t *testing.T) {
 		&v1alpha1.Flight{
 			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
 			Spec: v1alpha1.FlightSpec{
-				WasmURL: "http://wasmcache/basic.wasm",
-				Input:   "{}",
+				WasmURL:  "oci://registry:80/basic.wasm",
+				Insecure: true,
+				Input:    "{}",
 			},
 		},
 		metav1.CreateOptions{},

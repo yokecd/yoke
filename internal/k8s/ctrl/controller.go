@@ -20,6 +20,7 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/internal/text"
 	"github.com/yokecd/yoke/internal/xsync"
 )
 
@@ -125,6 +126,7 @@ func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
 		if internal.ResourcesAreEqual(prev, next) {
 			return
 		}
+		fmt.Println(text.DiffColorized(internal.Must2(text.ToYamlFile("prev", prev)), internal.Must2(text.ToYamlFile("next", next)), 4))
 		instance.events.Enqueue(Event{
 			Name:      next.GetName(),
 			Namespace: next.GetNamespace(),

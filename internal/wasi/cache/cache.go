@@ -107,7 +107,7 @@ func IsDisallowedModuleError(err error) bool {
 	return errors.Is(err, ErrDisallowedModule(""))
 }
 
-func (cache *ModuleCache) loadWasm(ctx context.Context, uri string) ([]byte, error) {
+func (cache *ModuleCache) loadWasm(ctx context.Context, uri string, insecure bool) ([]byte, error) {
 	data, err := os.ReadFile(cache.fsPath(uri))
 	if err == nil {
 		gr, err := gzip.NewReader(bytes.NewReader(data))
@@ -117,7 +117,7 @@ func (cache *ModuleCache) loadWasm(ctx context.Context, uri string) ([]byte, err
 		return io.ReadAll(gr)
 	}
 
-	data, err = yoke.LoadWasmFromURL(ctx, uri, false)
+	data, err = yoke.LoadWasmFromURL(ctx, uri, insecure)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wasm: %w", err)
 	}
@@ -125,52 +125,59 @@ func (cache *ModuleCache) loadWasm(ctx context.Context, uri string) ([]byte, err
 	return data, nil
 }
 
-func (cache *ModuleCache) FromURL(ctx context.Context, url, checksum string, attrs ModuleAttrs) (*wasi.Module, error) {
-	if mod := cache.pullFromCache(url, attrs); mod != nil {
+type FromURLParams struct {
+	URL      string
+	Checksum string
+	Insecure bool
+	Attrs    ModuleAttrs
+}
+
+func (cache *ModuleCache) FromURL(ctx context.Context, params FromURLParams) (*wasi.Module, error) {
+	if mod := cache.pullFromCache(params.URL, params.Attrs); mod != nil {
 		return mod, nil
 	}
 
-	if !cache.Globs.Match(url) {
-		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", url))
+	if !cache.Globs.Match(params.URL) {
+		return nil, ErrDisallowedModule(fmt.Sprintf("module %q not allowed", params.URL))
 	}
 
-	mutex, _ := cache.paths.LoadOrStore(url, new(sync.Mutex))
+	mutex, _ := cache.paths.LoadOrStore(params.URL, new(sync.Mutex))
 
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	if mod := cache.pullFromCache(url, attrs); mod != nil {
+	if mod := cache.pullFromCache(params.URL, params.Attrs); mod != nil {
 		return mod, nil
 	}
 
-	wasm, err := cache.loadWasm(ctx, url)
+	wasm, err := cache.loadWasm(ctx, params.URL, params.Insecure)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load remote wasm: %w", err)
 	}
 
-	if expected := cmp.Or(checksum, internal.ChecksumFromPath(url)); expected != "" {
+	if expected := cmp.Or(params.Checksum, internal.ChecksumFromPath(params.URL)); expected != "" {
 		if actual := internal.SHA256HexString(wasm); actual != expected {
 			return nil, fmt.Errorf("failed to validate checksum for module: expected %q but got %q", expected, actual)
 		}
 	}
 
-	if len(cache.Keys) > 0 && (len(cache.Globs) == 0 || !cache.Globs.Match(url)) {
+	if len(cache.Keys) > 0 && (len(cache.Globs) == 0 || !cache.Globs.Match(params.URL)) {
 		if err := xcrypto.VerifyModule(cache.Keys, wasm); err != nil {
 			return nil, fmt.Errorf("failed to verify module: %w", err)
 		}
 	}
 
-	if err := cache.toDisk(url, wasm); err != nil {
+	if err := cache.toDisk(params.URL, wasm); err != nil {
 		return nil, fmt.Errorf("failed to cache module on disk: %w", err)
 	}
 
-	module, err := cache.FromSource(ctx, wasm, attrs)
+	module, err := cache.FromSource(ctx, wasm, params.Attrs)
 	if err != nil {
 		return nil, err
 	}
 
 	cachedMod, _ := cache.mods.Load(internal.SHA1HexString(wasm))
-	cache.mods.Store(url, cachedMod)
+	cache.mods.Store(params.URL, cachedMod)
 
 	return module, nil
 }

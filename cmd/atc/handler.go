@@ -71,9 +71,12 @@ func Handler(params HandlerParams) http.Handler {
 
 		converter, err := params.Cache.FromURL(
 			r.Context(),
-			airway.Spec.WasmURLs.Converter,
-			airway.Spec.WasmURLs.ConverterChecksum,
-			cache.ModuleAttrs{},
+			cache.FromURLParams{
+				URL:      airway.Spec.WasmURLs.Converter,
+				Checksum: airway.Spec.WasmURLs.ConverterChecksum,
+				Insecure: airway.Spec.Insecure,
+				Attrs:    cache.ModuleAttrs{},
+			},
 		)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get converter module from cache: %v", err), http.StatusInternalServerError)
@@ -291,6 +294,7 @@ func Handler(params HandlerParams) http.Handler {
 			},
 			Flight: yoke.FlightParams{
 				Path:         airway.Spec.WasmURLs.Flight,
+				Insecure:     airway.Spec.Insecure,
 				Input:        bytes.NewReader(data),
 				MaxMemoryMib: uint64(airway.Spec.MaxMemoryMib),
 				Timeout:      airway.Spec.Timeout.Duration,
@@ -330,11 +334,14 @@ func Handler(params HandlerParams) http.Handler {
 		} else {
 			flightMod, err := params.Cache.FromURL(
 				r.Context(),
-				airway.Spec.WasmURLs.Flight,
-				airway.Spec.WasmURLs.FlightChecksum,
-				cache.ModuleAttrs{
-					MaxMemoryMib:    airway.Spec.MaxMemoryMib,
-					HostFunctionMap: host.BuildFunctionMap(params.Client),
+				cache.FromURLParams{
+					URL:      airway.Spec.WasmURLs.Flight,
+					Checksum: airway.Spec.WasmURLs.FlightChecksum,
+					Insecure: airway.Spec.Insecure,
+					Attrs: cache.ModuleAttrs{
+						MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+						HostFunctionMap: host.BuildFunctionMap(params.Client),
+					},
 				},
 			)
 			if err != nil {
@@ -738,9 +745,15 @@ func Handler(params HandlerParams) http.Handler {
 
 		mod, err := params.Cache.FromURL(
 			r.Context(),
-			flight.Spec.WasmURL,
-			flight.Spec.Checksum,
-			cache.ModuleAttrs{MaxMemoryMib: flight.Spec.MaxMemoryMib, HostFunctionMap: host.BuildFunctionMap(params.Client)},
+			cache.FromURLParams{
+				URL:      flight.Spec.WasmURL,
+				Checksum: flight.Spec.Checksum,
+				Insecure: flight.Spec.Insecure,
+				Attrs: cache.ModuleAttrs{
+					MaxMemoryMib:    flight.Spec.MaxMemoryMib,
+					HostFunctionMap: host.BuildFunctionMap(params.Client),
+				},
+			},
 		)
 		if err != nil {
 			failReview(
@@ -770,7 +783,8 @@ func Handler(params HandlerParams) http.Handler {
 				Namespace: flight.Namespace,
 				Checksum:  flight.Spec.Checksum,
 				Flight: yoke.FlightParams{
-					Path: flight.Spec.WasmURL,
+					Path:     flight.Spec.WasmURL,
+					Insecure: flight.Spec.Insecure,
 					Module: yoke.Module{
 						Instance: mod,
 						SourceMetadata: yoke.ModuleSourcetadata{

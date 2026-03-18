@@ -352,9 +352,10 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			Namespace: event.Namespace,
 			Checksum:  params.Airway.Spec.WasmURLs.FlightChecksum,
 			Flight: yoke.FlightParams{
-				Path:    params.Airway.Spec.WasmURLs.Flight,
-				Input:   bytes.NewReader(data),
-				Timeout: params.Airway.Spec.Timeout.Duration,
+				Path:     params.Airway.Spec.WasmURLs.Flight,
+				Insecure: params.Airway.Spec.Insecure,
+				Input:    bytes.NewReader(data),
+				Timeout:  params.Airway.Spec.Timeout.Duration,
 			},
 			ManagedBy:      "atc.yoke",
 			Lock:           false,
@@ -398,11 +399,14 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		} else {
 			mod, err := atc.moduleCache.FromURL(
 				ctx,
-				params.Airway.Spec.WasmURLs.Flight,
-				params.Airway.Spec.WasmURLs.FlightChecksum,
-				cache.ModuleAttrs{
-					MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
-					HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+				cache.FromURLParams{
+					URL:      params.Airway.Spec.WasmURLs.Flight,
+					Checksum: params.Airway.Spec.WasmURLs.FlightChecksum,
+					Insecure: params.Airway.Spec.Insecure,
+					Attrs: cache.ModuleAttrs{
+						MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
+						HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+					},
 				},
 			)
 			if err != nil {

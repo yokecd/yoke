@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
     - role: control-plane
       extraPortMappings:
       - containerPort: 30000
-        hostPort: 80
+        hostPort: 5001
         listenAddress: "127.0.0.1"
         protocol: TCP
     `))))
@@ -94,8 +94,8 @@ func TestMain(m *testing.M) {
 	))
 	must(x.X("kind load --name=atc-test docker-image yokecd/atc:test"))
 
-	must(x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
-	must(x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
+	// must(x.X("docker build -t yokecd/wasmcache:test -f ./internal/testing/Dockerfile.wasmcache ../.."))
+	// must(x.X("kind load --name=atc-test docker-image yokecd/wasmcache:test"))
 
 	must(x.X("docker build -t yokecd/c4ts:test -f ./internal/testing/Dockerfile.c4ts ./internal/testing"))
 	must(x.X("kind load --name=atc-test docker-image yokecd/c4ts:test"))
@@ -114,7 +114,7 @@ func TestMain(m *testing.M) {
 				Image:           "yokecd/atc",
 				Version:         "test",
 				LogFormat:       "text",
-				ModuleAllowList: []string{"http://wasmcache/*"},
+				ModuleAllowList: []string{"oci://registry:80/*"},
 			}),
 			Args: []string{"--skip-version-check"},
 		},
@@ -124,18 +124,18 @@ func TestMain(m *testing.M) {
 	}))
 
 	must(commander.Takeoff(ctx, yoke.TakeoffParams{
-		Release:   "wasmcache",
+		Release:   "registry",
 		Namespace: "atc",
 		Flight: yoke.FlightParams{
 			Path: "./test_output/backend.v1.wasm",
 			Input: internal.JSONReader(backendv1.Backend{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "wasmcache",
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: "registry"},
 				Spec: backendv1.BackendSpec{
-					Image:       "yokecd/wasmcache:test",
+					Image:       "registry:3",
 					Replicas:    1,
-					HealthCheck: "/health",
+					ServicePort: 5000,
+					NodePort:    30000,
+					HealthCheck: "/",
 				},
 			}),
 		},
@@ -143,6 +143,30 @@ func TestMain(m *testing.M) {
 		Wait:            30 * time.Second,
 		Poll:            time.Second,
 	}))
+
+	for name, path := range map[string]string{
+		"flight.v1.wasm":              "./internal/testing/apis/backend/v1/flight",
+		"flight.v1.modes.wasm":        "./internal/testing/apis/backend/v1/modeFlight",
+		"flight.v2.wasm":              "./internal/testing/apis/backend/v2/flight",
+		"flight.dev.wasm":             "./internal/testing/apis/backend/v2/dev",
+		"converter.wasm":              "./internal/testing/apis/backend/converter",
+		"crossnamespace.wasm":         "./internal/testing/flights/crossnamespace",
+		"longrunning.wasm":            "./internal/testing/flights/longrunning",
+		"resourceaccessmatchers.wasm": "./internal/testing/flights/resourceaccessmatchers",
+		"status.wasm":                 "./internal/testing/flights/status",
+		"deploymentstatus.wasm":       "./internal/testing/flights/deploymentstatus",
+		"prune.wasm":                  "./internal/testing/flights/prune",
+		"externalcreation.wasm":       "./internal/testing/flights/externalcreation",
+		"timeout.wasm":                "./internal/testing/flights/timeout",
+		"subscriptions.wasm":          "./internal/testing/flights/subscriptions",
+		"basic.wasm":                  "./internal/testing/flights/basic",
+		"identityerror.wasm":          "./internal/testing/flights/identityerror",
+	} {
+		out := fmt.Sprintf("./build_output/module/%s", name)
+		must(x.Xf("go build -o %s %s", []any{out, path}, x.Env("GOOS=wasip1", "GOARCH=wasm")))
+		fmt.Println("stowing:", name)
+		must(yoke.Stow(context.Background(), yoke.StowParams{WasmFile: out, URL: "oci://localhost:5001/" + name}))
+	}
 
 	exitCode := m.Run()
 
@@ -183,8 +207,9 @@ func TestAirTrafficController(t *testing.T) {
 					},
 					Spec: v1alpha1.AirwaySpec{
 						WasmURLs: v1alpha1.WasmURLs{
-							Flight: "http://wasmcache/flight.v1.wasm",
+							Flight: "oci://registry:80/flight.v1.wasm",
 						},
+						Insecure: true,
 						Template: apiextv1.CustomResourceDefinitionSpec{
 							Group: "examples.com",
 							Names: apiextv1.CustomResourceDefinitionNames{
@@ -224,8 +249,9 @@ func TestAirTrafficController(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/flight.v1.wasm",
+						Flight: "oci://registry:80/flight.v1.wasm",
 					},
+					Insecure: true,
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
 						Names: apiextv1.CustomResourceDefinitionNames{
@@ -377,9 +403,10 @@ func TestAirTrafficController(t *testing.T) {
 						},
 						Spec: v1alpha1.AirwaySpec{
 							WasmURLs: v1alpha1.WasmURLs{
-								Flight:    "http://wasmcache/flight.v2.wasm",
-								Converter: "http://wasmcache/converter.wasm",
+								Flight:    "oci://registry:80/flight.v2.wasm",
+								Converter: "oci://registry:80/converter.wasm",
 							},
+							Insecure: true,
 							Template: apiextv1.CustomResourceDefinitionSpec{
 								Group: "examples.com",
 								Names: apiextv1.CustomResourceDefinitionNames{
@@ -518,7 +545,7 @@ func TestAirTrafficController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "c4ts",
 						Annotations: map[string]string{
-							flight.AnnotationOverrideFlight: "http://wasmcache/flight.dev.wasm",
+							flight.AnnotationOverrideFlight: "oci://registry:80/flight.dev.wasm",
 						},
 					},
 					Spec: backendv2.BackendSpec{
@@ -542,7 +569,7 @@ func TestAirTrafficController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "c4ts",
 						Annotations: map[string]string{
-							flight.AnnotationOverrideFlight: "http://wasmcache/flight.dev.wasm",
+							flight.AnnotationOverrideFlight: "oci://registry:80/flight.dev.wasm",
 						},
 					},
 					Spec: backendv2.BackendSpec{
@@ -623,6 +650,8 @@ func TestAirTrafficController(t *testing.T) {
 }
 
 func TestRestarts(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -642,8 +671,9 @@ func TestRestarts(t *testing.T) {
 						},
 						Spec: v1alpha1.AirwaySpec{
 							WasmURLs: v1alpha1.WasmURLs{
-								Flight: "http://wasmcache/flight.v1.wasm",
+								Flight: "oci://registry:80/flight.v1.wasm",
 							},
+							Insecure: true,
 							Template: apiextv1.CustomResourceDefinitionSpec{
 								Group: "examples.com",
 								Names: apiextv1.CustomResourceDefinitionNames{
@@ -799,6 +829,8 @@ func TestRestarts(t *testing.T) {
 }
 
 func TestCrossNamespace(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -813,8 +845,9 @@ func TestCrossNamespace(t *testing.T) {
 			},
 			Spec: v1alpha1.AirwaySpec{
 				WasmURLs: v1alpha1.WasmURLs{
-					Flight: "http://wasmcache/crossnamespace.wasm",
+					Flight: "oci://registry:80/crossnamespace.wasm",
 				},
+				Insecure: true,
 				Template: apiextv1.CustomResourceDefinitionSpec{
 					Group: "examples.com",
 					Names: apiextv1.CustomResourceDefinitionNames{
@@ -935,10 +968,11 @@ func TestCrossNamespace(t *testing.T) {
 
 	_, err = testIntfCluster.Create(ctx, emptyTest, metav1.CreateOptions{})
 	require.NoError(t, err)
-	require.NoError(t, client.AirwayIntf.Delete(context.Background(), "tests.examples.com", metav1.DeleteOptions{}))
 }
 
 func TestClusterScopeDynamicAirway(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -952,9 +986,10 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 		},
 		Spec: v1alpha1.AirwaySpec{
 			WasmURLs: v1alpha1.WasmURLs{
-				Flight: "http://wasmcache/crossnamespace.wasm",
+				Flight: "oci://registry:80/crossnamespace.wasm",
 			},
-			Mode: v1alpha1.AirwayModeDynamic,
+			Insecure: true,
+			Mode:     v1alpha1.AirwayModeDynamic,
 			Template: apiextv1.CustomResourceDefinitionSpec{
 				Group: "examples.com",
 				Names: apiextv1.CustomResourceDefinitionNames{
@@ -1070,6 +1105,8 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 }
 
 func TestHistoryCap(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -1092,8 +1129,9 @@ func TestHistoryCap(t *testing.T) {
 						},
 						Spec: v1alpha1.AirwaySpec{
 							WasmURLs: v1alpha1.WasmURLs{
-								Flight: "http://wasmcache/flight.v1.wasm",
+								Flight: "oci://registry:80/flight.v1.wasm",
 							},
+							Insecure: true,
 							Template: apiextv1.CustomResourceDefinitionSpec{
 								Group: "examples.com",
 								Names: apiextv1.CustomResourceDefinitionNames{
@@ -1214,7 +1252,7 @@ func TestHistoryCap(t *testing.T) {
 	require.Len(t, release.History, 2)
 
 	for _, revision := range release.History {
-		require.Equal(t, "http://wasmcache/flight.v1.wasm", revision.Source.Ref)
+		require.Equal(t, "oci://registry:80/flight.v1.wasm", revision.Source.Ref)
 		require.NotEmpty(t, revision.Source.Checksum)
 	}
 
@@ -1245,8 +1283,9 @@ func TestHistoryCap(t *testing.T) {
 						},
 						Spec: v1alpha1.AirwaySpec{
 							WasmURLs: v1alpha1.WasmURLs{
-								Flight: "http://wasmcache/flight.v1.wasm",
+								Flight: "oci://registry:80/flight.v1.wasm",
 							},
+							Insecure:       true,
 							HistoryCapSize: 3,
 							Template: apiextv1.CustomResourceDefinitionSpec{
 								Group: "examples.com",
@@ -1317,6 +1356,8 @@ func TestHistoryCap(t *testing.T) {
 }
 
 func TestFixDriftInterval(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -1333,8 +1374,9 @@ func TestFixDriftInterval(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/flight.v1.wasm",
+						Flight: "oci://registry:80/flight.v1.wasm",
 					},
+					Insecure:         true,
 					FixDriftInterval: metav1.Duration{Duration: time.Second / 2},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
@@ -1453,6 +1495,8 @@ func TestFixDriftInterval(t *testing.T) {
 }
 
 func TestStatusReadiness(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -1471,8 +1515,9 @@ func TestStatusReadiness(t *testing.T) {
 					},
 					Spec: v1alpha1.AirwaySpec{
 						WasmURLs: v1alpha1.WasmURLs{
-							Flight: "http://wasmcache/longrunning.wasm",
+							Flight: "oci://registry:80/longrunning.wasm",
 						},
+						Insecure: true,
 						Template: apiextv1.CustomResourceDefinitionSpec{
 							Group: "examples.com",
 							Names: apiextv1.CustomResourceDefinitionNames{
@@ -1565,6 +1610,8 @@ func TestStatusReadiness(t *testing.T) {
 }
 
 func TestResourceAccessMatchers(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -1661,8 +1708,9 @@ func TestResourceAccessMatchers(t *testing.T) {
 					},
 					Spec: v1alpha1.AirwaySpec{
 						WasmURLs: v1alpha1.WasmURLs{
-							Flight: "http://wasmcache/resourceaccessmatchers.wasm",
+							Flight: "oci://registry:80/resourceaccessmatchers.wasm",
 						},
+						Insecure:               true,
 						ClusterAccess:          true,
 						ResourceAccessMatchers: matchers,
 						Template: apiextv1.CustomResourceDefinitionSpec{
@@ -1773,6 +1821,8 @@ func TestResourceAccessMatchers(t *testing.T) {
 }
 
 func TestAirwayModes(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -1789,8 +1839,9 @@ func TestAirwayModes(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/flight.v1.modes.wasm",
+						Flight: "oci://registry:80/flight.v1.modes.wasm",
 					},
+					Insecure:      true,
 					Mode:          v1alpha1.AirwayModeStatic,
 					ClusterAccess: true,
 					Template: apiextv1.CustomResourceDefinitionSpec{
@@ -2028,6 +2079,8 @@ func TestAirwayModes(t *testing.T) {
 }
 
 func TestDynamicWithExternalResource(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -2089,8 +2142,9 @@ func TestDynamicWithExternalResource(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/resourceaccessmatchers.wasm",
+						Flight: "oci://registry:80/resourceaccessmatchers.wasm",
 					},
+					Insecure:               true,
 					Mode:                   v1alpha1.AirwayModeDynamic,
 					ClusterAccess:          true,
 					ResourceAccessMatchers: []string{"Secret"},
@@ -2225,6 +2279,8 @@ func TestDynamicWithExternalResource(t *testing.T) {
 }
 
 func TestExternalDynamicCreateEvent(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -2256,8 +2312,9 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/externalcreation.wasm",
+						Flight: "oci://registry:80/externalcreation.wasm",
 					},
+					Insecure:               true,
 					Mode:                   v1alpha1.AirwayModeDynamic,
 					ClusterAccess:          true,
 					ResourceAccessMatchers: []string{"default/ConfigMap"},
@@ -2386,6 +2443,8 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 }
 
 func TestStatusUpdates(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -2414,8 +2473,9 @@ func TestStatusUpdates(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/status.wasm",
+						Flight: "oci://registry:80/status.wasm",
 					},
+					Insecure:      true,
 					Mode:          v1alpha1.AirwayModeStatic,
 					ClusterAccess: true,
 					Template: apiextv1.CustomResourceDefinitionSpec{
@@ -2621,6 +2681,8 @@ func TestStatusUpdates(t *testing.T) {
 }
 
 func TestDeploymentStatus(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -2649,8 +2711,9 @@ func TestDeploymentStatus(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/deploymentstatus.wasm",
+						Flight: "oci://registry:80/deploymentstatus.wasm",
 					},
+					Insecure:      true,
 					Mode:          v1alpha1.AirwayModeDynamic,
 					ClusterAccess: true,
 					Template: apiextv1.CustomResourceDefinitionSpec{
@@ -2747,6 +2810,8 @@ func TestDeploymentStatus(t *testing.T) {
 }
 
 func TestPruning(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -2764,8 +2829,9 @@ func TestPruning(t *testing.T) {
 					},
 					Spec: v1alpha1.AirwaySpec{
 						WasmURLs: v1alpha1.WasmURLs{
-							Flight: "http://wasmcache/prune.wasm",
+							Flight: "oci://registry:80/prune.wasm",
 						},
+						Insecure:      true,
 						Mode:          v1alpha1.AirwayModeDynamic,
 						Prune:         prune,
 						ClusterAccess: true,
@@ -2969,6 +3035,8 @@ func TestPruning(t *testing.T) {
 }
 
 func TestOverridePermissions(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3062,8 +3130,9 @@ func TestOverridePermissions(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/flight.v1.wasm",
+						Flight: "oci://registry:80/flight.v1.wasm",
 					},
+					Insecure: true,
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
 						Names: apiextv1.CustomResourceDefinitionNames{
@@ -3157,6 +3226,8 @@ func TestOverridePermissions(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3173,9 +3244,10 @@ func TestTimeout(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/timeout.wasm",
+						Flight: "oci://registry:80/timeout.wasm",
 					},
-					Timeout: metav1.Duration{Duration: 30 * time.Millisecond},
+					Insecure: true,
+					Timeout:  metav1.Duration{Duration: 30 * time.Millisecond},
 					Template: apiextv1.CustomResourceDefinitionSpec{
 						Group: "examples.com",
 						Names: apiextv1.CustomResourceDefinitionNames{
@@ -3247,6 +3319,8 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestSubscriptionMode(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3263,8 +3337,9 @@ func TestSubscriptionMode(t *testing.T) {
 				},
 				Spec: v1alpha1.AirwaySpec{
 					WasmURLs: v1alpha1.WasmURLs{
-						Flight: "http://wasmcache/subscriptions.wasm",
+						Flight: "oci://registry:80/subscriptions.wasm",
 					},
+					Insecure:               true,
 					Mode:                   v1alpha1.AirwayModeSubscription,
 					ClusterAccess:          true,
 					ResourceAccessMatchers: []string{"ConfigMap:external"},
@@ -3426,6 +3501,8 @@ func TestSubscriptionMode(t *testing.T) {
 }
 
 func TestValidationCycle(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3437,8 +3514,9 @@ func TestValidationCycle(t *testing.T) {
 			},
 			Spec: v1alpha1.AirwaySpec{
 				WasmURLs: v1alpha1.WasmURLs{
-					Flight: "http://wasmcache/flight.v1.wasm",
+					Flight: "oci://registry:80/flight.v1.wasm",
 				},
+				Insecure: true,
 				Template: apiextv1.CustomResourceDefinitionSpec{
 					Group: "examples.com",
 					Names: apiextv1.CustomResourceDefinitionNames{
@@ -3464,22 +3542,6 @@ func TestValidationCycle(t *testing.T) {
 		metav1.CreateOptions{},
 	)
 	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
-		testutils.EventuallyNoErrorf(
-			t,
-			func() error {
-				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
-					return fmt.Errorf("expected error to be not found but got: %w", err)
-				}
-				return nil
-			},
-			time.Second,
-			30*time.Second,
-			"expected airway to be deleted proper",
-		)
-	}()
 
 	require.NoError(t,
 		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
@@ -3539,6 +3601,8 @@ func TestValidationCycle(t *testing.T) {
 }
 
 func TestIdentityWithError(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3558,8 +3622,9 @@ func TestIdentityWithError(t *testing.T) {
 			},
 			Spec: v1alpha1.AirwaySpec{
 				WasmURLs: v1alpha1.WasmURLs{
-					Flight: "http://wasmcache/identityerror.wasm",
+					Flight: "oci://registry:80/identityerror.wasm",
 				},
+				Insecure:      true,
 				Mode:          v1alpha1.AirwayModeSubscription,
 				ClusterAccess: true,
 				Template: apiextv1.CustomResourceDefinitionSpec{
@@ -3617,27 +3682,6 @@ func TestIdentityWithError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	defer func() {
-		// Kubernetes garbage collectin is too slow and creating flaky test conditions...
-		// So forcefully remove test resource before deleting airway...
-		require.NoError(t, testIntf.Delete(context.Background(), test.Name, metav1.DeleteOptions{}))
-		require.NoError(t, client.WaitIsRemovedFromCluster(context.Background(), internal.Must2(internal.ToUnstructured(test)), k8s.WaitOptions{}))
-
-		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
-		testutils.EventuallyNoErrorf(
-			t,
-			func() error {
-				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
-					return fmt.Errorf("expected error to be not found but got: %v", err)
-				}
-				return nil
-			},
-			time.Second,
-			30*time.Second,
-			"expected airway to be deleted proper",
-		)
-	}()
-
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
@@ -3658,6 +3702,8 @@ func TestIdentityWithError(t *testing.T) {
 }
 
 func TestInvalidFlightURL(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3667,8 +3713,9 @@ func TestInvalidFlightURL(t *testing.T) {
 		},
 		Spec: v1alpha1.AirwaySpec{
 			WasmURLs: v1alpha1.WasmURLs{
-				Flight: "http://wasmcache/flight.v1.wasm",
+				Flight: "oci://registry:80/flight.v1.wasm",
 			},
+			Insecure:      true,
 			Mode:          v1alpha1.AirwayModeSubscription,
 			ClusterAccess: true,
 			Template: apiextv1.CustomResourceDefinitionSpec{
@@ -3716,24 +3763,6 @@ func TestInvalidFlightURL(t *testing.T) {
 		30*time.Second,
 		"expected airway to become ready",
 	)
-
-	defer func() {
-		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
-
-		testutils.EventuallyNoErrorf(
-			t,
-			func() error {
-				_, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
-				if !kerrors.IsNotFound(err) {
-					return fmt.Errorf("expected error not found but got: %v", err)
-				}
-				return nil
-			},
-			time.Second,
-			30*time.Second,
-			"expected airway to be removed from cluster",
-		)
-	}()
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
@@ -3789,6 +3818,8 @@ func TestInvalidFlightURL(t *testing.T) {
 }
 
 func TestInvalidChecksum(t *testing.T) {
+	DropAllAirways(t)
+
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
@@ -3798,8 +3829,9 @@ func TestInvalidChecksum(t *testing.T) {
 		},
 		Spec: v1alpha1.AirwaySpec{
 			WasmURLs: v1alpha1.WasmURLs{
-				Flight: "http://wasmcache/flight.v1.wasm",
+				Flight: "oci://registry:80/flight.v1.wasm",
 			},
+			Insecure:      true,
 			Mode:          v1alpha1.AirwayModeSubscription,
 			ClusterAccess: true,
 			Template: apiextv1.CustomResourceDefinitionSpec{
@@ -3826,22 +3858,6 @@ func TestInvalidChecksum(t *testing.T) {
 
 	airway, err = client.AirwayIntf.Create(context.Background(), airway, metav1.CreateOptions{})
 	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, client.AirwayIntf.Delete(context.Background(), airway.Name, metav1.DeleteOptions{}))
-		testutils.EventuallyNoErrorf(
-			t,
-			func() error {
-				if _, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
-					return fmt.Errorf("expected error to be not found but got: %w", err)
-				}
-				return nil
-			},
-			time.Second,
-			30*time.Second,
-			"expected airway to be deleted proper",
-		)
-	}()
 
 	require.NoError(t,
 		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
@@ -3903,4 +3919,38 @@ func TestInvalidChecksum(t *testing.T) {
 		}),
 		`cannot verify module against expected checksum: wanted "applebottomjeans"`,
 	)
+}
+
+func DropAllAirways(t *testing.T) {
+	t.Helper()
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	airways, err := client.AirwayIntf.List(t.Context(), metav1.ListOptions{})
+	require.NoError(t, err)
+
+	if len(airways) == 0 {
+		return
+	}
+
+	ctx := internal.WithDebugFlag(t.Context(), new(true))
+
+	var resources []*unstructured.Unstructured
+	for _, airway := range airways {
+		t.Logf("dropping airway: %s", airway.Name)
+		resource, err := internal.ToUnstructured(airway)
+		require.NoError(t, err)
+		resources = append(resources, resource)
+		require.NoError(t, client.AirwayIntf.Delete(ctx, airway.Name, metav1.DeleteOptions{}))
+	}
+
+	start := time.Now()
+
+	require.NoError(t, client.WaitIsRemoveFromClusterMany(ctx, resources, k8s.WaitOptions{
+		Timeout:  2 * time.Minute,
+		Interval: 2 * time.Second,
+	}))
+
+	t.Logf("finished dropping airways after %s", time.Since(start))
 }

@@ -1123,7 +1123,7 @@ func TestBadVersion(t *testing.T) {
 func TestOciFlight(t *testing.T) {
 	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 	require.NoError(t, x.X("docker rm -f registry"))
-	require.NoError(t, x.X("docker run -d -p 5001:5000 --name registry registry:3"))
+	require.NoError(t, x.X("docker run -d -p 5002:5000 --name registry registry:3"))
 
 	defer func() {
 		require.NoError(t, x.X("docker rm -f registry"))
@@ -1131,7 +1131,7 @@ func TestOciFlight(t *testing.T) {
 
 	require.NoError(t, yoke.Stow(context.Background(), yoke.StowParams{
 		WasmFile: "./test_output/basic.wasm",
-		URL:      "oci://localhost:5001/test:v1",
+		URL:      "oci://localhost:5002/test:v1",
 		Tags:     []string{"alt"},
 	}))
 
@@ -1146,7 +1146,7 @@ func TestOciFlight(t *testing.T) {
 		SendToStdout: true,
 		Release:      "registry",
 		Flight: yoke.FlightParams{
-			Path: "oci://localhost:5001/test:v1",
+			Path: "oci://localhost:5002/test:v1",
 		},
 	}))
 	defer func() {
@@ -1156,11 +1156,11 @@ func TestOciFlight(t *testing.T) {
 	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
 		Release: "registry",
 		Flight: yoke.FlightParams{
-			Path: "oci://localhost:5001/test:alt",
+			Path: "oci://localhost:5002/test:alt",
 		},
 	}))
 
-	resp, err := http.Get("http://localhost:5001/v2/test/tags/list")
+	resp, err := http.Get("http://localhost:5002/v2/test/tags/list")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

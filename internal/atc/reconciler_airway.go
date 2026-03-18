@@ -87,7 +87,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
-	if airway.DeletionTimestamp != nil {
+	if !airway.DeletionTimestamp.IsZero() {
 		airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 
 		if idx := slices.Index(airway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
@@ -104,6 +104,8 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			foregroundDelete := metav1.DeleteOptions{
 				PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
 			}
+
+			fmt.Println("DEBUG: deleting CRD:", airway.Name)
 
 			if err := crdIntf.Delete(ctx, airway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
@@ -166,10 +168,18 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 			if value.URL == "" {
 				continue
 			}
-			if _, err := atc.moduleCache.FromURL(ctx, value.URL, value.Checksum, cache.ModuleAttrs{
-				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
-				HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
-			}); err != nil {
+			if _, err := atc.moduleCache.FromURL(
+				ctx,
+				cache.FromURLParams{
+					URL:      value.URL,
+					Checksum: value.Checksum,
+					Insecure: airway.Spec.Insecure,
+					Attrs: cache.ModuleAttrs{
+						MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+						HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+					},
+				},
+			); err != nil {
 				return fmt.Errorf("failed to warm cache: %w", err)
 			}
 
