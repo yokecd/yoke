@@ -150,10 +150,9 @@ func (view TableView[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if view.Forward != nil {
 				_, data := view.rows()
-				if len(data) == 0 {
+				if len(data) == 0 || view.Table.Cursor() >= len(data) {
 					return view, nil
 				}
-
 				nav := view.Forward(data[view.Table.Cursor()])
 				return nav.Model(view.Dim), nav.Cmd
 			}
@@ -201,11 +200,16 @@ func (view TableView[T]) View() string {
 					Description: view.Back.Desc,
 				})
 			}
-			var zero T
+			value := func() (value T) {
+				if view.Table.Cursor() < len(view.Data) {
+					return view.Data[view.Table.Cursor()]
+				}
+				return
+			}()
 			if view.Forward != nil {
 				actions = append(actions, HeaderActionItem{
 					Key:         "enter",
-					Description: view.Forward(zero).Desc,
+					Description: view.Forward(value).Desc,
 				})
 			}
 			if view.Yaml != nil {

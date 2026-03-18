@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	GetAirwayListResult []v1alpha1.Airway
+	GetAirwayListResult []*v1alpha1.Airway
 )
 
 type AirwayListView struct {
@@ -23,14 +23,14 @@ type AirwayListView struct {
 
 func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 	return AirwayListView{
-		Model: TableView[v1alpha1.Airway]{
+		Model: TableView[*v1alpha1.Airway]{
 			Dim:     dim,
 			Search:  textinput.New(),
 			Table:   table.New(),
 			Title:   "airways",
 			Data:    nil,
 			Columns: []string{"Name", "Status", "Msg"},
-			ToRows: func(airways []v1alpha1.Airway) []table.Row {
+			ToRows: func(airways []*v1alpha1.Airway) []table.Row {
 				rows := make([]table.Row, len(airways))
 				for i, airway := range airways {
 					readyConditon, _ := internal.Find(airway.Status.Conditions, func(cond metav1.Condition) bool {
@@ -60,7 +60,10 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 				Cmd:  tea.Quit,
 				Desc: "exit",
 			},
-			Forward: func(airway v1alpha1.Airway) Nav {
+			Forward: func(airway *v1alpha1.Airway) Nav {
+				if airway == nil {
+					return Nav{Desc: "view flights"}
+				}
 				gk := schema.GroupKind{
 					Group: airway.Spec.Template.Group,
 					Kind:  airway.Spec.Template.Names.Kind,
@@ -80,10 +83,10 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 							return cmds.GetFlightList(gk)
 						})
 					},
-					Desc: "view flights " + gk.String(),
+					Desc: "view " + airway.Spec.Template.Names.Plural,
 				}
 			},
-			Yaml: func(airway v1alpha1.Airway) Nav {
+			Yaml: func(airway *v1alpha1.Airway) Nav {
 				ref := ResourceRef{
 					Name: airway.Name,
 					GK:   airway.GroupVersionKind().GroupKind(),
@@ -121,7 +124,7 @@ func MakeAirwayListView(dim tea.WindowSizeMsg) AirwayListView {
 
 func (view AirwayListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if result, ok := msg.(GetAirwayListResult); ok {
-		msg = TableDataMsg[v1alpha1.Airway](result)
+		msg = TableDataMsg[*v1alpha1.Airway](result)
 	}
 
 	var cmd tea.Cmd

@@ -93,18 +93,18 @@ func (c TypedIntf[T]) Delete(ctx context.Context, name string, options metav1.De
 	return c.getIntf().Delete(ctx, name, options)
 }
 
-func (c TypedIntf[T]) List(ctx context.Context, options metav1.ListOptions) ([]T, error) {
+func (c TypedIntf[T]) List(ctx context.Context, options metav1.ListOptions) ([]*T, error) {
 	obj, err := c.getIntf().List(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	var result []T
+	var result []*T
 	for _, elem := range obj.Items {
 		var value T
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(elem.Object, &value); err != nil {
 			return nil, fmt.Errorf("failed to convert unstructerd value to typed api: %w", err)
 		}
-		result = append(result, value)
+		result = append(result, &value)
 	}
 	return result, nil
 }

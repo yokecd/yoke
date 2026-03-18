@@ -136,10 +136,18 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 
 		setReadyCondition(metav1.ConditionFalse, "InProgress", "fetching flight wasm module")
 
-		mod, err := modules.FromURL(ctx, flight.Spec.WasmURL, flight.Spec.Checksum, cache.ModuleAttrs{
-			MaxMemoryMib:    flight.Spec.MaxMemoryMib,
-			HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
-		})
+		mod, err := modules.FromURL(
+			ctx,
+			cache.FromURLParams{
+				URL:      flight.Spec.WasmURL,
+				Checksum: flight.Spec.Checksum,
+				Insecure: flight.Spec.Insecure,
+				Attrs: cache.ModuleAttrs{
+					MaxMemoryMib:    flight.Spec.MaxMemoryMib,
+					HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+				},
+			},
+		)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to get wasm module: %w", err)
 		}
@@ -155,7 +163,8 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			Namespace:      flight.Namespace,
 			Checksum:       flight.Spec.Checksum,
 			Flight: yoke.FlightParams{
-				Path: flight.Spec.WasmURL,
+				Path:     flight.Spec.WasmURL,
+				Insecure: flight.Spec.Insecure,
 				Module: yoke.Module{
 					Instance: mod,
 					SourceMetadata: internal.Source{
