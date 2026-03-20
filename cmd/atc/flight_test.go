@@ -3,8 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -15,10 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/yokecd/yoke/cmd/atc-installer/installer"
+	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/testutils"
+	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func TestFlightInstance(t *testing.T) {
@@ -341,4 +350,102 @@ func TestFlightInvalidChecksum(t *testing.T) {
 		}),
 		`cannot verify module against expected checksum: wanted "applebottomjeans"`,
 	)
+}
+
+func TestFlightCodeSigning(t *testing.T) {
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	pubData, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+
+	privData, err := x509.MarshalPKCS8PrivateKey(priv)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(
+		"./test_output/private_key.pem",
+		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privData}),
+		0o644,
+	))
+
+	ctx := internal.WithDebugFlag(t.Context(), new(true))
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:   "atc",
+		Namespace: "atc",
+		Flight: yoke.FlightParams{
+			Path: "./test_output/atc-installer.wasm",
+			Input: internal.JSONReader(BaseATCInstallerConfig(func(c *installer.Config) {
+				c.ModuleVerificationKeys = []string{string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubData}))}
+				c.ModuleAllowList = nil
+			})),
+			Args: []string{"--skip-version-check"},
+		},
+		ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		Wait:          time.Minute,
+		Poll:          time.Second,
+	}))
+
+	require.NoError(t, x.X("go build -o ./test_output/unsigned.wasm ./internal/testing/flights/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	require.NoError(t, yoke.Sign(yoke.SignParams{
+		WasmFile: "./test_output/unsigned.wasm",
+		Out:      "./test_output/signed.wasm",
+		KeyPath:  "./test_output/private_key.pem",
+	}))
+
+	require.NoError(t, yoke.Stow(t.Context(), yoke.StowParams{
+		WasmFile: "./test_output/signed.wasm",
+		URL:      "oci://localhost:5001/signed",
+		Insecure: true,
+	}))
+
+	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client.Dynamic, v1alpha1.FlightGVR()).Namespace("default")
+
+	_, err = flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec: v1alpha1.FlightSpec{
+				WasmURL:  "oci://registry:80/basic.wasm",
+				Insecure: true,
+				Input:    "{}",
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.ErrorContains(t, err, `admission webhook "flights.yoke.cd" denied the request: failed to verify module: module is unsigned`)
+
+	_, err = flightIntf.Create(
+		context.Background(),
+		&v1alpha1.Flight{
+			ObjectMeta: metav1.ObjectMeta{Name: "basic"},
+			Spec: v1alpha1.FlightSpec{
+				WasmURL:  "oci://registry:80/signed",
+				Insecure: true,
+				Input:    "{}",
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	// Reset ATC
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:   "atc",
+		Namespace: "atc",
+		Flight: yoke.FlightParams{
+			Path:  "./test_output/atc-installer.wasm",
+			Input: internal.JSONReader(BaseATCInstallerConfig()),
+			Args:  []string{"--skip-version-check"},
+		},
+		ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		Wait:          time.Minute,
+		Poll:          time.Second,
+	}))
 }
