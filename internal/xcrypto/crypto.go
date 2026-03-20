@@ -97,14 +97,14 @@ type signaturePayload struct {
 	Signature   []byte
 }
 
-func SignModule(key any, wasm []byte) ([]byte, error) {
+func SignModule(key any, wasm []byte, overrideSignature bool) ([]byte, error) {
 	fingerprint, err := PublicFingerprint(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate fingerprint of public key: %w", err)
 	}
 
 	wasm, signature := module.WithoutCustomSection(wasm, module.PrefixSchematics+moduleSignatureKey)
-	if len(signature) > 0 {
+	if len(signature) > 0 && !overrideSignature {
 		return nil, fmt.Errorf("module is already signed")
 	}
 

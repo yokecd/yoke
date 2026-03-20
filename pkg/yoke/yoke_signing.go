@@ -12,6 +12,7 @@ type SignParams struct {
 	WasmFile string
 	Out      string
 	KeyPath  string
+	Force    bool
 }
 
 func Sign(params SignParams) error {
@@ -30,7 +31,7 @@ func Sign(params SignParams) error {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	wasm, err = xcrypto.SignModule(key, wasm)
+	wasm, err = xcrypto.SignModule(key, wasm, params.Force)
 	if err != nil {
 		return fmt.Errorf("failed to sign module: %w", err)
 	}

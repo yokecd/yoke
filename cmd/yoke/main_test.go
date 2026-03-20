@@ -2104,7 +2104,13 @@ func TestCodeSigning(t *testing.T) {
 	wasm, err := os.ReadFile("./test_output/name.wasm")
 	require.NoError(t, err)
 
-	signed, err := xcrypto.SignModule(priv, wasm)
+	signed, err := xcrypto.SignModule(priv, wasm, false)
+	require.NoError(t, err)
+
+	_, err = xcrypto.SignModule(priv, signed, false)
+	require.EqualError(t, err, "module is already signed")
+
+	_, err = xcrypto.SignModule(priv, signed, true)
 	require.NoError(t, err)
 
 	commander, err := yoke.FromKubeConfig(home.Kubeconfig)

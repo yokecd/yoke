@@ -27,7 +27,8 @@ func GetSignParams(args []string) (*yoke.SignParams, error) {
 
 	var params yoke.SignParams
 	flagset.StringVar(&params.KeyPath, "key", "", "Path to private key pem used for signing")
-	flagset.StringVar(&params.Out, "o", "", "output file to write signed wasm module. If omitted module will be signed in place.")
+	flagset.StringVar(&params.Out, "o", "", "output file to write signed wasm module. If omitted module will be signed in place")
+	flagset.BoolVar(&params.Force, "f", false, "forcefully override existing signature on module")
 
 	flagset.Parse(args)
 
