@@ -36,19 +36,15 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 		switch gvk.Kind {
 		case "Deployment":
 			return true &&
+				observedGeneration(resource) == resource.GetGeneration() &&
 				meetsConditions(resource, "Available") &&
 				equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
 		case "ReplicaSet", "StatefulSet":
-			return equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
+			return observedGeneration(resource) == resource.GetGeneration() &&
+				equalInts(resource, "replicas", "availableReplicas", "readyReplicas", "updatedReplicas"), nil
 		case "DaemonSet":
-			return equalInts(
-				resource,
-				"currentNumberScheduled",
-				"desiredNumberScheduled",
-				"updatedNumberScheduled",
-				"numberAvailable",
-				"numberReady",
-			), nil
+			return observedGeneration(resource) == resource.GetGeneration() &&
+				equalInts(resource, "currentNumberScheduled", "desiredNumberScheduled", "updatedNumberScheduled", "numberAvailable", "numberReady"), nil
 		}
 	case "batch":
 		switch gvk.Kind {
@@ -126,4 +122,9 @@ func equalInts(resource *unstructured.Unstructured, keys ...string) bool {
 	}
 
 	return true
+}
+
+func observedGeneration(resource *unstructured.Unstructured) int64 {
+	value, _, _ := unstructured.NestedInt64(resource.Object, "status", "observedGeneration")
+	return value
 }

@@ -105,8 +105,6 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
 			}
 
-			fmt.Println("DEBUG: deleting CRD:", airway.Name)
-
 			if err := crdIntf.Delete(ctx, airway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
 			}

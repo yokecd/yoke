@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
@@ -48,6 +52,19 @@ import (
 type EmptyCRD struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta `json:"metadata"`
+}
+
+func BaseATCInstallerConfig(opts ...func(*installer.Config)) installer.Config {
+	cfg := installer.Config{
+		Image:           "yokecd/atc",
+		Version:         "test",
+		LogFormat:       "text",
+		ModuleAllowList: []string{"oci://registry:80/*"},
+	}
+	for _, apply := range opts {
+		apply(&cfg)
+	}
+	return cfg
 }
 
 func TestMain(m *testing.M) {
@@ -109,15 +126,11 @@ func TestMain(m *testing.M) {
 		Release:   "atc",
 		Namespace: "atc",
 		Flight: yoke.FlightParams{
-			Path: "./test_output/atc-installer.wasm",
-			Input: internal.JSONReader(installer.Config{
-				Image:           "yokecd/atc",
-				Version:         "test",
-				LogFormat:       "text",
-				ModuleAllowList: []string{"oci://registry:80/*"},
-			}),
-			Args: []string{"--skip-version-check"},
+			Path:  "./test_output/atc-installer.wasm",
+			Input: internal.JSONReader(BaseATCInstallerConfig()),
+			Args:  []string{"--skip-version-check"},
 		},
+		ClusterAccess:   yoke.ClusterAccessParams{Enabled: true},
 		CreateNamespace: true,
 		Wait:            120 * time.Second,
 		Poll:            time.Second,
@@ -3773,7 +3786,7 @@ func TestInvalidFlightURL(t *testing.T) {
 		_, err = client.AirwayIntf.Update(context.Background(), current, metav1.UpdateOptions{})
 		return err
 	})
-	require.EqualError(t, err, `admission webhook "airways.yoke.cd" denied the request: module "http://localhost/evil.wasm" not allowed`)
+	require.ErrorContains(t, err, `module "http://localhost/evil.wasm" not allowed`)
 
 	backendGVR := schema.GroupVersionResource{
 		Group:    "examples.com",
@@ -3953,4 +3966,118 @@ func DropAllAirways(t *testing.T) {
 	}))
 
 	t.Logf("finished dropping airways after %s", time.Since(start))
+}
+
+func TestAirwayCodeSigning(t *testing.T) {
+	DropAllAirways(t)
+
+	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+	require.NoError(t, err)
+
+	commander := yoke.FromK8Client(client)
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	pubData, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+
+	privData, err := x509.MarshalPKCS8PrivateKey(priv)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(
+		"./test_output/private_key.pem",
+		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privData}),
+		0o644,
+	))
+
+	ctx := internal.WithDebugFlag(t.Context(), new(true))
+
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:   "atc",
+		Namespace: "atc",
+		Flight: yoke.FlightParams{
+			Path: "./test_output/atc-installer.wasm",
+			Input: internal.JSONReader(BaseATCInstallerConfig(func(c *installer.Config) {
+				c.ModuleVerificationKeys = []string{string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubData}))}
+				c.ModuleAllowList = nil
+			})),
+			Args: []string{"--skip-version-check"},
+		},
+		ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		Wait:          time.Minute,
+		Poll:          time.Second,
+	}))
+
+	require.NoError(t, x.X("go build -o ./test_output/unsigned.wasm ./internal/testing/apis/backend/v1/flight", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	require.NoError(t, yoke.Sign(yoke.SignParams{
+		WasmFile: "./test_output/unsigned.wasm",
+		Out:      "./test_output/signed.wasm",
+		KeyPath:  "./test_output/private_key.pem",
+	}))
+
+	require.NoError(t, yoke.Stow(t.Context(), yoke.StowParams{
+		WasmFile: "./test_output/signed.wasm",
+		URL:      "oci://localhost:5001/signed",
+		Insecure: true,
+	}))
+
+	airway := &v1alpha1.Airway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "backends.examples.com",
+		},
+		Spec: v1alpha1.AirwaySpec{
+			WasmURLs: v1alpha1.WasmURLs{
+				Flight: "oci://registry:80/flight.v1.wasm",
+			},
+			Insecure: true,
+			Template: apiextv1.CustomResourceDefinitionSpec{
+				Group: "examples.com",
+				Names: apiextv1.CustomResourceDefinitionNames{
+					Plural:     "backends",
+					Singular:   "backend",
+					ShortNames: []string{"be"},
+					Kind:       "Backend",
+				},
+				Scope: apiextv1.NamespaceScoped,
+				Versions: []apiextv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextv1.CustomResourceValidation{
+							OpenAPIV3Schema: openapi.SchemaFor[backendv1.Backend](),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err = client.AirwayIntf.Create(t.Context(), airway, metav1.CreateOptions{})
+	require.ErrorContains(
+		t,
+		err,
+		`admission webhook "airways.yoke.cd" denied the request: failed to validate flight url "oci://registry:80/flight.v1.wasm": failed to verify module: module is unsigned`,
+	)
+
+	airway.Spec.WasmURLs.Flight = "oci://registry:80/signed"
+
+	_, err = client.AirwayIntf.Create(t.Context(), airway, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Reset ATC
+	require.NoError(t, commander.Takeoff(ctx, yoke.TakeoffParams{
+		Release:   "atc",
+		Namespace: "atc",
+		Flight: yoke.FlightParams{
+			Path:  "./test_output/atc-installer.wasm",
+			Input: internal.JSONReader(BaseATCInstallerConfig()),
+			Args:  []string{"--skip-version-check"},
+		},
+		ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+		Wait:          time.Minute,
+		Poll:          time.Second,
+	}))
 }

@@ -663,14 +663,32 @@ func Handler(params HandlerParams) http.Handler {
 		}
 		review.Request = nil
 
-		for _, uri := range []string{airway.Spec.WasmURLs.Flight, airway.Spec.WasmURLs.Converter} {
-			if uri == "" {
-				continue
-			}
-			if !params.Cache.Globs.Match(uri) {
+		if _, err := params.Cache.FromURL(r.Context(), cache.FromURLParams{
+			URL:      airway.Spec.WasmURLs.Flight,
+			Checksum: airway.Spec.WasmURLs.FlightChecksum,
+			Insecure: airway.Spec.Insecure,
+			Attrs: cache.ModuleAttrs{
+				MaxMemoryMib:    airway.Spec.MaxMemoryMib,
+				HostFunctionMap: host.BuildFunctionMap(params.Client),
+			},
+		}); err != nil {
+			failReview(&review, metav1.Status{
+				Status:  metav1.StatusFailure,
+				Message: fmt.Sprintf("failed to validate flight url %q: %v", airway.Spec.WasmURLs.Flight, err),
+				Reason:  metav1.StatusReasonInvalid,
+			})
+			return
+		}
+
+		if converter := airway.Spec.WasmURLs.Converter; converter != "" {
+			if _, err := params.Cache.FromURL(r.Context(), cache.FromURLParams{
+				URL:      converter,
+				Checksum: airway.Spec.WasmURLs.ConverterChecksum,
+				Insecure: airway.Spec.Insecure,
+			}); err != nil {
 				failReview(&review, metav1.Status{
 					Status:  metav1.StatusFailure,
-					Message: fmt.Sprintf("module %q not allowed", uri),
+					Message: fmt.Sprintf("failed to validate converter url %q: %v", airway.Spec.WasmURLs.Flight, err),
 					Reason:  metav1.StatusReasonInvalid,
 				})
 				return

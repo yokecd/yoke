@@ -197,6 +197,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 					CABundle: cfg.Service.CABundle,
 				},
 				SideEffects:             ptr.To(admissionregistrationv1.SideEffectClassNone),
+				TimeoutSeconds:          new(int32(30)),
 				AdmissionReviewVersions: []string{"v1"},
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
