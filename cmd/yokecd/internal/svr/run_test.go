@@ -3,6 +3,8 @@ package svr
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -22,6 +24,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/x"
+	"github.com/yokecd/yoke/internal/xcrypto"
 	wasik8s "github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
@@ -220,4 +223,63 @@ func TestPluginServerLookup(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &actual))
 
 	require.Equal(t, "value", actual.Data["key"])
+}
+
+func TestCodeSigning(t *testing.T) {
+	require.NoError(t, x.X("go build -o ./test_output/echo.wasm ../testing/mods/echo", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+	wasm, err := os.ReadFile("./test_output/echo.wasm")
+	require.NoError(t, err)
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	fingerprint, err := xcrypto.PublicFingerprint(pub)
+	require.NoError(t, err)
+
+	signed, err := xcrypto.SignModule(priv, wasm, false)
+	require.NoError(t, err)
+
+	sourceServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/signed":
+			_, _ = w.Write(signed)
+		default:
+			_, _ = w.Write(wasm)
+		}
+	}))
+	defer sourceServer.Close()
+
+	sourceServer.Listener, err = net.Listen("tcp", ":6663")
+	require.NoError(t, err)
+
+	sourceServer.Start()
+
+	var stdout bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(&stdout, t.Output()), nil))
+
+	mods := cache.NewModuleCache("./test_output", nil, xcrypto.PublicKeySet{fingerprint: pub})
+
+	svr := httptest.NewUnstartedServer(Handler(mods, logger, nil))
+	defer svr.Close()
+
+	// Match Exec's hardcoded default.
+	svr.Listener, err = net.Listen("tcp", ":3666")
+	require.NoError(t, err)
+
+	svr.Start()
+
+	_, err = Exec(context.Background(), ExecuteReq{
+		Path:      "http://localhost:6663",
+		Release:   "foo",
+		Namespace: "bar",
+	})
+	require.ErrorContains(t, err, "error: failed to verify module: module is unsigned")
+
+	_, err = Exec(context.Background(), ExecuteReq{
+		Path:      "http://localhost:6663/signed",
+		Release:   "foo",
+		Namespace: "bar",
+	})
+	require.NoError(t, err)
 }

@@ -142,6 +142,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 				Enabled:          cfg.Flight.ClusterAccess,
 				ResourceMatchers: cfg.Flight.ResourceMatchers,
 			},
+			Insecure: cfg.Flight.Insecure,
 		})
 	}()
 	if err != nil {

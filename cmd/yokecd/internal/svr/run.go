@@ -26,19 +26,32 @@ import (
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
+	"github.com/yokecd/yoke/internal/xcrypto"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 type Config struct {
-	CacheFS         string
-	ModuleAllowList internal.Globs
+	CacheFS                string
+	ModuleAllowList        internal.Globs
+	ModuleVerificationKeys xcrypto.PublicKeySet
 }
 
 func ConfigFromEnv() (cfg Config) {
 	conf.Var(conf.Environ, &cfg.CacheFS, "YOKECD_CACHE_FS", conf.Default(os.TempDir()))
 	conf.Var(conf.Environ, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
+
+	var verificationKeyPath string
+	conf.Var(conf.Environ, &verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
+
 	conf.Environ.MustParse()
+
+	if verificationKeyPath != "" {
+		fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
+		conf.Var(fs, &cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
+		fs.MustParse()
+	}
+
 	return cfg
 }
 
@@ -80,8 +93,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	// TODO: support verification keys.
-	mods := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList, nil)
+	mods := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList, cfg.ModuleVerificationKeys)
 
 	svr := http.Server{
 		Addr:    addr,
@@ -131,6 +143,7 @@ type ExecuteReq struct {
 	Input        string
 	MaxMemoryMib uint32
 	Timeout      time.Duration
+	Insecure     bool
 }
 
 type ExecResponse struct {
@@ -162,7 +175,7 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 				cache.FromURLParams{
 					URL:      ex.Path,
 					Checksum: cmp.Or(ex.Checksum, internal.ChecksumFromPath(ex.Path)),
-					Insecure: false,
+					Insecure: ex.Insecure,
 					Attrs:    attrs,
 				},
 			)
