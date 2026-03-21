@@ -37,6 +37,7 @@ type Parameters struct {
 	MaxMemoryMib     uint32
 	Timeout          time.Duration
 	Checksum         string
+	Insecure         bool
 }
 
 // structure of individual CMP parameters
@@ -139,6 +140,9 @@ func (parameters *Parameters) UnmarshalText(data []byte) (err error) {
 		})
 		return param.String
 	}()
+
+	insecure, _ := internal.Find(elems, func(param CmpParam) bool { return param.Name == "insecure" })
+	parameters.Insecure, _ = strconv.ParseBool(insecure.String)
 
 	return nil
 }
