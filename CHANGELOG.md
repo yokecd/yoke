@@ -4,7 +4,25 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-03-01) atc/v0.19.5 - atc-installer/v0.18.4 - latest - v0.20.5 - yokecd/v0.19.5 - yokecd-installer/v0.19.7
+## (2026-03-21) atc/v0.19.7 - atc-installer/v0.18.5 - latest - v0.20.8 - yokecd/v0.19.7 - yokecd-installer/v0.19.8
+
+- yokecd: add module verification keys support ([e38e6cb](https://github.com/yokecd/yoke/commit/e38e6cbedac8756e936212fa7b922c9d20e1edd8))
+- yoke: add force option to override signature when signing already signed modules ([90f0aa1](https://github.com/yokecd/yoke/commit/90f0aa1e6dc7f75ddd6581de8c32951c694fb4cf))
+- atc: move module loading into admission webhook and test code signing ([c54f3f8](https://github.com/yokecd/yoke/commit/c54f3f84ef5fea4912cadf26a82b4c0985b1bdfb))
+- atc: use in cluster oci registry for tests and properly propagate insecure option ([8f511ba](https://github.com/yokecd/yoke/commit/8f511baa6b73022748782c63ca8a8b6fe158eddb))
+- atc: add moduleVerificationKeys to cache strategy ([56ce2fa](https://github.com/yokecd/yoke/commit/56ce2fa361f490d954a7cfa44a28c7d5af9e4d57))
+- yoke: implement sign and verify as well as integrate check into takeoff ([5cf105c](https://github.com/yokecd/yoke/commit/5cf105c8afc4feb422d03f3f80b432ed33665f17))
+
+## (2026-03-16) v0.20.7
+
+- Check in bounds before index ([c2c71b8](https://github.com/yokecd/yoke/commit/c2c71b8974ff004a0e3a2627fb0ebada7c0cd808))
+
+## (2026-03-07) atc/v0.19.6 - v0.20.6 - yokecd/v0.19.6
+
+- atc/test: dump atc logs on atc integration test failures ([c117827](https://github.com/yokecd/yoke/commit/c117827132ee3791f4e3483dc0b5e338bd7bfbfa))
+- atc: move checksum checks into admission control ([0a3526c](https://github.com/yokecd/yoke/commit/0a3526c775ff8dd5683cb74d6f331548b88055ea))
+
+## (2026-03-01) atc/v0.19.5 - atc-installer/v0.18.4 - v0.20.5 - yokecd/v0.19.5 - yokecd-installer/v0.19.7
 
 - yoke: infer checksum from path before first dot or extensions ([4434f07](https://github.com/yokecd/yoke/commit/4434f07f4d75316a54fd469baaf740d48f50af5e))
 - yoke: add all labels to stow output ([8015617](https://github.com/yokecd/yoke/commit/8015617649f9f728ab17d866f40894b2d21c912b))
