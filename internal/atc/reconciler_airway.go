@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
 	"github.com/yokecd/yoke/internal"
@@ -90,7 +91,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	if !airway.DeletionTimestamp.IsZero() {
 		airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 
-		if idx := slices.Index(airway.Finalizers, cleanupAirwayFinalizer); idx > -1 {
+		if slices.Contains(airway.Finalizers, cleanupAirwayFinalizer) {
 			if err := webhookIntf.Delete(ctx, airway.CRGroupResource().String(), metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("failed to remove admission validation webhook: %w", err)
 			}
@@ -105,32 +106,40 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 				PropagationPolicy: ptr.To(metav1.DeletePropagationForeground),
 			}
 
-			if err := crdIntf.Delete(ctx, airway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
+			crd, err := crdIntf.Get(ctx, airway.Name, metav1.GetOptions{})
+			if err != nil && !kerrors.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to get custom resource definition for airway: %w", err)
 			}
 
-			for attempt := range 10 {
-				if _, err := crdIntf.Get(ctx, airway.Name, metav1.GetOptions{}); err != nil {
-					if kerrors.IsNotFound(err) {
-						break
+			if kerrors.IsNotFound(err) {
+				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					airway, err := airwayIntf.Get(ctx, airway.Name, metav1.GetOptions{})
+					if err != nil {
+						return err
 					}
-					return ctrl.Result{}, fmt.Errorf("failed to get CRD associated to airway: %v", err)
+					idx := slices.Index(airway.Finalizers, cleanupAirwayFinalizer)
+					if idx < 0 {
+						return nil
+					}
+					airway.SetFinalizers(slices.Delete(airway.Finalizers, idx, idx+1))
+					if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
+						return err
+					}
+					return nil
+				}); err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to remove airway cleanup finalizer: %v", err)
 				}
-				if attempt == 9 {
-					return ctrl.Result{}, fmt.Errorf("termination is hung: crd is not being deleted: manual intervention may be needed")
+				if cleanup := atc.cleanups[airway.Name]; cleanup != nil {
+					cleanup()
 				}
-				time.Sleep(time.Second)
+				return ctrl.Result{}, nil
 			}
 
-			if cleanup := atc.cleanups[airway.Name]; cleanup != nil {
-				cleanup()
-			}
-
-			finalizers := slices.Delete(airway.Finalizers, idx, idx+1)
-			airway.SetFinalizers(finalizers)
-
-			if _, err := airwayIntf.Update(ctx, airway, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to remove cleanup finalizer to airway: %v", err)
+			if crd.GetDeletionTimestamp().IsZero() {
+				if err := crdIntf.Delete(ctx, airway.Name, foregroundDelete); err != nil && !kerrors.IsNotFound(err) {
+					return ctrl.Result{}, fmt.Errorf("failed to remove custom resource definiton associated to airway: %v", err)
+				}
+				airwayStatus(metav1.ConditionFalse, "Terminating", "cleaning up resources")
 			}
 			return ctrl.Result{}, nil
 		}
@@ -364,7 +373,10 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		States:  atc.flightStates,
 	}
 
-	if err := ctrl.Inst(ctx).RegisterGK(flightGK, atc.InstanceReconciler(reconcilerParams)); err != nil {
+	if err := ctrl.Inst(ctx).Register(ctrl.Entry{
+		GroupKind: flightGK,
+		Funcs:     atc.InstanceReconciler(reconcilerParams),
+	}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to register flight controller for gk: %w", err)
 	}
 

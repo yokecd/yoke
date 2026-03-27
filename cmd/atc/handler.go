@@ -130,7 +130,7 @@ func Handler(params HandlerParams) http.Handler {
 				continue
 			}
 
-			unstructured.SetNestedField(raw, originalStatus, "status")
+			_ = unstructured.SetNestedField(raw, originalStatus, "status")
 
 			data, err := json.Marshal(raw)
 			if err != nil {
