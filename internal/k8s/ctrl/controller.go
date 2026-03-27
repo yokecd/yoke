@@ -88,20 +88,26 @@ func NewController(ctx context.Context, params Params) *Instance {
 	}
 }
 
-func (instance *Instance) RegisterGKs(gks map[schema.GroupKind]Funcs) error {
+type Entry struct {
+	GroupKind  schema.GroupKind
+	Forwarders []schema.GroupKind
+	Funcs      Funcs
+}
+
+func (instance *Instance) Register(entries ...Entry) error {
 	var errs []error
-	for gk, funcs := range gks {
-		if err := instance.RegisterGK(gk, funcs); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", gk, err))
+	for _, entry := range entries {
+		if err := instance.register(entry); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", entry.GroupKind, err))
 		}
 	}
 	return xerr.JoinOrdered(errs...)
 }
 
-func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
+func (instance *Instance) register(entry Entry) error {
 	instance.Client.Mapper.Reset()
 
-	mapping, err := instance.Client.Mapper.RESTMapping(gk)
+	mapping, err := instance.Client.Mapper.RESTMapping(entry.GroupKind)
 	if err != nil {
 		return fmt.Errorf("failed to get rest mapping: %w", err)
 	}
@@ -110,13 +116,19 @@ func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
 
 	informer := factory.ForResource(mapping.Resource).Informer()
 
-	informerHandler := func(obj any) {
-		resource := obj.(*unstructured.Unstructured)
-		instance.events.Enqueue(Event{
-			Name:      resource.GetName(),
-			Namespace: resource.GetNamespace(),
-			GroupKind: gk,
-		})
+	var resourceMap xsync.Set[Event]
+
+	informerHandler := func(op func(Event)) func(obj any) {
+		return func(obj any) {
+			resource := obj.(*unstructured.Unstructured)
+			event := Event{
+				Name:      resource.GetName(),
+				Namespace: resource.GetNamespace(),
+				GroupKind: entry.GroupKind,
+			}
+			instance.events.Enqueue(event)
+			op(event)
+		}
 	}
 
 	informerUpdateHandler := func(oldObj any, newObj any) {
@@ -125,16 +137,18 @@ func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
 		if internal.ResourcesAreEqual(prev, next) {
 			return
 		}
-		instance.events.Enqueue(Event{
+		event := Event{
 			Name:      next.GetName(),
 			Namespace: next.GetNamespace(),
-			GroupKind: gk,
-		})
+			GroupKind: entry.GroupKind,
+		}
+		instance.events.Enqueue(event)
+		resourceMap.Add(event)
 	}
 
 	eventHandlers := kcache.ResourceEventHandlerFuncs{
-		AddFunc:    informerHandler,
-		DeleteFunc: informerHandler,
+		AddFunc:    informerHandler(resourceMap.Add),
+		DeleteFunc: informerHandler(resourceMap.Del),
 		UpdateFunc: informerUpdateHandler,
 	}
 
@@ -142,19 +156,46 @@ func (instance *Instance) RegisterGK(gk schema.GroupKind, funcs Funcs) error {
 		return fmt.Errorf("failed to add event handlers: %w", err)
 	}
 
+	for _, forward := range entry.Forwarders {
+		mapping, err := instance.Client.Mapper.RESTMapping(forward)
+		if err != nil {
+			return fmt.Errorf("failed to get rest mapping: %w", err)
+		}
+
+		requeue := func(obj any) {
+			resource := obj.(*unstructured.Unstructured)
+			evt := Event{
+				Name:      resource.GetName(),
+				Namespace: resource.GetNamespace(),
+				GroupKind: entry.GroupKind,
+			}
+			if resourceMap.Has(evt) {
+				instance.events.Enqueue(evt)
+			}
+		}
+
+		if _, err := factory.ForResource(mapping.Resource).Informer().AddEventHandler(kcache.ResourceEventHandlerFuncs{
+			AddFunc:    requeue,
+			UpdateFunc: func(_ any, obj any) { requeue(obj) },
+			DeleteFunc: requeue,
+		}); err != nil {
+			return fmt.Errorf("failed to add event handlers for forwarder: %s: %w", forward, err)
+		}
+	}
+
 	done := make(chan struct{})
 
 	factory.Start(done)
 
 	instance.gks.Store(
-		gk,
+		entry.GroupKind,
 		gkstate{
-			handler: funcs.Handler,
+			handler: entry.Funcs.Handler,
 			shutdown: xsync.OnceFunc(func() {
 				close(done)
 				factory.Shutdown()
-				instance.gks.Delete(gk)
-				funcs.Teardown()
+				instance.gks.Delete(entry.GroupKind)
+				entry.Funcs.Teardown()
 			}),
 		},
 	)

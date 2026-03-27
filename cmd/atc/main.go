@@ -96,23 +96,41 @@ func run() (err error) {
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
-	var wg sync.WaitGroup
-	wg.Add(3)
+	controller := ctrl.NewController(ctx, ctrl.Params{
+		Client:      client,
+		Logger:      logger.With("component", "controller"),
+		Concurrency: max(cfg.Concurrency, 1),
+	})
+	if err := controller.Register(
+		ctrl.Entry{
+			GroupKind: schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindAirway},
+			Forwarders: []schema.GroupKind{{
+				Group: "apiextensions.k8s.io",
+				Kind:  "CustomResourceDefinition",
+			}},
+			Funcs: atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
+		},
+		ctrl.Entry{
+			GroupKind: schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindFlight},
+			Funcs:     atc.FlightReconciler(moduleCache),
+		},
+		ctrl.Entry{
+			GroupKind: schema.GroupKind{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight},
+			Funcs:     atc.ClusterFlightReconsiler(moduleCache),
+		},
+	); err != nil {
+		return fmt.Errorf("failed to register group kind handlers: %w", err)
+	}
 
+	var wg sync.WaitGroup
 	defer wg.Wait()
 
 	e := make(chan error, 3)
 
-	go func() {
-		wg.Wait()
-		close(e)
-	}()
-
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if cfg.DockerConfigSecretName == "" {
 			return
 		}
@@ -125,32 +143,16 @@ func run() (err error) {
 		}); err != nil {
 			e <- fmt.Errorf("error watching docker config secret: %w", err)
 		}
-	}()
-
-	controller := ctrl.NewController(ctx, ctrl.Params{
-		Client:      client,
-		Logger:      logger.With("component", "controller"),
-		Concurrency: max(cfg.Concurrency, 1),
 	})
-	if err := controller.RegisterGKs(map[schema.GroupKind]ctrl.Funcs{
-		{Group: "yoke.cd", Kind: v1alpha1.KindAirway}:        atc.GetAirwayReconciler(cfg.Service, moduleCache, eventDispatcher, flightStates),
-		{Group: "yoke.cd", Kind: v1alpha1.KindFlight}:        atc.FlightReconciler(moduleCache),
-		{Group: "yoke.cd", Kind: v1alpha1.KindClusterFlight}: atc.ClusterFlightReconsiler(moduleCache),
-	}); err != nil {
-		return fmt.Errorf("failed to register group kind handlers: %w", err)
-	}
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		logger.Info("Controller Starting", "concurrency", controller.Concurrency)
 		if err := controller.Run(); err != nil {
 			e <- fmt.Errorf("controller exited run with error: %w", err)
 		}
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		filter := func() xhttp.LogFilterFunc {
 			if cfg.Verbose {
 				return nil
@@ -199,6 +201,11 @@ func run() (err error) {
 		}
 
 		logger.Info("ATC/Server shutdown completed successfully")
+	})
+
+	go func() {
+		wg.Wait()
+		close(e)
 	}()
 
 	return <-e
