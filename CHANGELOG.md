@@ -4,7 +4,12 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-03-21) atc/v0.19.7 - atc-installer/v0.18.5 - latest - v0.20.8 - yokecd/v0.19.7 - yokecd-installer/v0.19.8
+## (2026-03-28) atc/v0.19.8 - latest - v0.20.9
+
+- ci: use GH_PACKAGES_TOKEN for authenticating with ghcr ([a3cbe4c](https://github.com/yokecd/yoke/commit/a3cbe4c9732effa9435b79d0e12803f7f3f421d0))
+- atc: decouple crd deletion from airway reconciliation loop ([8d4794b](https://github.com/yokecd/yoke/commit/8d4794bedb872395835be915789a73594253053b))
+
+## (2026-03-21) atc/v0.19.7 - atc-installer/v0.18.5 - v0.20.8 - yokecd/v0.19.7 - yokecd-installer/v0.19.8
 
 - yokecd: add module verification keys support ([e38e6cb](https://github.com/yokecd/yoke/commit/e38e6cbedac8756e936212fa7b922c9d20e1edd8))
 - yoke: add force option to override signature when signing already signed modules ([90f0aa1](https://github.com/yokecd/yoke/commit/90f0aa1e6dc7f75ddd6581de8c32951c694fb4cf))
