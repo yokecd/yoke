@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"compress/gzip"
 	"flag"
 	"fmt"
@@ -24,13 +25,13 @@ import (
 func init() {
 	var (
 		actor = os.Getenv("GITHUB_ACTOR")
-		token = os.Getenv("GITHUB_TOKEN")
+		token = cmp.Or(os.Getenv("GH_PACKAGES_TOKEN"), os.Getenv("GITHUB_TOKEN"))
 	)
 	if token == "" || actor == "" {
 		fmt.Println("skipping docker login to ghcr.io")
 		return
 	}
-	if err := x.Xf("docker login ghcr.io -u %s -p %s", []any{actor, token}); err != nil {
+	if err := x.Xf("docker login ghcr.io -u %s --password-stdin", []any{actor}, x.Input(strings.NewReader(token))); err != nil {
 		panic(fmt.Errorf("failed to login to ghcr.io: %w", err))
 	}
 
