@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/davidmdm/x/xerr"
@@ -59,7 +60,6 @@ type gkstate struct {
 }
 
 type Instance struct {
-	ctx    context.Context
 	events *Queue[Event]
 	gks    xsync.Map[schema.GroupKind, gkstate]
 	Params
@@ -76,14 +76,11 @@ type Params struct {
 	Concurrency int
 }
 
-func NewController(ctx context.Context, params Params) *Instance {
-	ctx = context.WithValue(ctx, loggerKey{}, params.Logger)
-	ctx = context.WithValue(ctx, rootLoggerKey{}, params.Logger)
-
+func NewController(params Params) *Instance {
+	params.Concurrency = max(params.Concurrency, 1)
 	return &Instance{
-		ctx:    ctx,
 		Params: params,
-		events: NewQueue[Event](),
+		events: NewQueue[Event](params.Concurrency),
 		gks:    xsync.Map[schema.GroupKind, gkstate]{},
 	}
 }
@@ -211,57 +208,55 @@ func (instance *Instance) ShutdownGK(gk schema.GroupKind) {
 	state.shutdown()
 }
 
-func (instance *Instance) Run() error {
+func (instance *Instance) Run(ctx context.Context) error {
+	ctx = context.WithValue(ctx, loggerKey{}, instance.Logger)
+	ctx = context.WithValue(ctx, rootLoggerKey{}, instance.Logger)
+
 	defer instance.events.Stop()
 
 	var (
-		activeMap   xsync.Map[string, chan struct{}]
-		timers      xsync.Map[string, *time.Timer]
-		concurrency = max(instance.Concurrency, 1)
+		wg     sync.WaitGroup
+		active xsync.Map[string, *atomic.Uint32]
+		timers xsync.Map[string, *time.Timer]
 	)
 
-	var wg sync.WaitGroup
-
-	for range concurrency {
+	for range instance.Concurrency {
 		wg.Go(func() {
 			for {
 				select {
-				case <-instance.ctx.Done():
+				case <-ctx.Done():
 					return
-				case event := <-instance.events.C:
+				case event := <-instance.events.Pull():
 					func() {
 						defer func() {
 							if e := recover(); e != nil {
-								Logger(instance.ctx).Error("Caught Control Loop Panic", "error", e, "stack", xruntime.CallStack(-1))
+								Logger(ctx).Error("Caught Control Loop Panic", "error", e, "stack", xruntime.CallStack(-1))
 							}
 						}()
 
 						state, ok := instance.gks.Load(event.GroupKind)
 						if !ok {
-							Logger(instance.ctx).Warn("event received but not handler registered for groupkind", "gk", event.GroupKind)
+							Logger(ctx).Warn("event received but not handler registered for groupkind", "gk", event.GroupKind)
 							return
 						}
 
-						done, loaded := activeMap.LoadOrStore(event.String(), make(chan struct{}))
-						if loaded {
-							wg.Go(func() {
-								select {
-								case <-instance.ctx.Done():
-									return
-								case <-done:
-									instance.events.Enqueue(event)
-								}
-							})
+						count, _ := active.LoadOrStore(event.String(), new(atomic.Uint32))
+						if count := count.Add(1); count > 1 {
 							return
 						}
-						defer close(done)
-						defer activeMap.Delete(event.String())
+						defer active.Delete(event.String())
+
+						defer func() {
+							if count.Load() > 1 {
+								instance.events.Enqueue(event)
+							}
+						}()
 
 						if timer, loaded := timers.LoadAndDelete(event.String()); loaded {
 							timer.Stop()
 						}
 
-						logger := Logger(instance.ctx).With(
+						logger := Logger(ctx).With(
 							slog.String("loopId", randHex()),
 							slog.Group(
 								"event",
@@ -274,7 +269,7 @@ func (instance *Instance) Run() error {
 
 						// It is important that we do not cancel the handler mid-execution.
 						// Rather we only exit once the loop is idle.
-						ctx := context.WithoutCancel(instance.ctx)
+						ctx := context.WithoutCancel(ctx)
 						ctx = context.WithValue(ctx, loggerKey{}, logger)
 						ctx = context.WithValue(ctx, clientKey{}, instance.Client)
 						ctx = context.WithValue(ctx, instanceKey{}, instance)
@@ -318,7 +313,7 @@ func (instance *Instance) Run() error {
 
 	wg.Wait()
 
-	return context.Cause(instance.ctx)
+	return context.Cause(ctx)
 }
 
 func (instance *Instance) IsListeningForGK(gk schema.GroupKind) bool {

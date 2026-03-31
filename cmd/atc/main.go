@@ -96,7 +96,7 @@ func run() (err error) {
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
-	controller := ctrl.NewController(ctx, ctrl.Params{
+	controller := ctrl.NewController(ctrl.Params{
 		Client:      client,
 		Logger:      logger.With("component", "controller"),
 		Concurrency: max(cfg.Concurrency, 1),
@@ -147,7 +147,7 @@ func run() (err error) {
 
 	wg.Go(func() {
 		logger.Info("Controller Starting", "concurrency", controller.Concurrency)
-		if err := controller.Run(); err != nil {
+		if err := controller.Run(ctx); err != nil {
 			e <- fmt.Errorf("controller exited run with error: %w", err)
 		}
 	})

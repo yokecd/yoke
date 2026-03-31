@@ -189,12 +189,14 @@ func TestMain(m *testing.M) {
 		if err != nil {
 			panic(err)
 		}
-		logs, err := podintf.GetLogs(list.Items[0].Name, &corev1.PodLogOptions{}).Stream(context.Background())
-		if err != nil {
-			panic(err)
-		}
-		if _, err := io.Copy(os.Stdout, logs); err != nil {
-			panic(err)
+		if len(list.Items) > 0 {
+			logs, err := podintf.GetLogs(list.Items[0].Name, &corev1.PodLogOptions{}).Stream(context.Background())
+			if err != nil {
+				panic(err)
+			}
+			if _, err := io.Copy(os.Stdout, logs); err != nil {
+				panic(err)
+			}
 		}
 	}
 
