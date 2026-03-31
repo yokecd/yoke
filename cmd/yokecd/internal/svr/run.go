@@ -171,7 +171,8 @@ func Handler(mods *cache.ModuleCache, logger *slog.Logger, client *k8s.Client) h
 			if len(ex.Source) > 0 {
 				return mods.FromSource(r.Context(), ex.Source, attrs)
 			}
-			return mods.FromURL(r.Context(),
+			return mods.FromURL(
+				r.Context(),
 				cache.FromURLParams{
 					URL:      ex.Path,
 					Checksum: cmp.Or(ex.Checksum, internal.ChecksumFromPath(ex.Path)),

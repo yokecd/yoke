@@ -23,6 +23,7 @@ import (
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
+	"github.com/yokecd/yoke/internal/wasm/module"
 	"github.com/yokecd/yoke/internal/x"
 	"github.com/yokecd/yoke/internal/xcrypto"
 	wasik8s "github.com/yokecd/yoke/pkg/flight/wasi/k8s"
@@ -240,6 +241,13 @@ func TestCodeSigning(t *testing.T) {
 	signed, err := xcrypto.SignModule(priv, wasm, false)
 	require.NoError(t, err)
 
+	_, data := module.WithoutCustomSection(signed, module.PrefixSchematics+"signature")
+	var payload struct {
+		Fingerprint string
+	}
+	require.NoError(t, json.Unmarshal(data, &payload))
+	require.Equal(t, payload.Fingerprint, fingerprint)
+
 	sourceServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/signed":
@@ -257,6 +265,9 @@ func TestCodeSigning(t *testing.T) {
 
 	var stdout bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(&stdout, t.Output()), nil))
+
+	require.NoError(t, os.RemoveAll("./test_output"))
+	require.NoError(t, os.Mkdir("./test_output", 0o755))
 
 	mods := cache.NewModuleCache("./test_output", nil, xcrypto.PublicKeySet{fingerprint: pub})
 

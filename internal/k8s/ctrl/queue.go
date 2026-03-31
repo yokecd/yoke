@@ -3,18 +3,20 @@ package ctrl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type Queue[T fmt.Stringer] struct {
-	barrier *xsync.Map[string, struct{}]
-	buffer  []T
-	lock    *sync.Mutex
-	pipe    chan T
-	C       chan T
-	Stop    func()
+	barrier   *xsync.Map[string, struct{}]
+	buffer    []T
+	lock      *sync.Mutex
+	semaphore chan struct{}
+	pipe      chan T
+	C         chan T
+	Stop      func()
 }
 
 func (queue *Queue[T]) Enqueue(value T) {
@@ -44,7 +46,7 @@ func (queue *Queue[t]) tryUnshift() {
 		next := queue.buffer[0]
 		select {
 		case queue.pipe <- next:
-			queue.buffer = queue.buffer[1:]
+			queue.buffer = slices.Delete(queue.buffer, 0, 1)
 		default:
 			return
 		}
@@ -53,13 +55,14 @@ func (queue *Queue[t]) tryUnshift() {
 
 // NewQueue returns a queue that will dedup events based on its string representation as
 // determined by fmt.Stringer.
-func NewQueue[T fmt.Stringer]() *Queue[T] {
+func NewQueue[T fmt.Stringer](concurrency int) *Queue[T] {
 	queue := Queue[T]{
-		barrier: &xsync.Map[string, struct{}]{},
-		buffer:  []T{},
-		lock:    &sync.Mutex{},
-		pipe:    make(chan T, 1),
-		C:       make(chan T),
+		barrier:   &xsync.Map[string, struct{}]{},
+		buffer:    []T{},
+		lock:      &sync.Mutex{},
+		pipe:      make(chan T, 1),
+		C:         make(chan T),
+		semaphore: make(chan struct{}, concurrency),
 	}
 
 	done := make(chan struct{})
@@ -72,13 +75,17 @@ func NewQueue[T fmt.Stringer]() *Queue[T] {
 			select {
 			case <-ctx.Done():
 				return
-			case value := <-queue.pipe:
+			case <-queue.semaphore:
 				select {
 				case <-ctx.Done():
 					return
-				case queue.C <- value:
+				case value := <-queue.pipe:
 					queue.barrier.Delete(value.String())
-					queue.tryUnshift()
+					select {
+					case <-ctx.Done():
+					case queue.C <- value:
+						queue.tryUnshift()
+					}
 				}
 			}
 		}
@@ -90,4 +97,9 @@ func NewQueue[T fmt.Stringer]() *Queue[T] {
 	}
 
 	return &queue
+}
+
+func (queue *Queue[T]) Pull() <-chan T {
+	queue.semaphore <- struct{}{}
+	return queue.C
 }
