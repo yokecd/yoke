@@ -244,9 +244,8 @@ func (instance *Instance) Run(ctx context.Context) error {
 						if count := count.Add(1); count > 1 {
 							return
 						}
-						defer active.Delete(event.String())
-
 						defer func() {
+							active.Delete(event.String())
 							if count.Load() > 1 {
 								instance.events.Enqueue(event)
 							}
