@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/yokecd/yoke/internal/xsync"
+	"github.com/davidmdm/x/xsync"
 )
 
 type Queue[T fmt.Stringer] struct {

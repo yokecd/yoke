@@ -3,8 +3,9 @@ package atc
 import (
 	"slices"
 
+	"github.com/davidmdm/x/xsync"
+
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
-	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type _dispatcher = xsync.Map[string, *xsync.Set[ctrl.Event]]

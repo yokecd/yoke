@@ -14,6 +14,7 @@ import (
 
 	"github.com/davidmdm/x/xcontext"
 	"github.com/davidmdm/x/xerr"
+	"github.com/davidmdm/x/xsync"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -24,7 +25,6 @@ import (
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xhttp"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/davidmdm/x/xerr"
 	"github.com/davidmdm/x/xruntime"
+	"github.com/davidmdm/x/xsync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/xsync"
 )
 
 type eventMeta struct {
@@ -188,7 +188,7 @@ func (instance *Instance) register(entry Entry) error {
 		entry.GroupKind,
 		gkstate{
 			handler: entry.Funcs.Handler,
-			shutdown: xsync.OnceFunc(func() {
+			shutdown: sync.OnceFunc(func() {
 				close(done)
 				factory.Shutdown()
 				instance.gks.Delete(entry.GroupKind)

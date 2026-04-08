@@ -14,10 +14,11 @@ import (
 	"sync"
 	"weak"
 
+	"github.com/davidmdm/x/xsync"
+
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/xcrypto"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
