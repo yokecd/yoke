@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/davidmdm/x/xerr"
+	"github.com/davidmdm/x/xsync"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -28,7 +29,6 @@ import (
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/yoke"

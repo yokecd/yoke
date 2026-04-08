@@ -3,9 +3,10 @@ package atc
 import (
 	"sync"
 
+	"github.com/davidmdm/x/xsync"
+
 	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
-	"github.com/yokecd/yoke/internal/xsync"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 )
 
