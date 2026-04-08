@@ -3,8 +3,8 @@ package installer
 import (
 	"bytes"
 	"cmp"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -40,12 +40,12 @@ func NewTLS(svc *corev1.Service) (*TLS, error) {
 		BasicConstraintsValid: true,
 	}
 
-	rootKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate RSA Key: %w", err)
+		return nil, fmt.Errorf("failed to generate ED25519 key: %w", err)
 	}
 
-	rawRootCert, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey)
+	rawRootCert, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, pub, priv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate: %w", err)
 	}
@@ -78,12 +78,12 @@ func NewTLS(svc *corev1.Service) (*TLS, error) {
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
 
-	serverKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	serverPubKey, serverPrivKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate server key: %w", err)
 	}
 
-	rawServerCert, err := x509.CreateCertificate(rand.Reader, &serverTemplate, &rootTemplate, &serverKey.PublicKey, rootKey)
+	rawServerCert, err := x509.CreateCertificate(rand.Reader, &serverTemplate, &rootTemplate, serverPubKey, priv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server certigicate: %w", err)
 	}
@@ -93,7 +93,12 @@ func NewTLS(svc *corev1.Service) (*TLS, error) {
 		return nil, fmt.Errorf("failed to encode server certificate as PEM: %w", err)
 	}
 
-	serverKeyPEM, err := toPem(x509.MarshalPKCS1PrivateKey(serverKey), "RSA PRIVATE KEY")
+	serverKeyBytes, err := x509.MarshalPKCS8PrivateKey(serverPrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal server private key: %w", err)
+	}
+
+	serverKeyPEM, err := toPem(serverKeyBytes, "PRIVATE KEY")
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode server key to PEM: %w", err)
 	}
