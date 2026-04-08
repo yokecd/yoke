@@ -4,7 +4,24 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-03-28) atc/v0.19.8 - latest - v0.20.9
+## (2026-04-08) atc/v0.19.11 - atc-installer/v0.18.6 - latest - v0.20.12 - yokecd/v0.19.9 - yokecd-installer/v0.19.10
+
+- atc-installer: use ED25519 keys instead of RSA for TLS ([5aa8d08](https://github.com/yokecd/yoke/commit/5aa8d080df82936736db996ad796aded29adfc16))
+- deps: update deps and use external xsync package ([036b394](https://github.com/yokecd/yoke/commit/036b394278f50650f76a9a1f56ef94ab516cb84e))
+
+## (2026-04-01) atc/v0.19.10 - v0.20.11
+
+- k8s/ctrl: delete event count before requeue to avoid any possible race conditions ([1182942](https://github.com/yokecd/yoke/commit/1182942b8cad5c9f1c469b3d08199b45bc56b48c))
+
+## (2026-03-31) yokecd-installer/v0.19.9
+
+- yokecd-installer: use ArgoCD Helm Chart version 9.4.17 ([092d23d](https://github.com/yokecd/yoke/commit/092d23df0845f6a274ae5e58137578b3c3c9660e))
+
+## (2026-03-31) atc/v0.19.9 - v0.20.10 - yokecd/v0.19.8
+
+- k8s/ctrl: reduce reconciliation loop trashing from requeue events with improved queue implementation ([5cdc852](https://github.com/yokecd/yoke/commit/5cdc8525a093363219a9c77707cbf295bffd4f06))
+
+## (2026-03-28) atc/v0.19.8 - v0.20.9
 
 - ci: use GH_PACKAGES_TOKEN for authenticating with ghcr ([a3cbe4c](https://github.com/yokecd/yoke/commit/a3cbe4c9732effa9435b79d0e12803f7f3f421d0))
 - atc: decouple crd deletion from airway reconciliation loop ([8d4794b](https://github.com/yokecd/yoke/commit/8d4794bedb872395835be915789a73594253053b))
