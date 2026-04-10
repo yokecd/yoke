@@ -24,17 +24,20 @@ func TestGenerateSchema(t *testing.T) {
 		Embedded bool `json:"embed"`
 	}
 
+	type EmbeddedWithTag struct{}
+
 	type S struct {
 		Embedded
-		Name        string             `json:"name" MinLength:"3"`
-		Age         int                `json:"age" Minimum:"18"`
-		Labels      map[string]string  `json:"labels,omitempty"`
-		Active      bool               `json:"active"`
-		Choice      string             `json:"choice" Enum:"yes,no,toaster"`
-		Rule        string             `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
-		Map         map[string]any     `json:"map"`
-		IntOrString intstr.IntOrString `json:"intOrString,omitzero"`
-		Quantity    resource.Quantity  `json:"quantity,omitzero"`
+		EmbeddedWithTag `json:"embeddedWithTag,omitzero"`
+		Name            string             `json:"name" MinLength:"3"`
+		Age             int                `json:"age" Minimum:"18"`
+		Labels          map[string]string  `json:"labels,omitempty"`
+		Active          bool               `json:"active"`
+		Choice          string             `json:"choice" Enum:"yes,no,toaster"`
+		Rule            string             `json:"rule" XValidations:"[{\"rule\": \"has(self)\", \"message\":\"something\"}]"`
+		Map             map[string]any     `json:"map"`
+		IntOrString     intstr.IntOrString `json:"intOrString,omitzero"`
+		Quantity        resource.Quantity  `json:"quantity,omitzero"`
 	}
 
 	require.EqualValues(
@@ -78,6 +81,10 @@ func TestGenerateSchema(t *testing.T) {
 				},
 				"embed": {
 					Type: "boolean",
+				},
+				"embeddedWithTag": {
+					Type:       "object",
+					Properties: map[string]apiext.JSONSchemaProps{},
 				},
 				"map": {
 					Type:                   "object",
