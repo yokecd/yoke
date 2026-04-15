@@ -13,12 +13,18 @@ import (
 //go:embed cmd_sign_help.txt
 var signHelp string
 
+var CmdSign = &YokeCommand{
+	Name:     "sign",
+	FlagsSet: flag.NewFlagSet("sign", flag.ExitOnError),
+}
+
 func init() {
 	signHelp = strings.TrimSpace(internal.Colorize(signHelp))
+	CmdRoot.AddCommand(CmdSign)
 }
 
 func GetSignParams(args []string) (*yoke.SignParams, error) {
-	flagset := flag.NewFlagSet("sign", flag.ExitOnError)
+	flagset := CmdSign.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), signHelp)

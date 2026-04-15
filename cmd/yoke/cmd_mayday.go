@@ -19,12 +19,19 @@ type MaydayParams struct {
 //go:embed cmd_mayday_help.txt
 var maydayHelp string
 
+var CmdMayday = &YokeCommand{
+	Name:     "mayday",
+	Aliases:  []string{"delete"},
+	FlagsSet: flag.NewFlagSet("mayday", flag.ExitOnError),
+}
+
 func init() {
 	maydayHelp = strings.TrimSpace(internal.Colorize(maydayHelp))
+	CmdRoot.AddCommand(CmdMayday)
 }
 
 func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, error) {
-	flagset := flag.NewFlagSet("mayday", flag.ExitOnError)
+	flagset := CmdMayday.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), maydayHelp)

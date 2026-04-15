@@ -19,12 +19,19 @@ type UnlatchParams struct {
 //go:embed cmd_unlatch_help.txt
 var unlatchHelp string
 
+var CmdUnlatch = &YokeCommand{
+	Name:     "unlatch",
+	Aliases:  []string{"unlock"},
+	FlagsSet: flag.NewFlagSet("unlatch", flag.ExitOnError),
+}
+
 func init() {
 	maydayHelp = strings.TrimSpace(internal.Colorize(unlatchHelp))
+	CmdRoot.AddCommand(CmdUnlatch)
 }
 
 func GetUnlatchParams(settings GlobalSettings, args []string) (*UnlatchParams, error) {
-	flagset := flag.NewFlagSet("unlatch", flag.ExitOnError)
+	flagset := CmdUnlatch.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), maydayHelp)

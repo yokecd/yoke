@@ -25,8 +25,17 @@ type ATCParams struct {
 	Debug string
 }
 
+var CmdATC = &YokeCommand{
+	Name:     "atc",
+	FlagsSet: flag.NewFlagSet("atc", flag.ExitOnError),
+}
+
+func init() {
+	CmdRoot.AddCommand(CmdATC)
+}
+
 func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
-	flagset := flag.NewFlagSet("atc", flag.ExitOnError)
+	flagset := CmdATC.FlagsSet
 
 	params := ATCParams{GlobalSettings: settings}
 

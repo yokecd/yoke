@@ -22,12 +22,19 @@ type TurbulenceParams struct {
 //go:embed cmd_turbulence_help.txt
 var turbulenceHelp string
 
+var CmdTurbulence = &YokeCommand{
+	Name:     "turbulence",
+	Aliases:  []string{"drift", "diff"},
+	FlagsSet: flag.NewFlagSet("turbulence", flag.ExitOnError),
+}
+
 func init() {
 	turbulenceHelp = strings.TrimSpace(internal.Colorize(turbulenceHelp))
+	CmdRoot.AddCommand(CmdTurbulence)
 }
 
 func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulenceParams, error) {
-	flagset := flag.NewFlagSet("turbulence", flag.ExitOnError)
+	flagset := CmdTurbulence.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), turbulenceHelp)

@@ -35,6 +35,10 @@ func main() {
 //go:embed cmd_help.txt
 var rootHelp string
 
+var CmdRoot = &YokeCommand{
+	Name: "yoke",
+}
+
 func init() {
 	rootHelp = strings.TrimSpace(internal.Colorize(rootHelp))
 }
@@ -51,6 +55,11 @@ func run() error {
 		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr)
+	}
+
+	if len(os.Args) > 0 && os.Args[1] == "complete" {
+		Complete()
+		return nil
 	}
 
 	flag.Parse()

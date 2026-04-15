@@ -10,6 +10,14 @@ import (
 	"github.com/yokecd/yoke/internal"
 )
 
+var CmdVersion = &YokeCommand{
+	Name: "version",
+}
+
+func init() {
+	CmdRoot.AddCommand(CmdVersion)
+}
+
 func Version(ctx context.Context) error {
 	tbl := table.NewWriter()
 	tbl.SetStyle(table.StyleRounded)

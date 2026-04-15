@@ -15,12 +15,19 @@ import (
 //go:embed cmd_schematics_help.txt
 var schematicsHelp string
 
+var CmdSchematics = &YokeCommand{
+	Name:     "schematics",
+	Aliases:  []string{"meta"},
+	FlagsSet: flag.NewFlagSet("schematics", flag.ExitOnError),
+}
+
 func init() {
 	schematicsHelp = strings.TrimSpace(internal.Colorize(schematicsHelp))
+	CmdRoot.AddCommand(CmdSchematics)
 }
 
 func SchematicsCommand(ctx context.Context, args []string) error {
-	flagset := flag.NewFlagSet("schematics", flag.ExitOnError)
+	flagset := CmdSchematics.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), schematicsHelp)

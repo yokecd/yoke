@@ -13,8 +13,14 @@ import (
 //go:embed cmd_verify_help.txt
 var verifyHelp string
 
+var CmdVerify = &YokeCommand{
+	Name:     "verify",
+	FlagsSet: flag.NewFlagSet("verify", flag.ExitOnError),
+}
+
 func init() {
 	verifyHelp = strings.TrimSpace(internal.Colorize(verifyHelp))
+	CmdRoot.AddCommand(CmdVerify)
 }
 
 func GetVerifyParams(args []string) (*yoke.VerifyParams, error) {

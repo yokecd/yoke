@@ -24,12 +24,19 @@ type TakeoffParams struct {
 //go:embed cmd_takeoff_help.txt
 var takeoffHelp string
 
+var CmdTakeoff = &YokeCommand{
+	Name:     "takeoff",
+	Aliases:  []string{"up", "apply"},
+	FlagsSet: flag.NewFlagSet("takeoff", flag.ExitOnError),
+}
+
 func init() {
 	takeoffHelp = strings.TrimSpace(internal.Colorize(takeoffHelp))
+	CmdRoot.AddCommand(CmdTakeoff)
 }
 
 func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) (*TakeoffParams, error) {
-	flagset := flag.NewFlagSet("takeoff", flag.ExitOnError)
+	flagset := CmdTakeoff.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), takeoffHelp)

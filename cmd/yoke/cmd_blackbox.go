@@ -32,12 +32,19 @@ type BlackboxParams struct {
 //go:embed cmd_blackbox_help.txt
 var blackboxHelp string
 
+var CmdBlackbox = &YokeCommand{
+	Name:     "blackbox",
+	Aliases:  []string{"inspect"},
+	FlagsSet: flag.NewFlagSet("blackbox", flag.ExitOnError),
+}
+
 func init() {
 	blackboxHelp = strings.TrimSpace(internal.Colorize(blackboxHelp))
+	CmdRoot.AddCommand(CmdBlackbox)
 }
 
 func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams, error) {
-	flagset := flag.NewFlagSet("blackbox", flag.ExitOnError)
+	flagset := CmdBlackbox.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), blackboxHelp)

@@ -13,12 +13,19 @@ import (
 //go:embed cmd_stow_help.txt
 var stowHelp string
 
+var CmdStow = &YokeCommand{
+	Name:     "stow",
+	Aliases:  []string{"push"},
+	FlagsSet: flag.NewFlagSet("stow", flag.ExitOnError),
+}
+
 func init() {
 	stowHelp = strings.TrimSpace(internal.Colorize(stowHelp))
+	CmdRoot.AddCommand(CmdStow)
 }
 
 func GetStowParams(args []string) (*yoke.StowParams, error) {
-	flagset := flag.NewFlagSet("stow", flag.ExitOnError)
+	flagset := CmdStow.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), stowHelp)
