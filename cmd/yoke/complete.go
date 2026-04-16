@@ -9,7 +9,9 @@ import (
 )
 
 var validCommands = map[string]*YokeCommand{
-	"atc": CmdATC,
+	// fake alias to the root command
+	"complete": CmdRoot,
+	"atc":      CmdATC,
 	"takeoff": {
 		Name:    "takeoff",
 		Aliases: []string{"up", "apply"},
@@ -57,21 +59,14 @@ func cleanArg(argIn string) string {
 	return argIn
 }
 
-func CmdCompletion() {
-	root := CmdRoot
-	for _, cmd := range root.SubCommands {
-		fmt.Println(cmd.Name)
-	}
-}
-
-func FlagCompletion(cmd YokeCommand, args []string) {
-	// TODO: aliases
-	i := slices.Index(args, cmd.Name)
-	if i == -1 {
+func FlagCompletion(args []string, cmd *YokeCommand) {
+	partial := args[len(args)-1]
+	// TODO: iterate through sub commands
+	if cmd.FlagsSet == nil {
+		fmt.Println("DEBUG: flagset null")
 		return
 	}
-	rest := args[i:]
-	partial := rest[len(rest)-1]
+	fmt.Println("DEBUG: flag:", cmd.FlagsSet.Usage)
 	cmd.FlagsSet.VisitAll(func(f *flag.Flag) {
 		if partial == "" || strings.HasPrefix(f.Name, partial) {
 			// could optimize with hash map
@@ -82,32 +77,48 @@ func FlagCompletion(cmd YokeCommand, args []string) {
 	})
 }
 
+func commandsWithPrefix(argsMap map[string]bool, partial string) []string {
+	out := make([]string, 0)
+	for _, cmd := range CmdRoot.SubCommands {
+		// FIXME we should just pass in args,
+		_, ok := argsMap[cleanArg(cmd.Name)]
+		if !ok {
+			// TODO: also aliases
+			if strings.HasPrefix(cmd.Name, partial) {
+				out = append(out, cmd.Name)
+			}
+		}
+	}
+	return out
+}
+
 func Complete() {
 	if len(os.Args) < 2 {
 	}
 	currentArgs := make(map[string]bool)
 	for _, arg := range os.Args {
-		currentArgs[cleanArg(arg)] = true
+		currentArgs[arg] = true
 	}
 	partial := os.Args[len(os.Args)-1]
-	fmt.Println("DEBUG: ", partial)
-	fmt.Println("DEBUG: ", currentArgs)
-	// partial was a full command, we should hop into a sub command completion
-	lastCmd, ok := validCommands[partial]
-	if ok {
-		// looking for the next command now
-		fmt.Printf("DEBUG: cleaned %s -> ''\n", partial)
-		FlagCompletion(*lastCmd, os.Args)
-	}
-	// is it in a top level command
-	for _, cmd := range CmdRoot.SubCommands {
-		name := cmd.Name
-		_, ok := currentArgs[cleanArg(name)]
-		if !ok {
-			// TODO: also aliases
-			if strings.HasPrefix(name, partial) {
-				fmt.Println(name)
-			}
+	if strings.HasPrefix(partial, "-") {
+		partialClean := strings.TrimLeft(partial, "-")
+		lastCmdString := ""
+		if len(os.Args) > 2 {
+			lastCmdString = os.Args[len(os.Args)-2]
 		}
+		fmt.Println("DEBUG: partial", partialClean)
+		fmt.Println("DEBUG: lcs", lastCmdString)
+		// partial was a full command, we should hop into a sub command completion
+		lastCmd, ok := validCommands[lastCmdString]
+		if ok {
+			// looking for the next command now
+			fmt.Printf("DEBUG: completing for %s %s\n", lastCmd.Name, partial)
+			FlagCompletion(os.Args, lastCmd)
+		}
+	}
+	//if it's not a full command, get top-level completions
+	comps := commandsWithPrefix(currentArgs, partial)
+	for _, c := range comps {
+		fmt.Println(c)
 	}
 }

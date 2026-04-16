@@ -16,7 +16,7 @@ import (
 //go:embed cmd_descent_help.txt
 var descentHelp string
 
-var CmdDescend = &YokeCommand{
+var CmdDescent = &YokeCommand{
 	Name:     "descent",
 	Aliases:  []string{"down", "restore"},
 	FlagsSet: flag.NewFlagSet("descent", flag.ExitOnError),
@@ -24,7 +24,7 @@ var CmdDescend = &YokeCommand{
 
 func init() {
 	descentHelp = strings.TrimSpace(internal.Colorize(descentHelp))
-	CmdRoot.AddCommand(CmdDescend)
+	CmdRoot.AddCommand(CmdDescent)
 }
 
 type DescentParams struct {
@@ -33,7 +33,7 @@ type DescentParams struct {
 }
 
 func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, error) {
-	flagset := CmdDescend.FlagsSet
+	flagset := CmdDescent.FlagsSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), descentHelp)

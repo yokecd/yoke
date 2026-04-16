@@ -57,7 +57,7 @@ func run() error {
 		fmt.Fprintln(os.Stderr)
 	}
 
-	if len(os.Args) > 0 && os.Args[1] == "complete" {
+	if len(os.Args) > 1 && os.Args[1] == "complete" {
 		Complete()
 		return nil
 	}
