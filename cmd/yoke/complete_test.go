@@ -22,6 +22,6 @@ func TestFlagCompletionsDescent(t *testing.T) {
 			"-lock",
 			"-remove-namespaces",
 		}) {
-		t.Fatalf("TestDescentFlagCompletions did not yield expected flags")
+		t.Fatal("TestDescentFlagCompletions did not yield expected flags")
 	}
 }
