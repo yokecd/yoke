@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDescentFlagCompletions(t *testing.T) {
+func TestFlagCompletionsDescent(t *testing.T) {
 	if !slices.Equal(
 		getFlagCompletion(
 			[]string{"yoke", "descent"},
