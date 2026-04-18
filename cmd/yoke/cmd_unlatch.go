@@ -20,9 +20,9 @@ type UnlatchParams struct {
 var unlatchHelp string
 
 var CmdUnlatch = &YokeCommand{
-	Name:     "unlatch",
-	Aliases:  []string{"unlock"},
-	FlagsSet: flag.NewFlagSet("unlatch", flag.ExitOnError),
+	Name:    "unlatch",
+	Aliases: []string{"unlock"},
+	FlagSet: flag.NewFlagSet("unlatch", flag.ExitOnError),
 }
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 }
 
 func GetUnlatchParams(settings GlobalSettings, args []string) (*UnlatchParams, error) {
-	flagset := CmdUnlatch.FlagsSet
+	flagset := CmdUnlatch.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), maydayHelp)

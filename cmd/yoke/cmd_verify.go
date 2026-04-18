@@ -14,8 +14,8 @@ import (
 var verifyHelp string
 
 var CmdVerify = &YokeCommand{
-	Name:     "verify",
-	FlagsSet: flag.NewFlagSet("verify", flag.ExitOnError),
+	Name:    "verify",
+	FlagSet: flag.NewFlagSet("verify", flag.ExitOnError),
 }
 
 func init() {

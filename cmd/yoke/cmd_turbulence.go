@@ -23,9 +23,9 @@ type TurbulenceParams struct {
 var turbulenceHelp string
 
 var CmdTurbulence = &YokeCommand{
-	Name:     "turbulence",
-	Aliases:  []string{"drift", "diff"},
-	FlagsSet: flag.NewFlagSet("turbulence", flag.ExitOnError),
+	Name:    "turbulence",
+	Aliases: []string{"drift", "diff"},
+	FlagSet: flag.NewFlagSet("turbulence", flag.ExitOnError),
 }
 
 func init() {
@@ -34,7 +34,7 @@ func init() {
 }
 
 func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulenceParams, error) {
-	flagset := CmdTurbulence.FlagsSet
+	flagset := CmdTurbulence.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), turbulenceHelp)

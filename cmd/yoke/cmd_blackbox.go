@@ -33,9 +33,9 @@ type BlackboxParams struct {
 var blackboxHelp string
 
 var CmdBlackbox = &YokeCommand{
-	Name:     "blackbox",
-	Aliases:  []string{"inspect"},
-	FlagsSet: flag.NewFlagSet("blackbox", flag.ExitOnError),
+	Name:    "blackbox",
+	Aliases: []string{"inspect"},
+	FlagSet: flag.NewFlagSet("blackbox", flag.ExitOnError),
 }
 
 func init() {
@@ -44,7 +44,7 @@ func init() {
 }
 
 func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams, error) {
-	flagset := CmdBlackbox.FlagsSet
+	flagset := CmdBlackbox.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), blackboxHelp)

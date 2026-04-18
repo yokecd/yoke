@@ -14,7 +14,7 @@ type YokeCommandRunner interface {
 type YokeCommand struct {
 	Name           string
 	Aliases        []string
-	FlagsSet       *flag.FlagSet
+	FlagSet        *flag.FlagSet
 	SubCommands    []*YokeCommand
 	CompletionFunc func([]string)
 }

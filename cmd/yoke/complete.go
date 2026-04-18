@@ -10,49 +10,19 @@ import (
 
 var validCommands = map[string]*YokeCommand{
 	// fake alias to the root command
-	"complete": CmdRoot,
-	"atc":      CmdATC,
-	"takeoff": {
-		Name:    "takeoff",
-		Aliases: []string{"up", "apply"},
-	},
-	"descent": {
-		Name:    "descent",
-		Aliases: []string{"down", "restore"},
-	},
-	"mayday": {
-		Name:    "mayday",
-		Aliases: []string{"delete"},
-	},
-	"blackbox": {
-		Name:    "blackbox",
-		Aliases: []string{"inspect"},
-	},
-	"turbulence": {
-		Name:    "turbulence",
-		Aliases: []string{"drift", "diff"},
-	},
-	"stow": {
-		Name:    "stow",
-		Aliases: []string{"push"},
-	},
-	"unlatch": {
-		Name:    "unlatch",
-		Aliases: []string{"unlock"},
-	},
-	"schematics": {
-		Name:    "schematics",
-		Aliases: []string{"meta"},
-	},
-	"sign": {
-		Name: "sign",
-	},
-	"verify": {
-		Name: "verify",
-	},
-	"version": {
-		Name: "version",
-	},
+	"complete":   CmdRoot,
+	"atc":        CmdATC,
+	"takeoff":    CmdTakeoff,
+	"descent":    CmdDescent,
+	"mayday":     CmdMayday,
+	"blackbox":   CmdBlackbox,
+	"turbulence": CmdTurbulence,
+	"stow":       CmdStow,
+	"unlatch":    CmdUnlatch,
+	"schematics": CmdSchematics,
+	"sign":       CmdSign,
+	"verify":     CmdVerify,
+	"version":    CmdVersion,
 }
 
 func cleanArg(argIn string) string {
@@ -60,14 +30,12 @@ func cleanArg(argIn string) string {
 }
 
 func FlagCompletion(args []string, cmd *YokeCommand) {
-	partial := args[len(args)-1]
-	// TODO: iterate through sub commands
-	if cmd.FlagsSet == nil {
+	partial := strings.TrimLeft(args[len(args)-1], "-")
+	if cmd.FlagSet == nil {
 		fmt.Println("DEBUG: flagset null")
 		return
 	}
-	fmt.Println("DEBUG: flag:", cmd.FlagsSet.Usage)
-	cmd.FlagsSet.VisitAll(func(f *flag.Flag) {
+	flag.VisitAll(func(f *flag.Flag) {
 		if partial == "" || strings.HasPrefix(f.Name, partial) {
 			// could optimize with hash map
 			if !slices.Contains(args, f.Name) {

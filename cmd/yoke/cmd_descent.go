@@ -17,13 +17,37 @@ import (
 var descentHelp string
 
 var CmdDescent = &YokeCommand{
-	Name:     "descent",
-	Aliases:  []string{"down", "restore"},
-	FlagsSet: flag.NewFlagSet("descent", flag.ExitOnError),
+	Name:    "descent",
+	Aliases: []string{"down", "restore"},
+	FlagSet: flag.NewFlagSet("descent", flag.ExitOnError),
 }
+
+var (
+	release          string
+	revisionID       int
+	namespace        string
+	wait             time.Duration
+	poll             time.Duration
+	lock             bool
+	removeCRDs       bool
+	removeNamespaces bool
+	removeAll        bool
+)
 
 func init() {
 	descentHelp = strings.TrimSpace(internal.Colorize(descentHelp))
+	CmdDescent.FlagSet.StringVar(&namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
+	CmdDescent.FlagSet.DurationVar(&wait, "wait", 0, "time to wait for release to become ready")
+	CmdDescent.FlagSet.DurationVar(&poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
+	CmdDescent.FlagSet.BoolVar(&lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
+	CmdDescent.FlagSet.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.BoolVar(&removeCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.BoolVar(&removeNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.Usage = func() {
+		fmt.Fprintln(CmdDescent.FlagSet.Output(), descentHelp)
+		CmdDescent.FlagSet.PrintDefaults()
+	}
+
 	CmdRoot.AddCommand(CmdDescent)
 }
 
@@ -33,12 +57,7 @@ type DescentParams struct {
 }
 
 func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, error) {
-	flagset := CmdDescent.FlagsSet
-
-	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), descentHelp)
-		flagset.PrintDefaults()
-	}
+	flagset := CmdDescent.FlagSet
 
 	params := DescentParams{
 		GlobalSettings: settings,
@@ -46,17 +65,13 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 
 	RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
-	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
-	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
-	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
-	flagset.BoolVar(&params.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
-
-	var removeAll bool
-	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
-	flagset.BoolVar(&params.RemoveCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
-	flagset.BoolVar(&params.RemoveNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
-
 	flagset.Parse(args)
+	params.Namespace = namespace
+	params.Poll = poll
+	params.Wait = wait
+	params.Lock = lock
+	params.RemoveCRDs = removeCRDs
+	params.RemoveNamespaces = removeNamespaces
 
 	if removeAll {
 		params.RemoveCRDs = true

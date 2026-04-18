@@ -16,9 +16,9 @@ import (
 var schematicsHelp string
 
 var CmdSchematics = &YokeCommand{
-	Name:     "schematics",
-	Aliases:  []string{"meta"},
-	FlagsSet: flag.NewFlagSet("schematics", flag.ExitOnError),
+	Name:    "schematics",
+	Aliases: []string{"meta"},
+	FlagSet: flag.NewFlagSet("schematics", flag.ExitOnError),
 }
 
 func init() {
@@ -27,7 +27,7 @@ func init() {
 }
 
 func SchematicsCommand(ctx context.Context, args []string) error {
-	flagset := CmdSchematics.FlagsSet
+	flagset := CmdSchematics.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), schematicsHelp)

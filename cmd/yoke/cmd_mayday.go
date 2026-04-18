@@ -20,9 +20,9 @@ type MaydayParams struct {
 var maydayHelp string
 
 var CmdMayday = &YokeCommand{
-	Name:     "mayday",
-	Aliases:  []string{"delete"},
-	FlagsSet: flag.NewFlagSet("mayday", flag.ExitOnError),
+	Name:    "mayday",
+	Aliases: []string{"delete"},
+	FlagSet: flag.NewFlagSet("mayday", flag.ExitOnError),
 }
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 }
 
 func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, error) {
-	flagset := CmdMayday.FlagsSet
+	flagset := CmdMayday.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), maydayHelp)

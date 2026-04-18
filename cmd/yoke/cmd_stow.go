@@ -14,9 +14,9 @@ import (
 var stowHelp string
 
 var CmdStow = &YokeCommand{
-	Name:     "stow",
-	Aliases:  []string{"push"},
-	FlagsSet: flag.NewFlagSet("stow", flag.ExitOnError),
+	Name:    "stow",
+	Aliases: []string{"push"},
+	FlagSet: flag.NewFlagSet("stow", flag.ExitOnError),
 }
 
 func init() {
@@ -25,7 +25,7 @@ func init() {
 }
 
 func GetStowParams(args []string) (*yoke.StowParams, error) {
-	flagset := CmdStow.FlagsSet
+	flagset := CmdStow.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), stowHelp)

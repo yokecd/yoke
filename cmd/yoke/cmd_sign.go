@@ -14,8 +14,8 @@ import (
 var signHelp string
 
 var CmdSign = &YokeCommand{
-	Name:     "sign",
-	FlagsSet: flag.NewFlagSet("sign", flag.ExitOnError),
+	Name:    "sign",
+	FlagSet: flag.NewFlagSet("sign", flag.ExitOnError),
 }
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 }
 
 func GetSignParams(args []string) (*yoke.SignParams, error) {
-	flagset := CmdSign.FlagsSet
+	flagset := CmdSign.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), signHelp)

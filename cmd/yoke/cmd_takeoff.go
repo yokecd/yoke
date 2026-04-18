@@ -25,9 +25,9 @@ type TakeoffParams struct {
 var takeoffHelp string
 
 var CmdTakeoff = &YokeCommand{
-	Name:     "takeoff",
-	Aliases:  []string{"up", "apply"},
-	FlagsSet: flag.NewFlagSet("takeoff", flag.ExitOnError),
+	Name:    "takeoff",
+	Aliases: []string{"up", "apply"},
+	FlagSet: flag.NewFlagSet("takeoff", flag.ExitOnError),
 }
 
 func init() {
@@ -36,7 +36,7 @@ func init() {
 }
 
 func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) (*TakeoffParams, error) {
-	flagset := CmdTakeoff.FlagsSet
+	flagset := CmdTakeoff.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), takeoffHelp)
