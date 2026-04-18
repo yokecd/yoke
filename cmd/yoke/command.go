@@ -17,10 +17,12 @@ type YokeCommand struct {
 	FlagSet        *flag.FlagSet
 	SubCommands    []*YokeCommand
 	CompletionFunc func([]string)
+	Parent         *YokeCommand
 }
 
 // We might actually want to implement this as a map to make it blazingly fast
 func (y *YokeCommand) AddCommand(sub *YokeCommand) {
+	sub.Parent = y
 	y.SubCommands = append(y.SubCommands, sub)
 }
 

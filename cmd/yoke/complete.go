@@ -8,9 +8,11 @@ import (
 	"strings"
 )
 
+// TODO: construct from rootcmd's children
 var validCommands = map[string]*YokeCommand{
 	// fake alias to the root command
 	"complete":   CmdRoot,
+	"yoke":       CmdRoot,
 	"atc":        CmdATC,
 	"takeoff":    CmdTakeoff,
 	"descent":    CmdDescent,
@@ -29,35 +31,75 @@ func cleanArg(argIn string) string {
 	return argIn
 }
 
-func FlagCompletion(args []string, cmd *YokeCommand) {
-	partial := strings.TrimLeft(args[len(args)-1], "-")
-	if cmd.FlagSet == nil {
-		fmt.Println("DEBUG: flagset null")
-		return
+func printFlagCompletion(args []string, cmd *YokeCommand) {
+	for _, flag := range getFlagCompletion(args, cmd) {
+		fmt.Println(flag)
 	}
-	flag.VisitAll(func(f *flag.Flag) {
-		if partial == "" || strings.HasPrefix(f.Name, partial) {
-			// could optimize with hash map
-			if !slices.Contains(args, f.Name) {
-				fmt.Println("-" + f.Name)
-			}
-		}
-	})
 }
 
-func commandsWithPrefix(argsMap map[string]bool, partial string) []string {
+// get the flags associated with a yokeCommand
+// it takes all of args slice and the YokeCommand
+func getFlagCompletion(args []string, cmd *YokeCommand) []string {
+	flagSetAll := make(map[string]bool)
 	out := make([]string, 0)
-	for _, cmd := range CmdRoot.SubCommands {
-		// FIXME we should just pass in args,
-		_, ok := argsMap[cleanArg(cmd.Name)]
-		if !ok {
-			// TODO: also aliases
-			if strings.HasPrefix(cmd.Name, partial) {
-				out = append(out, cmd.Name)
+	partial := strings.TrimLeft(args[len(args)-1], "-")
+	if cmd.FlagSet == nil {
+		return out
+	}
+	filterForPrefix := func(f *flag.Flag, p string) {
+		if p == "" || strings.HasPrefix(f.Name, p) {
+			if !slices.Contains(args, f.Name) {
+				flagSetAll["-"+f.Name] = true
 			}
+		}
+	}
+	// Iterate through all of the places we get flags from
+	// If we had more layers, we'd need to not just
+	// FIXME: Actually traverse the tree upward
+	// needs to be upward so that we don't print the wrong flags
+	flag.VisitAll(func(f *flag.Flag) {
+		filterForPrefix(f, partial)
+	})
+	// get flagset flag
+	cmd.FlagSet.VisitAll(func(f *flag.Flag) {
+		filterForPrefix(f, partial)
+	})
+	for k := range flagSetAll {
+		out = append(out, k)
+	}
+	return out
+}
+
+// given the args passed, yield all of the valid next top level cocmmands
+func getCommandCompletions(args []string) []*YokeCommand {
+	out := make([]*YokeCommand, 0)
+	partial := args[len(args)-1]
+	if partial == "complete" || partial == "yoke" {
+		partial = ""
+	}
+	// We've already completed the command
+	cmd, ok := validCommands[partial]
+	if ok {
+		for _, c := range cmd.SubCommands {
+			fmt.Println("\t sub:", c.Name)
+			if strings.HasPrefix(c.Name, partial) || partial == "" {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	for k, v := range validCommands {
+		if strings.HasPrefix(k, partial) {
+			out = append(out, v)
 		}
 	}
 	return out
+}
+
+func printCommandCompletions(args []string) {
+	for _, cmd := range getCommandCompletions(args) {
+		fmt.Println(cmd.Name)
+	}
 }
 
 func Complete() {
@@ -69,24 +111,17 @@ func Complete() {
 	}
 	partial := os.Args[len(os.Args)-1]
 	if strings.HasPrefix(partial, "-") {
-		partialClean := strings.TrimLeft(partial, "-")
 		lastCmdString := ""
 		if len(os.Args) > 2 {
 			lastCmdString = os.Args[len(os.Args)-2]
 		}
-		fmt.Println("DEBUG: partial", partialClean)
-		fmt.Println("DEBUG: lcs", lastCmdString)
 		// partial was a full command, we should hop into a sub command completion
 		lastCmd, ok := validCommands[lastCmdString]
 		if ok {
 			// looking for the next command now
-			fmt.Printf("DEBUG: completing for %s %s\n", lastCmd.Name, partial)
-			FlagCompletion(os.Args, lastCmd)
+			printFlagCompletion(os.Args, lastCmd)
 		}
 	}
 	//if it's not a full command, get top-level completions
-	comps := commandsWithPrefix(currentArgs, partial)
-	for _, c := range comps {
-		fmt.Println(c)
-	}
+	printCommandCompletions(os.Args)
 }
