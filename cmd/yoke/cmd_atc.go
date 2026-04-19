@@ -30,22 +30,22 @@ var CmdATC = &YokeCommand{
 	FlagSet: flag.NewFlagSet("atc", flag.ExitOnError),
 }
 
+var atcParams = ATCParams{}
+
 func init() {
+	flagset := CmdATC.FlagSet
+	flagset.StringVar(&atcParams.Debug, "debug-file", "", "debug file")
 	CmdRoot.AddCommand(CmdATC)
 }
 
 func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
 	flagset := CmdATC.FlagSet
-
-	params := ATCParams{GlobalSettings: settings}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
-
-	flagset.StringVar(&params.Debug, "debug-file", "", "debug file")
+	atcParams.GlobalSettings = settings
+	RegisterGlobalFlags(flagset, &atcParams.GlobalSettings)
 
 	flagset.Parse(args)
 
-	return params
+	return atcParams
 }
 
 func ATC(ctx context.Context, params ATCParams) error {

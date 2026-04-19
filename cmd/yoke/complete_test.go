@@ -1,16 +1,19 @@
 package main
 
 import (
+	"os"
 	"slices"
 	"testing"
 )
 
 func TestFlagCompletionsDescent(t *testing.T) {
-	if !slices.Equal(
+	comps :=
 		getFlagCompletion(
-			[]string{"yoke", "descent"},
+			[]string{"yoke", "descent", "-"},
 			validCommands["descent"],
-		), []string{
+		)
+	if !slices.Equal(
+		comps, []string{
 			"-debug",
 			"-kube-context",
 			"-namespace",
@@ -22,6 +25,6 @@ func TestFlagCompletionsDescent(t *testing.T) {
 			"-lock",
 			"-remove-namespaces",
 		}) {
-		t.Fatal("TestDescentFlagCompletions did not yield expected flags")
+		t.Fatal("TestDescentFlagCompletions did not yield expected flags, got: ", comps, "ARGS: ", os.Args)
 	}
 }

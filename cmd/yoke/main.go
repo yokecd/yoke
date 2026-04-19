@@ -36,33 +36,33 @@ func main() {
 var rootHelp string
 
 var CmdRoot = &YokeCommand{
-	Name: "yoke",
+	Name:    "yoke",
+	FlagSet: flag.NewFlagSet("yoke", flag.ExitOnError),
+}
+
+var settings = GlobalSettings{
+	Debug: new(bool),
+	Kube:  genericclioptions.NewConfigFlags(false),
 }
 
 func init() {
 	rootHelp = strings.TrimSpace(internal.Colorize(rootHelp))
+	RegisterGlobalFlags(CmdRoot.FlagSet, &settings)
+	CmdRoot.FlagSet.Usage = func() {
+		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
+		CmdRoot.FlagSet.PrintDefaults()
+		fmt.Fprintln(os.Stderr)
+	}
 }
 
 func run() error {
-	settings := GlobalSettings{
-		Debug: new(bool),
-		Kube:  genericclioptions.NewConfigFlags(false),
-	}
-
-	RegisterGlobalFlags(flag.CommandLine, &settings)
-
-	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
-		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr)
-	}
 
 	if len(os.Args) > 1 && os.Args[1] == "complete" {
 		Complete()
 		return nil
 	}
 
-	flag.Parse()
+	CmdRoot.FlagSet.Parse(os.Args)
 
 	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
 	defer cancel()
@@ -70,13 +70,13 @@ func run() error {
 	ctx = internal.WithDebugFlag(ctx, settings.Debug)
 
 	if len(flag.Args()) == 0 {
-		flag.Usage()
+		CmdRoot.FlagSet.Usage()
 		return fmt.Errorf("no command provided")
 	}
 
-	subcmdArgs := flag.Args()[1:]
+	subcmdArgs := CmdRoot.FlagSet.Args()[1:]
 
-	switch cmd := flag.Arg(0); cmd {
+	switch cmd := CmdRoot.FlagSet.Arg(0); cmd {
 	case "atc":
 		return ATC(ctx, GetAtcParams(settings, subcmdArgs))
 	case "takeoff", "up", "apply":

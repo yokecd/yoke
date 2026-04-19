@@ -37,35 +37,38 @@ var CmdBlackbox = &YokeCommand{
 	Aliases: []string{"inspect"},
 	FlagSet: flag.NewFlagSet("blackbox", flag.ExitOnError),
 }
+var (
+	blackboxParams BlackboxParams
+)
 
 func init() {
 	blackboxHelp = strings.TrimSpace(internal.Colorize(blackboxHelp))
+	flagset := CmdBlackbox.FlagSet
+	flagset.IntVar(&blackboxParams.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
+	flagset.StringVar(&blackboxParams.Namespace, "namespace", "", "namespace of release to inspect")
+	flagset.Usage = func() {
+		fmt.Fprintln(flagset.Output(), blackboxHelp)
+		flagset.PrintDefaults()
+	}
 	CmdRoot.AddCommand(CmdBlackbox)
 }
 
 func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams, error) {
 	flagset := CmdBlackbox.FlagSet
 
-	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), blackboxHelp)
-		flagset.PrintDefaults()
-	}
+	blackboxParams.GlobalSettings = settings
+	RegisterGlobalFlags(flagset, &blackboxParams.GlobalSettings)
 
-	params := BlackboxParams{GlobalSettings: settings}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
-	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
-	flagset.StringVar(&params.Namespace, "namespace", "", "namespace of release to inspect")
 	flagset.Parse(args)
 
-	params.Release = flagset.Arg(0)
+	blackboxParams.Release = flagset.Arg(0)
 
 	if revision := flagset.Arg(1); revision != "" {
 		revisionID, err := strconv.Atoi(flagset.Arg(1))
 		if err != nil {
 			return nil, fmt.Errorf("revision must be an integer ID: %w", err)
 		}
-		params.RevisionID = revisionID
+		blackboxParams.RevisionID = revisionID
 	}
 
 	if revision := flagset.Arg(2); revision != "" {
@@ -73,10 +76,10 @@ func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams,
 		if err != nil {
 			return nil, fmt.Errorf("revision to diff must be an integer ID: %w", err)
 		}
-		params.DiffRevisionID = revisionID
+		blackboxParams.DiffRevisionID = revisionID
 	}
 
-	return &params, nil
+	return &blackboxParams, nil
 }
 
 func Blackbox(ctx context.Context, params BlackboxParams) error {

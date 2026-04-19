@@ -23,26 +23,19 @@ var CmdDescent = &YokeCommand{
 }
 
 var (
-	release          string
-	revisionID       int
-	namespace        string
-	wait             time.Duration
-	poll             time.Duration
-	lock             bool
-	removeCRDs       bool
-	removeNamespaces bool
-	removeAll        bool
+	descentParams    DescentParams
+	descentRemoveAll bool
 )
 
 func init() {
 	descentHelp = strings.TrimSpace(internal.Colorize(descentHelp))
-	CmdDescent.FlagSet.StringVar(&namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
-	CmdDescent.FlagSet.DurationVar(&wait, "wait", 0, "time to wait for release to become ready")
-	CmdDescent.FlagSet.DurationVar(&poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
-	CmdDescent.FlagSet.BoolVar(&lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
-	CmdDescent.FlagSet.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
-	CmdDescent.FlagSet.BoolVar(&removeCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
-	CmdDescent.FlagSet.BoolVar(&removeNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.StringVar(&descentParams.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
+	CmdDescent.FlagSet.DurationVar(&descentParams.Wait, "wait", 0, "time to wait for release to become ready")
+	CmdDescent.FlagSet.DurationVar(&descentParams.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
+	CmdDescent.FlagSet.BoolVar(&descentParams.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
+	CmdDescent.FlagSet.BoolVar(&descentRemoveAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.BoolVar(&descentParams.RemoveCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
+	CmdDescent.FlagSet.BoolVar(&descentParams.RemoveNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
 	CmdDescent.FlagSet.Usage = func() {
 		fmt.Fprintln(CmdDescent.FlagSet.Output(), descentHelp)
 		CmdDescent.FlagSet.PrintDefaults()
@@ -59,27 +52,19 @@ type DescentParams struct {
 func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, error) {
 	flagset := CmdDescent.FlagSet
 
-	params := DescentParams{
-		GlobalSettings: settings,
-	}
+	descentParams.GlobalSettings = settings
 
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+	RegisterGlobalFlags(flagset, &descentParams.GlobalSettings)
 
 	flagset.Parse(args)
-	params.Namespace = namespace
-	params.Poll = poll
-	params.Wait = wait
-	params.Lock = lock
-	params.RemoveCRDs = removeCRDs
-	params.RemoveNamespaces = removeNamespaces
 
-	if removeAll {
-		params.RemoveCRDs = true
-		params.RemoveNamespaces = true
+	if descentRemoveAll {
+		descentParams.RemoveCRDs = true
+		descentParams.RemoveNamespaces = true
 	}
 
-	params.Release = flagset.Arg(0)
-	if params.Release == "" {
+	descentParams.Release = flagset.Arg(0)
+	if descentParams.Release == "" {
 		return nil, fmt.Errorf("release is required as first positional arg")
 	}
 
@@ -92,9 +77,9 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 		return nil, fmt.Errorf("revision must be an integer ID: %w", err)
 	}
 
-	params.RevisionID = revisionID
+	descentParams.RevisionID = revisionID
 
-	return &params, nil
+	return &descentParams, nil
 }
 
 func Descent(ctx context.Context, params DescentParams) error {

@@ -25,33 +25,35 @@ var CmdUnlatch = &YokeCommand{
 	FlagSet: flag.NewFlagSet("unlatch", flag.ExitOnError),
 }
 
+var unlatchParams UnlatchParams
+
 func init() {
 	maydayHelp = strings.TrimSpace(internal.Colorize(unlatchHelp))
-	CmdRoot.AddCommand(CmdUnlatch)
-}
-
-func GetUnlatchParams(settings GlobalSettings, args []string) (*UnlatchParams, error) {
 	flagset := CmdUnlatch.FlagSet
 
 	flagset.Usage = func() {
 		fmt.Fprintln(flagset.Output(), maydayHelp)
 		flagset.PrintDefaults()
 	}
+	flagset.StringVar(&unlatchParams.Namespace, "namespace", "default", "target namespace of release to remove")
+	CmdRoot.AddCommand(CmdUnlatch)
+}
 
-	params := UnlatchParams{GlobalSettings: settings}
+func GetUnlatchParams(settings GlobalSettings, args []string) (*UnlatchParams, error) {
+	flagset := CmdUnlatch.FlagSet
 
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+	unlatchParams.GlobalSettings = settings
 
-	flagset.StringVar(&params.Namespace, "namespace", "default", "target namespace of release to remove")
+	RegisterGlobalFlags(flagset, &unlatchParams.GlobalSettings)
 
 	flagset.Parse(args)
 
-	params.Release = flagset.Arg(0)
-	if params.Release == "" {
+	unlatchParams.Release = flagset.Arg(0)
+	if unlatchParams.Release == "" {
 		return nil, fmt.Errorf("release is required")
 	}
 
-	return &params, nil
+	return &unlatchParams, nil
 }
 
 func Unlatch(ctx context.Context, params UnlatchParams) error {

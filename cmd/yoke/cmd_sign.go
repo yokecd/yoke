@@ -18,23 +18,33 @@ var CmdSign = &YokeCommand{
 	FlagSet: flag.NewFlagSet("sign", flag.ExitOnError),
 }
 
+var (
+	signKeyPath string
+	signOut     string
+	signForce   bool
+)
+
 func init() {
 	signHelp = strings.TrimSpace(internal.Colorize(signHelp))
+
+	CmdSign.FlagSet.StringVar(&signKeyPath, "key", "", "Path to private key pem used for signing")
+	CmdSign.FlagSet.StringVar(&signOut, "o", "", "output file to write signed wasm module. If omitted module will be signed in place")
+	CmdSign.FlagSet.BoolVar(&signForce, "f", false, "forcefully override existing signature on module")
+	CmdSign.FlagSet.Usage = func() {
+		fmt.Fprintln(CmdSign.FlagSet.Output(), signHelp)
+		CmdSign.FlagSet.PrintDefaults()
+	}
 	CmdRoot.AddCommand(CmdSign)
 }
 
 func GetSignParams(args []string) (*yoke.SignParams, error) {
 	flagset := CmdSign.FlagSet
 
-	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), signHelp)
-		flagset.PrintDefaults()
+	params := yoke.SignParams{
+		KeyPath: signKeyPath,
+		Out:     signOut,
+		Force:   signForce,
 	}
-
-	var params yoke.SignParams
-	flagset.StringVar(&params.KeyPath, "key", "", "Path to private key pem used for signing")
-	flagset.StringVar(&params.Out, "o", "", "output file to write signed wasm module. If omitted module will be signed in place")
-	flagset.BoolVar(&params.Force, "f", false, "forcefully override existing signature on module")
 
 	flagset.Parse(args)
 

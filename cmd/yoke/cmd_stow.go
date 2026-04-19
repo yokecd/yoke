@@ -19,8 +19,18 @@ var CmdStow = &YokeCommand{
 	FlagSet: flag.NewFlagSet("stow", flag.ExitOnError),
 }
 
+var (
+	stowInsecure bool
+	stowTags     []string
+)
+
 func init() {
 	stowHelp = strings.TrimSpace(internal.Colorize(stowHelp))
+	CmdStow.FlagSet.BoolVar(&stowInsecure, "insecure", false, "allows image references to be fetched without TLS")
+	CmdStow.FlagSet.Func("tag", "comma separated list of tags", func(s string) error {
+		stowTags = append(stowTags, strings.Split(s, ",")...)
+		return nil
+	})
 	CmdRoot.AddCommand(CmdStow)
 }
 
@@ -34,12 +44,9 @@ func GetStowParams(args []string) (*yoke.StowParams, error) {
 
 	var params yoke.StowParams
 
-	flagset.BoolVar(&params.Insecure, "insecure", false, "allows image references to be fetched without TLS")
-	flagset.Func("tag", "comma separated list of tags", func(s string) error {
-		params.Tags = append(params.Tags, strings.Split(s, ",")...)
-		return nil
-	})
 	flagset.Parse(args)
+	params.Insecure = stowInsecure
+	params.Tags = stowTags
 
 	params.WasmFile = flagset.Arg(0)
 	params.URL = flagset.Arg(1)
