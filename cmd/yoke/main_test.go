@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -56,13 +55,6 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	settings = GlobalSettings{
-		Kube: func() *genericclioptions.ConfigFlags {
-			flags := genericclioptions.NewConfigFlags(false)
-			flags.KubeConfig = &home.Kubeconfig
-			return flags
-		}(),
-	}
 	background = internal.WithStdio(context.Background(), io.Discard, io.Discard, nil)
 )
 

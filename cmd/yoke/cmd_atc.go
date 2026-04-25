@@ -25,19 +25,18 @@ type ATCParams struct {
 	Debug string
 }
 
-func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
+var CmdATC = NewCommand("atc", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
 	flagset := flag.NewFlagSet("atc", flag.ExitOnError)
-
-	params := ATCParams{GlobalSettings: settings}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
-
+	params := ATCParams{}
 	flagset.StringVar(&params.Debug, "debug-file", "", "debug file")
-
-	flagset.Parse(args)
-
-	return params
-}
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		params.GlobalSettings = settings
+		RegisterGlobalFlags(flagset, &params.GlobalSettings)
+		flagset.Parse(args)
+		ATC(ctx, params)
+		return nil
+	}
+})
 
 func ATC(ctx context.Context, params ATCParams) error {
 	client, err := k8s.NewClientFromConfigFlags(params.Kube)
