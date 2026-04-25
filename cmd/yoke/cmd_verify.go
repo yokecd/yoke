@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -13,39 +14,27 @@ import (
 //go:embed cmd_verify_help.txt
 var verifyHelp string
 
-var CmdVerify = &YokeCommand{
-	Name:    "verify",
-	FlagSet: flag.NewFlagSet("verify", flag.ExitOnError),
-}
-
-var verifyParams yoke.VerifyParams
-
-func init() {
-	verifyHelp = strings.TrimSpace(internal.Colorize(verifyHelp))
-
+var CmdVerify = NewCommand("verify", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
 	flagset := flag.NewFlagSet("verify", flag.ExitOnError)
+	params := yoke.VerifyParams{}
 	flagset.Usage = func() {
+		verifyHelp = strings.TrimSpace(internal.Colorize(verifyHelp))
 		fmt.Fprintln(flagset.Output(), verifyHelp)
 		flagset.PrintDefaults()
 	}
+	flagset.StringVar(&params.KeyPath, "key", "", "Path to pulbic key pem used for verifying")
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		flagset.Parse(args)
 
-	flagset.StringVar(&verifyParams.KeyPath, "key", "", "Path to pulbic key pem used for verifying")
-	CmdRoot.AddCommand(CmdVerify)
-}
+		params.WasmFile = flagset.Arg(0)
 
-func GetVerifyParams(args []string) (*yoke.VerifyParams, error) {
-	flagset := flag.NewFlagSet("verify", flag.ExitOnError)
+		if params.WasmFile == "" {
+			return fmt.Errorf("wasm file must be specified as first argument")
+		}
+		if params.KeyPath == "" {
+			return fmt.Errorf("key is required")
+		}
 
-	flagset.Parse(args)
-
-	verifyParams.WasmFile = flagset.Arg(0)
-
-	if verifyParams.WasmFile == "" {
-		return nil, fmt.Errorf("wasm file must be specified as first argument")
+		return yoke.Verify(params)
 	}
-	if verifyParams.KeyPath == "" {
-		return nil, fmt.Errorf("key is required")
-	}
-
-	return &verifyParams, nil
-}
+})

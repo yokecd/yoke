@@ -22,19 +22,13 @@ type TurbulenceParams struct {
 //go:embed cmd_turbulence_help.txt
 var turbulenceHelp string
 
-var CmdTurbulence = &YokeCommand{
-	Name:    "turbulence",
-	Aliases: []string{"drift", "diff"},
-	FlagSet: flag.NewFlagSet("turbulence", flag.ExitOnError),
-}
-var turbulencParams TurbulenceParams
+var CmdTurbulence = NewCommand("turbulence", []string{"drift", "diff"}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	flagset := flag.NewFlagSet("turbulence", flag.ExitOnError)
+	params := TurbulenceParams{}
 
-func init() {
-	turbulenceHelp = strings.TrimSpace(internal.Colorize(turbulenceHelp))
-	flagset := CmdTurbulence.FlagSet
-	flagset.IntVar(&turbulencParams.Context, "context", 4, "number of lines of context in diff")
+	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff")
 	flagset.BoolVar(
-		&turbulencParams.ConflictsOnly,
+		&params.ConflictsOnly,
 		"conflict-only",
 		true,
 		""+
@@ -42,34 +36,31 @@ func init() {
 			"If false, will show diff against state that was not declared;\n"+
 			"such as server generated annotations, status, defaults and more",
 	)
-	flagset.BoolVar(&turbulencParams.Fix, "fix", false, "fix the drift. If present conflict-only will be true.")
-	flagset.BoolVar(&turbulencParams.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "outputs diff with color")
-	flagset.StringVar(&turbulencParams.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
+	flagset.BoolVar(&params.Fix, "fix", false, "fix the drift. If present conflict-only will be true.")
+	flagset.BoolVar(&params.Color, "color", term.IsTerminal(int(os.Stdout.Fd())), "outputs diff with color")
+	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
 
 	flagset.Usage = func() {
+		turbulenceHelp = strings.TrimSpace(internal.Colorize(turbulenceHelp))
 		fmt.Fprintln(flagset.Output(), turbulenceHelp)
 		flagset.PrintDefaults()
 	}
-	CmdRoot.AddCommand(CmdTurbulence)
-}
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
 
-func GetTurbulenceParams(settings GlobalSettings, args []string) (*TurbulenceParams, error) {
-	flagset := CmdTurbulence.FlagSet
+		params.GlobalSettings = settings
+		RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
-	turbulencParams.GlobalSettings = settings
-	RegisterGlobalFlags(flagset, &turbulencParams.GlobalSettings)
+		flagset.Parse(args)
 
-	flagset.Parse(args)
+		params.Release = flagset.Arg(0)
+		if params.Release == "" {
+			return fmt.Errorf("release is required")
+		}
 
-	turbulencParams.Release = flagset.Arg(0)
-	if turbulencParams.Release == "" {
-		return nil, fmt.Errorf("release is required")
+		params.ConflictsOnly = params.ConflictsOnly || params.Fix
+		return Turbulence(ctx, params)
 	}
-
-	turbulencParams.ConflictsOnly = turbulencParams.ConflictsOnly || turbulencParams.Fix
-
-	return &turbulencParams, nil
-}
+})
 
 func Turbulence(ctx context.Context, params TurbulenceParams) error {
 	commander, err := yoke.FromKubeConfigFlags(params.Kube)

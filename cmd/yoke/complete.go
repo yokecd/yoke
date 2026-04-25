@@ -81,7 +81,7 @@ func getCommandCompletions(args []string) []*YokeCommand {
 	cmd, ok := validCommands[partial]
 	if ok {
 		for _, c := range cmd.SubCommands {
-			fmt.Println("\t sub:", c.Name)
+			fmt.Println("\t sub:", c.Name, partial, partial)
 			if strings.HasPrefix(c.Name, partial) || partial == "" {
 				out = append(out, c)
 			}

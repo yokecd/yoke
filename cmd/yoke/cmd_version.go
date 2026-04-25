@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"runtime/debug"
 
@@ -10,13 +11,11 @@ import (
 	"github.com/yokecd/yoke/internal"
 )
 
-var CmdVersion = &YokeCommand{
-	Name: "version",
-}
-
-func init() {
-	CmdRoot.AddCommand(CmdVersion)
-}
+var CmdVersion = NewCommand("version", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	return flag.NewFlagSet("version", flag.ExitOnError), func(ctx context.Context, settings GlobalSettings, args []string) error {
+		return Version(ctx)
+	}
+})
 
 func Version(ctx context.Context) error {
 	tbl := table.NewWriter()

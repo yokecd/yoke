@@ -25,28 +25,18 @@ type ATCParams struct {
 	Debug string
 }
 
-var CmdATC = &YokeCommand{
-	Name:    "atc",
-	FlagSet: flag.NewFlagSet("atc", flag.ExitOnError),
-}
-
-var atcParams = ATCParams{}
-
-func init() {
-	flagset := CmdATC.FlagSet
-	flagset.StringVar(&atcParams.Debug, "debug-file", "", "debug file")
-	CmdRoot.AddCommand(CmdATC)
-}
-
-func GetAtcParams(settings GlobalSettings, args []string) ATCParams {
-	flagset := CmdATC.FlagSet
-	atcParams.GlobalSettings = settings
-	RegisterGlobalFlags(flagset, &atcParams.GlobalSettings)
-
-	flagset.Parse(args)
-
-	return atcParams
-}
+var CmdATC = NewCommand("atc", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	flagset := flag.NewFlagSet("atc", flag.ExitOnError)
+	params := ATCParams{}
+	flagset.StringVar(&params.Debug, "debug-file", "", "debug file")
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		params.GlobalSettings = settings
+		RegisterGlobalFlags(flagset, &params.GlobalSettings)
+		flagset.Parse(args)
+		ATC(ctx, params)
+		return nil
+	}
+})
 
 func ATC(ctx context.Context, params ATCParams) error {
 	client, err := k8s.NewClientFromConfigFlags(params.Kube)

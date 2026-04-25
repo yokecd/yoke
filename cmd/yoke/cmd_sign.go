@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -13,49 +14,29 @@ import (
 //go:embed cmd_sign_help.txt
 var signHelp string
 
-var CmdSign = &YokeCommand{
-	Name:    "sign",
-	FlagSet: flag.NewFlagSet("sign", flag.ExitOnError),
-}
-
-var (
-	signKeyPath string
-	signOut     string
-	signForce   bool
-)
-
-func init() {
-	signHelp = strings.TrimSpace(internal.Colorize(signHelp))
-
-	CmdSign.FlagSet.StringVar(&signKeyPath, "key", "", "Path to private key pem used for signing")
-	CmdSign.FlagSet.StringVar(&signOut, "o", "", "output file to write signed wasm module. If omitted module will be signed in place")
-	CmdSign.FlagSet.BoolVar(&signForce, "f", false, "forcefully override existing signature on module")
-	CmdSign.FlagSet.Usage = func() {
-		fmt.Fprintln(CmdSign.FlagSet.Output(), signHelp)
-		CmdSign.FlagSet.PrintDefaults()
+var CmdSign = NewCommand("sign", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	flagset := flag.NewFlagSet("sign", flag.ExitOnError)
+	params := yoke.SignParams{}
+	flagset.StringVar(&params.KeyPath, "key", "", "Path to private key pem used for signing")
+	flagset.StringVar(&params.Out, "o", "", "output file to write signed wasm module. If omitted module will be signed in place")
+	flagset.BoolVar(&params.Force, "f", false, "forcefully override existing signature on module")
+	flagset.Usage = func() {
+		signHelp = strings.TrimSpace(internal.Colorize(signHelp))
+		fmt.Fprintln(flagset.Output(), signHelp)
+		flagset.PrintDefaults()
 	}
-	CmdRoot.AddCommand(CmdSign)
-}
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
 
-func GetSignParams(args []string) (*yoke.SignParams, error) {
-	flagset := CmdSign.FlagSet
+		flagset.Parse(args)
 
-	params := yoke.SignParams{
-		KeyPath: signKeyPath,
-		Out:     signOut,
-		Force:   signForce,
+		params.WasmFile = flagset.Arg(0)
+
+		if params.WasmFile == "" {
+			return fmt.Errorf("wasm file must be specified as first argument")
+		}
+		if params.KeyPath == "" {
+			return fmt.Errorf("key is required")
+		}
+		return yoke.Sign(params)
 	}
-
-	flagset.Parse(args)
-
-	params.WasmFile = flagset.Arg(0)
-
-	if params.WasmFile == "" {
-		return nil, fmt.Errorf("wasm file must be specified as first argument")
-	}
-	if params.KeyPath == "" {
-		return nil, fmt.Errorf("key is required")
-	}
-
-	return &params, nil
-}
+})
