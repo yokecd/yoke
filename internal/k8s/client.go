@@ -73,6 +73,22 @@ func (c TypedIntf[T]) Update(ctx context.Context, api *T, options metav1.UpdateO
 	return &result, nil
 }
 
+func (c TypedIntf[T]) Apply(ctx context.Context, api *T, options metav1.ApplyOptions) (*T, error) {
+	obj, err := internal.ToUnstructured(api)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
+	}
+	obj, err = c.getIntf().Apply(ctx, obj.GetName(), obj, options)
+	if err != nil {
+		return nil, err
+	}
+	result := *api
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &result); err != nil {
+		return nil, fmt.Errorf("failed to convert unstructerd value to typed api: %w", err)
+	}
+	return &result, nil
+}
+
 func (c TypedIntf[T]) UpdateStatus(ctx context.Context, api *T, options metav1.UpdateOptions) (*T, error) {
 	obj, err := internal.ToUnstructured(api)
 	if err != nil {

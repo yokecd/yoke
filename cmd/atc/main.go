@@ -21,11 +21,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/yokecd/yoke/internal/atc"
-	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/k8s/ctrl"
+	internalk8s "github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
+	"github.com/yokecd/yoke/pkg/k8s"
+	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 )
 
 func main() {
@@ -75,7 +76,7 @@ func run() (err error) {
 		return fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
-	client, err := k8s.NewClient(kubecfg, "")
+	client, err := internalk8s.NewClient(kubecfg, "")
 	if err != nil {
 		return fmt.Errorf("failed to instantiate kubernetes client: %w", err)
 	}
@@ -97,7 +98,7 @@ func run() (err error) {
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
 
 	controller := ctrl.NewController(ctrl.Params{
-		Client:      client,
+		Client:      (*k8s.Client)(client),
 		Logger:      logger.With("component", "controller"),
 		Concurrency: max(cfg.Concurrency, 1),
 	})
