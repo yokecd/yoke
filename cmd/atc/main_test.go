@@ -1038,7 +1038,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				if _, err := client.AirwayIntf.Get(ctx, "tests.examples.com", metav1.GetOptions{}); err == nil {
+				if _, err := client.AirwayIntf().Get(ctx, "tests.examples.com", metav1.GetOptions{}); err == nil {
 					return fmt.Errorf("tests.examples.com has not been removed")
 				}
 				if !kerrors.IsNotFound(err) {
@@ -2365,7 +2365,7 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := client.AirwayIntf.Get(ctx, "clones.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf().Get(ctx, "clones.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("clones.examples.com has not been removed")
 				}
@@ -2523,7 +2523,7 @@ func TestStatusUpdates(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf().Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -2762,7 +2762,7 @@ func TestDeploymentStatus(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf().Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -3183,7 +3183,7 @@ func TestOverridePermissions(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := client.AirwayIntf.Get(ctx, "backends.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf().Get(ctx, "backends.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("backends.examples.com has not been removed")
 				}
@@ -3295,7 +3295,7 @@ func TestTimeout(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				_, err := client.AirwayIntf.Get(ctx, "timeouts.examples.com", metav1.GetOptions{})
+				_, err := client.AirwayIntf().Get(ctx, "timeouts.examples.com", metav1.GetOptions{})
 				if err == nil {
 					return fmt.Errorf("timeouts.examples.com has not been removed")
 				}
@@ -3389,7 +3389,7 @@ func TestSubscriptionMode(t *testing.T) {
 		testutils.EventuallyNoErrorf(
 			t,
 			func() error {
-				if _, err := client.AirwayIntf.Get(ctx, "subscriptions.examples.com", metav1.GetOptions{}); err == nil {
+				if _, err := client.AirwayIntf().Get(ctx, "subscriptions.examples.com", metav1.GetOptions{}); err == nil {
 					return fmt.Errorf("subscriptions.examples.com has not been removed")
 				}
 				if !kerrors.IsNotFound(err) {
@@ -3521,7 +3521,7 @@ func TestValidationCycle(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	airway, err := client.AirwayIntf.Create(
+	airway, err := client.AirwayIntf().Create(
 		context.Background(),
 		&v1alpha1.Airway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3629,7 +3629,7 @@ func TestIdentityWithError(t *testing.T) {
 		} `json:"status"`
 	}
 
-	airway, err := client.AirwayIntf.Create(
+	airway, err := client.AirwayIntf().Create(
 		context.Background(),
 		&v1alpha1.Airway{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3755,13 +3755,13 @@ func TestInvalidFlightURL(t *testing.T) {
 		},
 	}
 
-	airway, err = client.AirwayIntf.Create(context.Background(), airway, metav1.CreateOptions{})
+	airway, err = client.AirwayIntf().Create(context.Background(), airway, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	testutils.EventuallyNoErrorf(
 		t,
 		func() error {
-			current, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+			current, err := client.AirwayIntf().Get(context.Background(), airway.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -3780,12 +3780,12 @@ func TestInvalidFlightURL(t *testing.T) {
 	)
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		current, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+		current, err := client.AirwayIntf().Get(context.Background(), airway.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		current.Spec.WasmURLs.Flight = "http://localhost/evil.wasm"
-		_, err = client.AirwayIntf.Update(context.Background(), current, metav1.UpdateOptions{})
+		_, err = client.AirwayIntf().Update(context.Background(), current, metav1.UpdateOptions{})
 		return err
 	})
 	require.ErrorContains(t, err, `module "http://localhost/evil.wasm" not allowed`)
@@ -3871,7 +3871,7 @@ func TestInvalidChecksum(t *testing.T) {
 		},
 	}
 
-	airway, err = client.AirwayIntf.Create(context.Background(), airway, metav1.CreateOptions{})
+	airway, err = client.AirwayIntf().Create(context.Background(), airway, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	require.NoError(t,
@@ -3911,12 +3911,12 @@ func TestInvalidChecksum(t *testing.T) {
 	require.NoError(
 		t,
 		retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			airway, err := client.AirwayIntf.Get(context.Background(), airway.Name, metav1.GetOptions{})
+			airway, err := client.AirwayIntf().Get(context.Background(), airway.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			airway.Spec.WasmURLs.FlightChecksum = "applebottomjeans"
-			_, err = client.AirwayIntf.Update(context.Background(), airway, metav1.UpdateOptions{})
+			_, err = client.AirwayIntf().Update(context.Background(), airway, metav1.UpdateOptions{})
 			return err
 		}),
 	)
@@ -3942,7 +3942,7 @@ func DropAllAirways(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	airways, err := client.AirwayIntf.List(t.Context(), metav1.ListOptions{})
+	airways, err := client.AirwayIntf().List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 
 	if len(airways) == 0 {
@@ -3957,7 +3957,7 @@ func DropAllAirways(t *testing.T) {
 		resource, err := internal.ToUnstructured(airway)
 		require.NoError(t, err)
 		resources = append(resources, resource)
-		require.NoError(t, client.AirwayIntf.Delete(ctx, airway.Name, metav1.DeleteOptions{}))
+		require.NoError(t, client.AirwayIntf().Delete(ctx, airway.Name, metav1.DeleteOptions{}))
 	}
 
 	start := time.Now()
@@ -4057,7 +4057,7 @@ func TestAirwayCodeSigning(t *testing.T) {
 		},
 	}
 
-	_, err = client.AirwayIntf.Create(t.Context(), airway, metav1.CreateOptions{})
+	_, err = client.AirwayIntf().Create(t.Context(), airway, metav1.CreateOptions{})
 	require.ErrorContains(
 		t,
 		err,
@@ -4066,7 +4066,7 @@ func TestAirwayCodeSigning(t *testing.T) {
 
 	airway.Spec.WasmURLs.Flight = "oci://registry:80/signed"
 
-	_, err = client.AirwayIntf.Create(t.Context(), airway, metav1.CreateOptions{})
+	_, err = client.AirwayIntf().Create(t.Context(), airway, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Reset ATC

@@ -24,11 +24,11 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -43,17 +43,19 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 	pollerCleanups := map[string]func(){}
 
 	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
-		mapping, err := ctrl.Client(ctx).Mapper.RESTMapping(params.GK, params.Version)
+		client := (*k8s.Client)(ctrl.Client(ctx))
+
+		mapping, err := client.Mapper.RESTMapping(params.GK, params.Version)
 		if err != nil {
-			ctrl.Client(ctx).Mapper.Reset()
+			client.Mapper.Reset()
 			return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)
 		}
 
 		resourceIntf := func() dynamic.ResourceInterface {
 			if mapping.Scope == meta.RESTScopeNamespace {
-				return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource).Namespace(event.Namespace)
+				return client.Dynamic.Resource(mapping.Resource).Namespace(event.Namespace)
 			}
-			return ctrl.Client(ctx).Dynamic.Resource(mapping.Resource)
+			return client.Dynamic.Resource(mapping.Resource)
 		}()
 
 		resource, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
@@ -182,7 +184,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		if !resource.GetDeletionTimestamp().IsZero() {
 			setReadyCondition(metav1.ConditionFalse, "Terminating", "Mayday: Flight is being removed")
 
-			if err := yoke.FromK8Client(ctrl.Client(ctx)).Mayday(ctx, yoke.MaydayParams{
+			if err := yoke.FromK8Client(client).Mayday(ctx, yoke.MaydayParams{
 				Release:   ReleaseName(resource),
 				Namespace: event.Namespace,
 				PruneOpts: k8s.PruneOpts{
@@ -228,7 +230,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
 		}
 
-		commander := yoke.FromK8Client(ctrl.Client(ctx))
+		commander := yoke.FromK8Client(client)
 
 		release := ReleaseName(resource)
 
@@ -239,7 +241,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				return
 			}
 
-			release, err := ctrl.Client(ctx).GetRelease(ctx, release, event.Namespace)
+			release, err := client.GetRelease(ctx, release, event.Namespace)
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to get release: %v", err))
 				return
@@ -249,7 +251,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				return
 			}
 
-			resources, err := ctrl.Client(ctx).GetRevisionResources(ctx, release.ActiveRevision())
+			resources, err := client.GetRevisionResources(ctx, release.ActiveRevision())
 			if err != nil {
 				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to list revision resources: %v", err))
 				return
@@ -269,7 +271,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 
 			go func() {
 				defer wg.Done()
-				e <- ctrl.Client(ctx).WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
+				e <- client.WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
 					Timeout:  k8s.NoTimeout,
 					Interval: 2 * time.Second,
 				})
@@ -406,7 +408,7 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 					Insecure: params.Airway.Spec.Insecure,
 					Attrs: cache.ModuleAttrs{
 						MaxMemoryMib:    params.Airway.Spec.MaxMemoryMib,
-						HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+						HostFunctionMap: host.BuildFunctionMap(client),
 					},
 				},
 			)

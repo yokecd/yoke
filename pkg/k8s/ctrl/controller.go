@@ -21,7 +21,7 @@ import (
 	kcache "k8s.io/client-go/tools/cache"
 
 	"github.com/yokecd/yoke/internal"
-	"github.com/yokecd/yoke/internal/k8s"
+	"github.com/yokecd/yoke/pkg/k8s"
 )
 
 type eventMeta struct {
@@ -192,7 +192,9 @@ func (instance *Instance) register(entry Entry) error {
 				close(done)
 				factory.Shutdown()
 				instance.gks.Delete(entry.GroupKind)
-				entry.Funcs.Teardown()
+				if teardown := entry.Funcs.Teardown; teardown != nil {
+					teardown()
+				}
 			}),
 		},
 	)
