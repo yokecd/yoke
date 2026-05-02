@@ -22,16 +22,17 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 	"github.com/yokecd/yoke/pkg/openapi"
 )
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 	var (
-		airwayIntf  = ctrl.Client(ctx).AirwayIntf
+		client      = (*k8s.Client)(ctrl.Client(ctx))
+		airwayIntf  = client.AirwayIntf()
 		webhookIntf = ctrl.Client(ctx).Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
 	)
 
@@ -183,7 +184,7 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 					Insecure: airway.Spec.Insecure,
 					Attrs: cache.ModuleAttrs{
 						MaxMemoryMib:    airway.Spec.MaxMemoryMib,
-						HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+						HostFunctionMap: host.BuildFunctionMap(client),
 					},
 				},
 			); err != nil {
@@ -269,11 +270,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		return ctrl.Result{}, fmt.Errorf("failed to convert airway CRD to unstructured object: %v", err)
 	}
 
-	if err := ctrl.Client(ctx).ApplyResource(ctx, crd, k8s.ApplyOpts{}); err != nil {
+	if err := client.ApplyResource(ctx, crd, k8s.ApplyOpts{}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to apply airway's template crd: %w", err)
 	}
 
-	if err := ctrl.Client(ctx).WaitForReady(ctx, crd, k8s.WaitOptions{Timeout: time.Minute, Interval: time.Second}); err != nil {
+	if err := client.WaitForReady(ctx, crd, k8s.WaitOptions{Timeout: time.Minute, Interval: time.Second}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("airway's template crd failed to become ready: %w", err)
 	}
 

@@ -56,7 +56,7 @@ func ATC(ctx context.Context, params ATCParams) error {
 			Content: tower.MakeAirwayListView(tea.WindowSizeMsg{}),
 			Commands: tower.Commands{
 				GetAirwayList: func() tea.Msg {
-					airways, err := client.AirwayIntf.List(ctx, metav1.ListOptions{})
+					airways, err := client.AirwayIntf().List(ctx, metav1.ListOptions{})
 					if err != nil {
 						return fmt.Errorf("failed to get airways: %w", err)
 					}

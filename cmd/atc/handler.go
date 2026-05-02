@@ -24,13 +24,13 @@ import (
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/atc"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/internal/xhttp"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
+	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -62,7 +62,7 @@ func Handler(params HandlerParams) http.Handler {
 	mux.HandleFunc("POST /crdconvert/{airway}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		airway, err := params.Client.AirwayIntf.Get(ctx, r.PathValue("airway"), metav1.GetOptions{})
+		airway, err := params.Client.AirwayIntf().Get(ctx, r.PathValue("airway"), metav1.GetOptions{})
 		if err != nil {
 			http.Error(w, "failed to find airway defintion", http.StatusInternalServerError)
 			return
@@ -251,7 +251,7 @@ func Handler(params HandlerParams) http.Handler {
 			}
 		}
 
-		airway, err := params.Client.AirwayIntf.Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
+		airway, err := params.Client.AirwayIntf().Get(r.Context(), r.PathValue("airway"), metav1.GetOptions{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to get airway: %v", err), http.StatusInternalServerError)
 			return

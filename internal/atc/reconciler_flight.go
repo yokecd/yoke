@@ -15,10 +15,10 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
-	"github.com/yokecd/yoke/internal/k8s/ctrl"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
 	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
+	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 	"github.com/yokecd/yoke/pkg/yoke"
 )
 
@@ -47,7 +47,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 		type AltFlight v1alpha1.Flight
 
 		var (
-			client     = ctrl.Client(ctx)
+			client     = (*k8s.Client)(ctrl.Client(ctx))
 			commander  = yoke.FromK8Client(client)
 			flightIntf = k8s.TypedInterface[AltFlight](client.Dynamic, gvr).Namespace(evt.Namespace)
 		)
@@ -144,7 +144,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				Insecure: flight.Spec.Insecure,
 				Attrs: cache.ModuleAttrs{
 					MaxMemoryMib:    flight.Spec.MaxMemoryMib,
-					HostFunctionMap: host.BuildFunctionMap(ctrl.Client(ctx)),
+					HostFunctionMap: host.BuildFunctionMap(client),
 				},
 			},
 		)
@@ -223,7 +223,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 
 		go func() {
 			defer wg.Done()
-			e <- ctrl.Client(ctx).WaitForReadyMany(ctx, stages.Flatten(), k8s.WaitOptions{
+			e <- client.WaitForReadyMany(ctx, stages.Flatten(), k8s.WaitOptions{
 				Timeout:  k8s.NoTimeout,
 				Interval: 2 * time.Second,
 			})

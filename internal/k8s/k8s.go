@@ -48,8 +48,11 @@ type Client struct {
 	Clientset        *kubernetes.Clientset
 	Meta             metadata.Interface
 	Mapper           *restmapper.DeferredDiscoveryRESTMapper
-	AirwayIntf       TypedIntf[v1alpha1.Airway]
 	DefaultNamespace string
+}
+
+func (client Client) AirwayIntf() TypedIntf[v1alpha1.Airway] {
+	return TypedInterface[v1alpha1.Airway](client.Dynamic, v1alpha1.AirwayGVR())
 }
 
 func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {
@@ -99,14 +102,11 @@ func NewClient(cfg *rest.Config, ns string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create k8 clientset: %w", err)
 	}
 
-	airwayIntf := TypedInterface[v1alpha1.Airway](dynamicClient, v1alpha1.AirwayGVR())
-
 	return &Client{
 		Dynamic:          dynamicClient,
 		Clientset:        clientset,
 		Meta:             meta,
 		Mapper:           restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(clientset.DiscoveryClient)),
-		AirwayIntf:       airwayIntf,
 		DefaultNamespace: cmp.Or(ns, "default"),
 	}, nil
 }
