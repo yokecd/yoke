@@ -6,12 +6,9 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"syscall"
-
-	"golang.org/x/term"
 
 	"github.com/davidmdm/x/xcontext"
 
@@ -19,7 +16,6 @@ import (
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/home"
-	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func main() {
@@ -35,8 +31,41 @@ func main() {
 //go:embed cmd_help.txt
 var rootHelp string
 
+var CmdRoot = NewCommand("yoke", []string{}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	flagset := flag.NewFlagSet("yoke", flag.ExitOnError)
+	flagset.Usage = func() {
+		rootHelp = strings.TrimSpace(internal.Colorize(rootHelp))
+		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
+		flagset.PrintDefaults()
+		fmt.Fprintln(os.Stderr)
+	}
+	runner := func(ctx context.Context, settings GlobalSettings, args []string) error {
+		RegisterGlobalFlags(flagset, &settings)
+		flagset.Parse(args)
+		if len(flagset.Args()) > 0 {
+			return fmt.Errorf("unknown command: %s", flagset.Arg(0))
+		}
+		if len(flagset.Args()) == 0 {
+			flagset.Usage()
+		}
+		return fmt.Errorf("no command provided")
+	}
+	return flagset, runner
+})
+
 func init() {
-	rootHelp = strings.TrimSpace(internal.Colorize(rootHelp))
+	CmdRoot.AddCommand(CmdATC)
+	CmdRoot.AddCommand(CmdBlackbox)
+	CmdRoot.AddCommand(CmdDescent)
+	CmdRoot.AddCommand(CmdMayday)
+	CmdRoot.AddCommand(CmdSchematics)
+	CmdRoot.AddCommand(CmdSign)
+	CmdRoot.AddCommand(CmdStow)
+	CmdRoot.AddCommand(CmdTakeoff)
+	CmdRoot.AddCommand(CmdTurbulence)
+	CmdRoot.AddCommand(CmdVersion)
+	CmdRoot.AddCommand(CmdUnlatch)
+	CmdRoot.AddCommand(CmdVerify)
 }
 
 func run() error {
@@ -45,120 +74,25 @@ func run() error {
 		Kube:  genericclioptions.NewConfigFlags(false),
 	}
 
-	RegisterGlobalFlags(flag.CommandLine, &settings)
-
-	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), rootHelp)
-		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr)
+	if len(os.Args) > 1 && os.Args[1] == "complete" {
+		Complete()
+		return nil
 	}
 
-	flag.Parse()
+	CmdRoot.FlagSet.Parse(os.Args)
 
 	ctx, cancel := xcontext.WithSignalCancelation(context.Background(), syscall.SIGINT)
 	defer cancel()
 
 	ctx = internal.WithDebugFlag(ctx, settings.Debug)
 
-	if len(flag.Args()) == 0 {
-		flag.Usage()
-		return fmt.Errorf("no command provided")
+	cmd, subCmdArgs := Seek(CmdRoot.FlagSet.Args())
+
+	if cmd == nil || cmd.Runner == nil {
+		return fmt.Errorf("unknown command")
 	}
 
-	subcmdArgs := flag.Args()[1:]
-
-	switch cmd := flag.Arg(0); cmd {
-	case "atc":
-		return ATC(ctx, GetAtcParams(settings, subcmdArgs))
-	case "takeoff", "up", "apply":
-		{
-			var source io.Reader
-			if !term.IsTerminal(int(os.Stdin.Fd())) {
-				source = os.Stdin
-			}
-			params, err := GetTakeoffParams(settings, source, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return TakeOff(ctx, *params)
-		}
-	case "descent", "down", "restore":
-		{
-			params, err := GetDescentfParams(settings, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return Descent(ctx, *params)
-		}
-	case "mayday", "delete":
-		{
-			params, err := GetMaydayParams(settings, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return Mayday(ctx, *params)
-		}
-	case "blackbox", "inspect":
-		{
-			params, err := GetBlackBoxParams(settings, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return Blackbox(ctx, *params)
-		}
-	case "turbulence", "drift", "diff":
-		{
-			params, err := GetTurbulenceParams(settings, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return Turbulence(ctx, *params)
-		}
-	case "stow", "push":
-		{
-			params, err := GetStowParams(subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return yoke.Stow(ctx, *params)
-		}
-	case "unlatch", "unlock":
-		{
-			params, err := GetUnlatchParams(settings, subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return Unlatch(ctx, *params)
-		}
-	case "schematics", "meta":
-		{
-			return SchematicsCommand(ctx, subcmdArgs)
-		}
-
-	case "sign":
-		{
-			params, err := GetSignParams(subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return yoke.Sign(*params)
-		}
-	case "verify":
-		{
-			params, err := GetVerifyParams(subcmdArgs)
-			if err != nil {
-				return err
-			}
-			return yoke.Verify(*params)
-		}
-
-	case "version":
-		{
-			return Version(ctx)
-		}
-	default:
-		return fmt.Errorf("unknown command: %s", cmd)
-	}
+	return cmd.Runner(ctx, settings, subCmdArgs)
 }
 
 type GlobalSettings struct {

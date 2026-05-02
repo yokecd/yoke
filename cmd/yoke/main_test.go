@@ -56,14 +56,11 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	settings = GlobalSettings{
-		Kube: func() *genericclioptions.ConfigFlags {
-			flags := genericclioptions.NewConfigFlags(false)
-			flags.KubeConfig = &home.Kubeconfig
-			return flags
-		}(),
-	}
 	background = internal.WithStdio(context.Background(), io.Discard, io.Discard, nil)
+	settings   = GlobalSettings{
+		Debug: new(bool),
+		Kube:  genericclioptions.NewConfigFlags(false),
+	}
 )
 
 func createBasicDeployment(t *testing.T, name, namespace string) io.Reader {
