@@ -83,9 +83,10 @@ func Complete() {
 	}
 	if _, ok := os.LookupEnv("COMP_LINE"); !ok {
 		fmt.Print(`
-# Please add the following to your bashrc file to enable tab completions
+# Please add the following to your bash completion file to enable tab completions
 
 function _yoke() {
+  export COMP_LINE
   COMPREPLY=($(yoke complete $COMP_LINE));
 };
 
@@ -94,15 +95,13 @@ complete -F _yoke yoke
 		return
 	}
 
-	argSet := make(map[string]bool)
-	for _, arg := range os.Args {
-		argSet[arg] = true
+	if len(os.Args) < 2 {
+		return
 	}
-	argsAfterComp := os.Args[2:]
-	if len(argsAfterComp) > 1 && argsAfterComp[0] == "yoke" {
-		argsAfterComp = argsAfterComp[1:]
-	}
-	cmd, rest := Seek(argsAfterComp)
+	// We only want to pass `yoke ...` to Seek,
+	// not `yoke complete yoke ...`
+	argsAfterComplete := os.Args[2:]
+	cmd, rest := Seek(argsAfterComplete)
 	partial := ""
 	if len(rest) > 0 {
 		partial = rest[len(rest)-1]
