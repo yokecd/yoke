@@ -99,11 +99,7 @@ func TestGenerateSchema(t *testing.T) {
 				},
 				"quantity": {
 					XIntOrString: true,
-					AnyOf: []apiext.JSONSchemaProps{
-						{Type: "string"},
-						{Type: "integer"},
-					},
-					Pattern: `^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$`,
+					Pattern:      `^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$`,
 				},
 			},
 			Required: []string{"name", "age", "active", "choice", "rule", "map"},
