@@ -823,7 +823,8 @@ func Handler(params HandlerParams) http.Handler {
 					ResourceMatchers: flight.Spec.ResourceAccessMatchers,
 				},
 				ManagedBy: "atc.yoke",
-			}); err != nil {
+			},
+		); err != nil {
 			failReview(&review, metav1.Status{
 				Status:  metav1.StatusFailure,
 				Reason:  metav1.StatusReasonBadRequest,

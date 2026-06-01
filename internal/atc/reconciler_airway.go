@@ -224,9 +224,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 		statusSchema, ok := version.Schema.OpenAPIV3Schema.Properties["status"]
 		if !ok {
-			version.Schema.OpenAPIV3Schema.Properties["status"] = *(openapi.SchemaFor[struct {
+			version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFor[struct {
 				Conditions flight.Conditions `json:"conditions,omitempty"`
-			}]())
+			}]()
 		} else {
 			if statusSchema.Type != "object" {
 				return ctrl.Result{}, fmt.Errorf("invalid airway: status must be an object but got type: %q", statusSchema.Type)
