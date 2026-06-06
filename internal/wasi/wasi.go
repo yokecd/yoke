@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"time"
 
@@ -31,6 +32,7 @@ type ExecParams struct {
 	Args    []string
 	Timeout time.Duration
 	Env     map[string]string
+	FS      map[string]string
 
 	CompileParams
 }
@@ -89,6 +91,27 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 	for key, value := range params.Env {
 		moduleCfg = moduleCfg.WithEnv(key, value)
 	}
+
+	fsConfig, err := func() (wazero.FSConfig, error) {
+		var (
+			fsConfig = wazero.NewFSConfig()
+			errs     = make([]error, 0, len(params.FS))
+		)
+		for host, guest := range params.FS {
+			root, err := os.OpenRoot(host)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", host, err))
+				continue
+			}
+			fsConfig = fsConfig.WithFSMount(root.FS(), guest)
+		}
+		return fsConfig, xerr.JoinOrdered(errs...)
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fs config: %w", err)
+	}
+
+	moduleCfg = moduleCfg.WithFSConfig(fsConfig)
 
 	defer internal.DebugTimer(ctx, "execute wasm module")()
 
