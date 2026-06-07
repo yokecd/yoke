@@ -16,11 +16,14 @@ import (
 	"github.com/davidmdm/x/xsync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	kcache "k8s.io/client-go/tools/cache"
 
 	"github.com/yokecd/yoke/internal"
+	internalk8s "github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/pkg/k8s"
 )
 
@@ -56,6 +59,7 @@ type HandleFunc func(context.Context, Event) (Result, error)
 
 type gkstate struct {
 	handler  HandleFunc
+	lister   kcache.GenericLister
 	shutdown func()
 }
 
@@ -111,7 +115,9 @@ func (instance *Instance) register(entry Entry) error {
 
 	factory := dynamicinformer.NewDynamicSharedInformerFactory(instance.Client.Dynamic, 0)
 
-	informer := factory.ForResource(mapping.Resource).Informer()
+	genericInformer := factory.ForResource(mapping.Resource)
+	informer := genericInformer.Informer()
+	lister := genericInformer.Lister()
 
 	var resourceMap xsync.Set[Event]
 
@@ -196,6 +202,7 @@ func (instance *Instance) register(entry Entry) error {
 					teardown()
 				}
 			}),
+			lister: lister,
 		},
 	)
 
@@ -386,4 +393,55 @@ func safe(handler HandleFunc) HandleFunc {
 		}()
 		return handler(ctx, event)
 	}
+}
+
+type ResourceCache[T any] struct {
+	lister kcache.GenericNamespaceLister
+}
+
+func (r ResourceCache[T]) Get(name string) (*T, error) {
+	obj, err := r.lister.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	var result T
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (r ResourceCache[T]) List(selector labels.Selector) ([]*T, error) {
+	objects, err := r.lister.List(selector)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*T, len(objects))
+	for i, obj := range objects {
+		var value T
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, &value); err != nil {
+			return nil, err
+		}
+		result[i] = &value
+	}
+	return result, nil
+}
+
+func Cache[T any, obj internalk8s.MetaObject[T]](ctx context.Context, gk schema.GroupKind, ns string) *ResourceCache[T] {
+	state, loaded := Inst(ctx).gks.Load(gk)
+	if !loaded {
+		return nil
+	}
+	return &ResourceCache[T]{
+		lister: func() kcache.GenericNamespaceLister {
+			if ns != "" {
+				return state.lister.ByNamespace(ns)
+			}
+			return state.lister
+		}(),
+	}
+}
+
+func CacheFromEvent[T any, obj internalk8s.MetaObject[T]](ctx context.Context, evt Event) *ResourceCache[T] {
+	return Cache[T, obj](ctx, evt.GroupKind, evt.Namespace)
 }

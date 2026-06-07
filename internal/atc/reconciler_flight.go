@@ -47,16 +47,17 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 		type AltFlight v1alpha1.Flight
 
 		var (
-			client     = (*k8s.Client)(ctrl.Client(ctx))
-			commander  = yoke.FromK8Client(client)
-			flightIntf = k8s.TypedInterface[AltFlight](client.Dynamic, gvr).Namespace(evt.Namespace)
+			client      = (*k8s.Client)(ctrl.Client(ctx))
+			commander   = yoke.FromK8Client(client)
+			flightIntf  = k8s.TypedInterface[AltFlight](client.Dynamic, gvr).Namespace(evt.Namespace)
+			flightCache = ctrl.CacheFromEvent[AltFlight](ctx, evt)
 		)
 
 		if cleanup := cleanups[evt.String()]; cleanup != nil {
 			cleanup()
 		}
 
-		flight, err := flightIntf.Get(ctx, evt.Name, metav1.GetOptions{})
+		flight, err := flightCache.Get(evt.Name)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return ctrl.Result{}, nil
