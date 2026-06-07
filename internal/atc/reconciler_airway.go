@@ -24,6 +24,7 @@ import (
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
 	"github.com/yokecd/yoke/internal/wasi/host"
+	"github.com/yokecd/yoke/pkg/apis/v1alpha1"
 	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/pkg/k8s/ctrl"
 	"github.com/yokecd/yoke/pkg/openapi"
@@ -33,10 +34,11 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	var (
 		client      = (*k8s.Client)(ctrl.Client(ctx))
 		airwayIntf  = client.AirwayIntf()
+		airwayCache = ctrl.CacheFromEvent[v1alpha1.Airway](ctx, event)
 		webhookIntf = ctrl.Client(ctx).Clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations()
 	)
 
-	airway, err := airwayIntf.Get(ctx, event.Name, metav1.GetOptions{})
+	airway, err := airwayCache.Get(event.Name)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			ctrl.Logger(ctx).Info("airway not found")
@@ -224,9 +226,9 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 		}
 		statusSchema, ok := version.Schema.OpenAPIV3Schema.Properties["status"]
 		if !ok {
-			version.Schema.OpenAPIV3Schema.Properties["status"] = *(openapi.SchemaFor[struct {
+			version.Schema.OpenAPIV3Schema.Properties["status"] = *openapi.SchemaFor[struct {
 				Conditions flight.Conditions `json:"conditions,omitempty"`
-			}]())
+			}]()
 		} else {
 			if statusSchema.Type != "object" {
 				return ctrl.Result{}, fmt.Errorf("invalid airway: status must be an object but got type: %q", statusSchema.Type)

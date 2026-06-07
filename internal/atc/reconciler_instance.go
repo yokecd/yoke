@@ -44,11 +44,21 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 
 	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 		client := (*k8s.Client)(ctrl.Client(ctx))
+		resourceCache := ctrl.CacheFromEvent[unstructured.Unstructured](ctx, event)
 
 		mapping, err := client.Mapper.RESTMapping(params.GK, params.Version)
 		if err != nil {
 			client.Mapper.Reset()
 			return ctrl.Result{}, fmt.Errorf("failed to get rest mapping for gk: %w", err)
+		}
+
+		resource, err := resourceCache.Get(event.Name)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				ctrl.Logger(ctx).Info("resource not found")
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
 		}
 
 		resourceIntf := func() dynamic.ResourceInterface {
@@ -57,15 +67,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			}
 			return client.Dynamic.Resource(mapping.Resource)
 		}()
-
-		resource, err := resourceIntf.Get(ctx, event.Name, metav1.GetOptions{})
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				ctrl.Logger(ctx).Info("resource not found")
-				return ctrl.Result{}, nil
-			}
-			return ctrl.Result{}, fmt.Errorf("failed to get resource: %w", err)
-		}
 
 		if resource.GetNamespace() == "" && mapping.Scope == meta.RESTScopeNamespace {
 			resource.SetNamespace("default")
