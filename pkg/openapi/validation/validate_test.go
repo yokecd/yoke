@@ -160,8 +160,8 @@ func TestValidateStrict(t *testing.T) {
 			[]string{
 				"errors:",
 				`  - <nil>: Invalid value: "anything": .anything in body is a forbidden property`,
-				`  - subobj: Invalid value: "prop": subobj.prop in body is a forbidden property`,
 				`  - subarr[0]: Invalid value: "prop": subarr[0].prop in body is a forbidden property`,
+				`  - subobj: Invalid value: "prop": subobj.prop in body is a forbidden property`,
 			},
 			"\n",
 		),
