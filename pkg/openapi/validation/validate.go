@@ -29,7 +29,7 @@ func Validate(props *apiextv1.JSONSchemaProps, value any) error {
 	for i, e := range fieldErrors {
 		errs[i] = e
 	}
-	return xerr.Join(errs...)
+	return xerr.JoinOrdered(errs...)
 }
 
 // ValidateStrict deep copies the schema and modifies the copy such that additionalProperties are not allowed for objects that don't define any.
