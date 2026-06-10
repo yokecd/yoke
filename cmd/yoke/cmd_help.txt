@@ -17,5 +17,6 @@ atc
 sign
 verify
 version
+complete
 
 !cyan Global Flags:

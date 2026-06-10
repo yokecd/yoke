@@ -32,45 +32,39 @@ type BlackboxParams struct {
 //go:embed cmd_blackbox_help.txt
 var blackboxHelp string
 
-func init() {
-	blackboxHelp = strings.TrimSpace(internal.Colorize(blackboxHelp))
-}
-
-func GetBlackBoxParams(settings GlobalSettings, args []string) (*BlackboxParams, error) {
+var CmdBlackbox = NewCommand("blackbox", []string{"inspect"}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
+	params := BlackboxParams{}
 	flagset := flag.NewFlagSet("blackbox", flag.ExitOnError)
 
+	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
+	flagset.StringVar(&params.Namespace, "namespace", "", "namespace of release to inspect")
 	flagset.Usage = func() {
+		blackboxHelp = strings.TrimSpace(internal.Colorize(blackboxHelp))
 		fmt.Fprintln(flagset.Output(), blackboxHelp)
 		flagset.PrintDefaults()
 	}
-
-	params := BlackboxParams{GlobalSettings: settings}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
-	flagset.IntVar(&params.Context, "context", 4, "number of lines of context in diff (ignored if not comparing revisions)")
-	flagset.StringVar(&params.Namespace, "namespace", "", "namespace of release to inspect")
-	flagset.Parse(args)
-
-	params.Release = flagset.Arg(0)
-
-	if revision := flagset.Arg(1); revision != "" {
-		revisionID, err := strconv.Atoi(flagset.Arg(1))
-		if err != nil {
-			return nil, fmt.Errorf("revision must be an integer ID: %w", err)
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		params.GlobalSettings = settings
+		RegisterGlobalFlags(flagset, &params.GlobalSettings)
+		flagset.Parse(args)
+		params.Release = flagset.Arg(0)
+		if revision := flagset.Arg(1); revision != "" {
+			revisionID, err := strconv.Atoi(flagset.Arg(1))
+			if err != nil {
+				return fmt.Errorf("revision must be an integer ID: %w", err)
+			}
+			params.RevisionID = revisionID
 		}
-		params.RevisionID = revisionID
-	}
-
-	if revision := flagset.Arg(2); revision != "" {
-		revisionID, err := strconv.Atoi(flagset.Arg(2))
-		if err != nil {
-			return nil, fmt.Errorf("revision to diff must be an integer ID: %w", err)
+		if revision := flagset.Arg(2); revision != "" {
+			revisionID, err := strconv.Atoi(flagset.Arg(2))
+			if err != nil {
+				return fmt.Errorf("revision to diff must be an integer ID: %w", err)
+			}
+			params.DiffRevisionID = revisionID
 		}
-		params.DiffRevisionID = revisionID
+		return Blackbox(ctx, params)
 	}
-
-	return &params, nil
-}
+})
 
 func Blackbox(ctx context.Context, params BlackboxParams) error {
 	client, err := k8s.NewClientFromConfigFlags(params.Kube)
