@@ -39,7 +39,7 @@ type WaitOptions = k8s.WaitOptions
 // WaitForReady polls the resource until it is deemed to be ready.
 //
 // TODO: once go1.27 is out and generic methods are added this should become a method of the standard client.
-func WaitForReady[T any, obj k8s.MetaObject[T]](ctx context.Context, client *k8s.Client, resource *T, opts WaitOptions) error {
+func WaitForReady[T any, obj k8s.MetaObject[T]](ctx context.Context, client *Client, resource *T, opts WaitOptions) error {
 	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resource)
 	if err != nil {
 		return err
