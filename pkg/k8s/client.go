@@ -2,7 +2,10 @@ package k8s
 
 import (
 	"cmp"
+	"context"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -26,7 +29,20 @@ type TypedIntf[T any] = k8s.TypedIntf[T]
 
 // TypedInterface returns a typed wrapper over the client-go dynamic client.
 //
-// TODO: once go1.27 is out and generic functions are created this should become a method of the standard client.
+// TODO: once go1.27 is out and generic functions are added this should become a method of the standard client.
 func TypedInterface[T any, obj k8s.MetaObject[T]](client *dynamic.DynamicClient, resource schema.GroupVersionResource) TypedIntf[T] {
 	return k8s.TypedInterface[T, obj](client, resource)
+}
+
+type WaitOptions = k8s.WaitOptions
+
+// WaitForReady polls the resource until it is deemed to be ready.
+//
+// TODO: once go1.27 is out and generic methods are added this should become a method of the standard client.
+func WaitForReady[T any, obj k8s.MetaObject[T]](ctx context.Context, client *k8s.Client, resource *T, opts WaitOptions) error {
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resource)
+	if err != nil {
+		return err
+	}
+	return (*k8s.Client)(client).WaitForReady(ctx, &unstructured.Unstructured{Object: raw}, opts)
 }
