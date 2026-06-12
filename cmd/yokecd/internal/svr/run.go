@@ -69,7 +69,8 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	const addr = ":3666"
 
-	logger.Info("debug config",
+	logger.Info(
+		"debug config",
 		"cacheFS", cfg.CacheFS,
 		"addr", addr,
 	)
