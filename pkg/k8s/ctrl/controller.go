@@ -3,6 +3,7 @@ package ctrl
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -289,13 +290,12 @@ func (instance *Instance) Run(ctx context.Context) error {
 
 						result, err := safe(state.handler)(ctx, event)
 
-						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || err != nil
-
-						if shouldRequeue && result.RequeueAfter == 0 {
-							result.RequeueAfter = withJitter(min(time.Duration(powInt(2, event.meta.attempts))*time.Second, 15*time.Minute), 0.10)
-						}
+						shouldRequeue := result.Requeue || result.RequeueAfter > 0 || (err != nil && !errors.Is(err, terminalError{}))
 
 						if shouldRequeue {
+							if result.RequeueAfter == 0 {
+								result.RequeueAfter = withJitter(min(time.Duration(powInt(2, event.meta.attempts))*time.Second, 15*time.Minute), 0.10)
+							}
 							logger = logger.With(slog.String("requeueAfter", result.RequeueAfter.String()))
 							timers.Store(event.String(), time.AfterFunc(result.RequeueAfter, func() {
 								if err != nil {
@@ -444,4 +444,28 @@ func Cache[T any, obj internalk8s.MetaObject[T]](ctx context.Context, gk schema.
 
 func CacheFromEvent[T any, obj internalk8s.MetaObject[T]](ctx context.Context, evt Event) *ResourceCache[T] {
 	return Cache[T, obj](ctx, evt.GroupKind, evt.Namespace)
+}
+
+type terminalError struct {
+	internal error
+}
+
+func (err terminalError) Error() string {
+	return err.internal.Error()
+}
+
+func (err terminalError) Unwrap() error {
+	return err.internal
+}
+
+func (terminalError) Is(err error) bool {
+	_, ok := err.(terminalError)
+	return ok
+}
+
+// Terminal marks an error as terminal.
+// The controller will consider this error as non-retryable and will not requeue the event.
+// ctrl.Result Requeue / RequeueAfter takes precedence.
+func Terminal(err error) error {
+	return terminalError{err}
 }

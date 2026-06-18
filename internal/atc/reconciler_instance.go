@@ -43,6 +43,12 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 	pollerCleanups := map[string]func(){}
 
 	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+		defer func() {
+			if cache.IsDisallowedModuleError(err) {
+				err = ctrl.Terminal(err)
+			}
+		}()
+
 		client := (*k8s.Client)(ctrl.Client(ctx))
 		resourceCache := ctrl.CacheFromEvent[unstructured.Unstructured](ctx, event)
 
@@ -223,12 +229,12 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 
 		object, _, err := unstructured.NestedFieldNoCopy(resource.Object, params.Airway.Spec.ObjectPath...)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.Airway.Spec.ObjectPath, ","), err)
+			return ctrl.Result{}, ctrl.Terminal(fmt.Errorf("failed to get object path from: %q: %v", strings.Join(params.Airway.Spec.ObjectPath, ","), err))
 		}
 
 		data, err := json.Marshal(object)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to marhshal resource: %w", err)
+			return ctrl.Result{}, ctrl.Terminal(fmt.Errorf("failed to marhshal resource: %w", err))
 		}
 
 		commander := yoke.FromK8Client(client)
