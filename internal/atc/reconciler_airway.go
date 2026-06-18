@@ -31,6 +31,12 @@ import (
 )
 
 func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
+	defer func() {
+		if cache.IsDisallowedModuleError(err) {
+			err = ctrl.Terminal(err)
+		}
+	}()
+
 	var (
 		client      = (*k8s.Client)(ctrl.Client(ctx))
 		airwayIntf  = client.AirwayIntf()

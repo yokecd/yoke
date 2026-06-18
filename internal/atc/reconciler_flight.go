@@ -43,6 +43,12 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 	}()
 
 	reconciler := func(ctx context.Context, evt ctrl.Event) (result ctrl.Result, err error) {
+		defer func() {
+			if cache.IsDisallowedModuleError(err) {
+				err = ctrl.Terminal(err)
+			}
+		}()
+
 		// We use this type because it is the same as v1alpha1.Flight and ClusterFlight but we want to drop the convenience json marshalling methods
 		type AltFlight v1alpha1.Flight
 
