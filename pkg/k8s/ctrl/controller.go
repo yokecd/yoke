@@ -469,3 +469,8 @@ func (terminalError) Is(err error) bool {
 func Terminal(err error) error {
 	return terminalError{err}
 }
+
+// Terminalf is a convenience wrapper to build a terminal error using fmt.Errorf.
+func Terminalf(format string, args ...any) error {
+	return Terminal(fmt.Errorf(format, args...))
+}
