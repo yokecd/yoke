@@ -36,7 +36,7 @@ func (c TypedIntf[T]) Get(ctx context.Context, name string, options metav1.GetOp
 	}
 	var result T
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &result); err != nil {
-		return nil, fmt.Errorf("failed to convert unstructerd value to typed api: %w", err)
+		return nil, fmt.Errorf("failed to convert unstructured value to typed api: %w", err)
 	}
 	return &result, nil
 }
@@ -45,6 +45,9 @@ func (c TypedIntf[T]) Create(ctx context.Context, api *T, options metav1.CreateO
 	obj, err := internal.ToUnstructured(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
+	}
+	if ns := obj.GetNamespace(); ns != "" {
+		c = c.Namespace(ns)
 	}
 	obj, err = c.getIntf().Create(ctx, obj, options)
 	if err != nil {
@@ -62,6 +65,9 @@ func (c TypedIntf[T]) Update(ctx context.Context, api *T, options metav1.UpdateO
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
+	if ns := obj.GetNamespace(); ns != "" {
+		c = c.Namespace(ns)
+	}
 	obj, err = c.getIntf().Update(ctx, obj, options)
 	if err != nil {
 		return nil, err
@@ -78,6 +84,9 @@ func (c TypedIntf[T]) Apply(ctx context.Context, api *T, options metav1.ApplyOpt
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
+	if ns := obj.GetNamespace(); ns != "" {
+		c = c.Namespace(ns)
+	}
 	obj, err = c.getIntf().Apply(ctx, obj.GetName(), obj, options)
 	if err != nil {
 		return nil, err
@@ -93,6 +102,9 @@ func (c TypedIntf[T]) UpdateStatus(ctx context.Context, api *T, options metav1.U
 	obj, err := internal.ToUnstructured(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
+	}
+	if ns := obj.GetNamespace(); ns != "" {
+		c = c.Namespace(ns)
 	}
 	obj, err = c.getIntf().UpdateStatus(ctx, obj, options)
 	if err != nil {
@@ -130,9 +142,9 @@ type MetaObject[T any] interface {
 	metav1.Object
 }
 
-func TypedInterface[T any, obj MetaObject[T]](client *dynamic.DynamicClient, resource schema.GroupVersionResource) TypedIntf[T] {
+func TypedInterface[T any, obj MetaObject[T]](client *Client, resource schema.GroupVersionResource) TypedIntf[T] {
 	return TypedIntf[T]{
-		intf: client.Resource(resource),
+		intf: client.Dynamic.Resource(resource),
 		ns:   "",
 	}
 }

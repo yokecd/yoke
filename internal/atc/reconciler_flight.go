@@ -55,7 +55,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 		var (
 			client      = (*k8s.Client)(ctrl.Client(ctx))
 			commander   = yoke.FromK8Client(client)
-			flightIntf  = k8s.TypedInterface[AltFlight](client.Dynamic, gvr).Namespace(evt.Namespace)
+			flightIntf  = k8s.TypedInterface[AltFlight](client, gvr).Namespace(evt.Namespace)
 			flightCache = ctrl.CacheFromEvent[AltFlight](ctx, evt)
 		)
 

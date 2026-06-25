@@ -7,7 +7,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
 	"github.com/yokecd/yoke/internal/k8s"
@@ -30,8 +29,8 @@ type TypedIntf[T any] = k8s.TypedIntf[T]
 // TypedInterface returns a typed wrapper over the client-go dynamic client.
 //
 // TODO: once go1.27 is out and generic functions are added this should become a method of the standard client.
-func TypedInterface[T any, obj k8s.MetaObject[T]](client *dynamic.DynamicClient, resource schema.GroupVersionResource) TypedIntf[T] {
-	return k8s.TypedInterface[T, obj](client, resource)
+func TypedInterface[T any, obj k8s.MetaObject[T]](client *Client, resource schema.GroupVersionResource) TypedIntf[T] {
+	return k8s.TypedInterface[T, obj]((*k8s.Client)(client), resource)
 }
 
 type WaitOptions = k8s.WaitOptions
