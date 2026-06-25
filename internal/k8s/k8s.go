@@ -51,8 +51,8 @@ type Client struct {
 	DefaultNamespace string
 }
 
-func (client Client) AirwayIntf() TypedIntf[v1alpha1.Airway] {
-	return TypedInterface[v1alpha1.Airway](client.Dynamic, v1alpha1.AirwayGVR())
+func (client *Client) AirwayIntf() TypedIntf[v1alpha1.Airway] {
+	return TypedInterface[v1alpha1.Airway](client, v1alpha1.AirwayGVR())
 }
 
 func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {
