@@ -24,26 +24,11 @@ type TakeoffParams struct {
 //go:embed cmd_takeoff_help.txt
 var takeoffHelp string
 
-func init() {
-	takeoffHelp = strings.TrimSpace(internal.Colorize(takeoffHelp))
-}
+var CmdTakeoff = NewCommand("takeoff", []string{"up", "apply"}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
 
-func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) (*TakeoffParams, error) {
 	flagset := flag.NewFlagSet("takeoff", flag.ExitOnError)
-
-	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), takeoffHelp)
-		flagset.PrintDefaults()
-	}
-
-	params := TakeoffParams{
-		GlobalSettings: settings,
-		TakeoffParams: yoke.TakeoffParams{
-			Flight: yoke.FlightParams{Input: source},
-		},
-	}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
+	params := TakeoffParams{}
+	removeAll := false
 
 	flagset.BoolVar(&params.SendToStdout, "stdout", false, "execute the underlying wasm and outputs it to stdout but does not apply any resources to the cluster")
 	flagset.BoolVar(&params.DryRun, "dry", false, "only call the kubernetes api with dry-run; takes precedence over skip-dry-run.")
@@ -72,7 +57,6 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.StringVar(&params.Flight.CompilationCacheDir, "compilation-cache", "", "location to cache wasm compilations")
 	flagset.StringVar(&params.Checksum, "checksum", "", "sha256 checksum for desired module. If module does not match checksum takeoff will fail. Checksum can be inferred from oci tag or from  http basepath")
 	flagset.StringVar(&params.VerifyKeyPath, "verify", "", "path to public key or directory of keys to verify module signature against.")
-
 	flagset.Func(
 		"resource-access",
 		"allows flights with cluster-access to read resources outside of the release that match pattern. This flag can be set many times and matchers can be comma separated.",
@@ -81,33 +65,46 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 			return nil
 		},
 	)
-
-	var removeAll bool
 	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
 	flagset.BoolVar(&params.RemoveCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")
 	flagset.BoolVar(&params.RemoveNamespaces, "remove-namespaces", false, "enables pruning of namespaces owned by the release.\nDestructive and dangerous use with caution.")
-
-	args, params.Flight.Args = internal.CutArgs(args)
-
-	flagset.Parse(args)
-
-	if removeAll {
-		params.RemoveCRDs = true
-		params.RemoveNamespaces = true
+	flagset.Usage = func() {
+		takeoffHelp = strings.TrimSpace(internal.Colorize(takeoffHelp))
+		fmt.Fprintln(flagset.Output(), takeoffHelp)
+		flagset.PrintDefaults()
 	}
 
-	params.Release = flagset.Arg(0)
-	params.Flight.Path = flagset.Arg(1)
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		var source io.Reader
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			source = os.Stdin
+		}
+		params.Flight = yoke.FlightParams{Input: source}
+		params.Kube = settings.Kube
+		RegisterGlobalFlags(flagset, &settings)
 
-	if params.Release == "" {
-		return nil, fmt.Errorf("release is required as first positional arg")
-	}
-	if params.Flight.Input == nil && params.Flight.Path == "" {
-		return nil, fmt.Errorf("flight-path is required as second position arg")
-	}
+		args, params.Flight.Args = internal.CutArgs(args)
 
-	return &params, nil
-}
+		flagset.Parse(args)
+
+		if removeAll {
+			params.RemoveCRDs = true
+			params.RemoveNamespaces = true
+		}
+
+		params.Release = flagset.Arg(0)
+		params.Flight.Path = flagset.Arg(1)
+
+		if params.Release == "" {
+			return fmt.Errorf("release is required as first positional arg")
+		}
+		if params.Flight.Input == nil && params.Flight.Path == "" {
+			return fmt.Errorf("flight-path is required as second position arg")
+		}
+
+		return TakeOff(ctx, params)
+	}
+})
 
 func TakeOff(ctx context.Context, params TakeoffParams) error {
 	commander, err := yoke.FromKubeConfigFlags(params.Kube)

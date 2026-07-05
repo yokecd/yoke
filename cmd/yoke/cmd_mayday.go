@@ -19,43 +19,36 @@ type MaydayParams struct {
 //go:embed cmd_mayday_help.txt
 var maydayHelp string
 
-func init() {
-	maydayHelp = strings.TrimSpace(internal.Colorize(maydayHelp))
-}
-
-func GetMaydayParams(settings GlobalSettings, args []string) (*MaydayParams, error) {
+var CmdMayday = NewCommand("mayday", []string{"delete"}, func(ctx context.Context) (*flag.FlagSet, CmdRunner) {
 	flagset := flag.NewFlagSet("mayday", flag.ExitOnError)
-
-	flagset.Usage = func() {
-		fmt.Fprintln(flagset.Output(), maydayHelp)
-		flagset.PrintDefaults()
-	}
-
-	params := MaydayParams{GlobalSettings: settings}
-
-	RegisterGlobalFlags(flagset, &params.GlobalSettings)
-
-	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
-
 	var removeAll bool
+	params := MaydayParams{}
+	flagset.StringVar(&params.Namespace, "namespace", "", "release target namespace, defaults to context namespace if not provided")
 	flagset.BoolVar(&removeAll, "remove-all", false, "deletes crds and namespaces owned by the release. Destructive and dangerous use with caution.")
 	flagset.BoolVar(&params.RemoveCRDs, "remove-crds", false, "deletes crds owned by the release. Destructive and dangerous use with caution.")
 	flagset.BoolVar(&params.RemoveNamespaces, "remove-namespaces", false, "deletes namespaces owned by the release. Destructive and dangerous use with caution.")
 
-	flagset.Parse(args)
-
-	if removeAll {
-		params.RemoveCRDs = true
-		params.RemoveNamespaces = true
+	flagset.Usage = func() {
+		maydayHelp = strings.TrimSpace(internal.Colorize(maydayHelp))
+		fmt.Fprintln(flagset.Output(), maydayHelp)
+		flagset.PrintDefaults()
 	}
+	return flagset, func(ctx context.Context, settings GlobalSettings, args []string) error {
+		params.GlobalSettings = settings
+		RegisterGlobalFlags(flagset, &params.GlobalSettings)
 
-	params.Release = flagset.Arg(0)
-	if params.Release == "" {
-		return nil, fmt.Errorf("release is required")
+		flagset.Parse(args)
+		if removeAll {
+			params.RemoveCRDs = true
+			params.RemoveNamespaces = true
+		}
+		params.Release = flagset.Arg(0)
+		if params.Release == "" {
+			return fmt.Errorf("release is required")
+		}
+		return Mayday(ctx, params)
 	}
-
-	return &params, nil
-}
+})
 
 func Mayday(ctx context.Context, params MaydayParams) error {
 	commander, err := yoke.FromKubeConfigFlags(params.Kube)
