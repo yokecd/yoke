@@ -94,6 +94,7 @@ type Entry struct {
 	GroupKind  schema.GroupKind
 	Forwarders []schema.GroupKind
 	Funcs      Funcs
+	Filter     func(event Event) bool
 }
 
 func (instance *Instance) Register(entries ...Entry) error {
@@ -130,8 +131,10 @@ func (instance *Instance) register(entry Entry) error {
 				Namespace: resource.GetNamespace(),
 				GroupKind: entry.GroupKind,
 			}
-			instance.events.Enqueue(event)
-			op(event)
+			if entry.Filter == nil || entry.Filter(event) {
+				instance.events.Enqueue(event)
+				op(event)
+			}
 		}
 	}
 
@@ -146,8 +149,10 @@ func (instance *Instance) register(entry Entry) error {
 			Namespace: next.GetNamespace(),
 			GroupKind: entry.GroupKind,
 		}
-		instance.events.Enqueue(event)
-		resourceMap.Add(event)
+		if entry.Filter == nil || entry.Filter(event) {
+			instance.events.Enqueue(event)
+			resourceMap.Add(event)
+		}
 	}
 
 	eventHandlers := kcache.ResourceEventHandlerFuncs{
@@ -174,7 +179,9 @@ func (instance *Instance) register(entry Entry) error {
 				GroupKind: entry.GroupKind,
 			}
 			if resourceMap.Has(evt) {
-				instance.events.Enqueue(evt)
+				if entry.Filter == nil || entry.Filter(evt) {
+					instance.events.Enqueue(evt)
+				}
 			}
 		}
 
