@@ -430,8 +430,8 @@ func (r ResourceCache[T]) List(selector labels.Selector) ([]*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*T, len(objects))
-	for i, item := range objects {
+	result := make([]*T, 0, len(objects))
+	for _, item := range objects {
 		raw := item.(*unstructured.Unstructured)
 		if r.filter != nil && !r.filter(Event{Name: raw.GetName(), Namespace: raw.GetNamespace()}) {
 			continue
@@ -440,7 +440,7 @@ func (r ResourceCache[T]) List(selector labels.Selector) ([]*T, error) {
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(raw.Object, &value); err != nil {
 			return nil, err
 		}
-		result[i] = &value
+		result = append(result, &value)
 	}
 	return result, nil
 }
