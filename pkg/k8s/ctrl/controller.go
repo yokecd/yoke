@@ -16,6 +16,7 @@ import (
 	"github.com/davidmdm/x/xruntime"
 	"github.com/davidmdm/x/xsync"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,6 +62,7 @@ type HandleFunc func(context.Context, Event) (Result, error)
 type gkstate struct {
 	handler  HandleFunc
 	lister   kcache.GenericLister
+	filter   func(Event) bool
 	shutdown func()
 }
 
@@ -131,10 +133,8 @@ func (instance *Instance) register(entry Entry) error {
 				Namespace: resource.GetNamespace(),
 				GroupKind: entry.GroupKind,
 			}
-			if entry.Filter == nil || entry.Filter(event) {
-				instance.events.Enqueue(event)
-				op(event)
-			}
+			instance.events.Enqueue(event)
+			op(event)
 		}
 	}
 
@@ -149,10 +149,8 @@ func (instance *Instance) register(entry Entry) error {
 			Namespace: next.GetNamespace(),
 			GroupKind: entry.GroupKind,
 		}
-		if entry.Filter == nil || entry.Filter(event) {
-			instance.events.Enqueue(event)
-			resourceMap.Add(event)
-		}
+		instance.events.Enqueue(event)
+		resourceMap.Add(event)
 	}
 
 	eventHandlers := kcache.ResourceEventHandlerFuncs{
@@ -179,9 +177,7 @@ func (instance *Instance) register(entry Entry) error {
 				GroupKind: entry.GroupKind,
 			}
 			if resourceMap.Has(evt) {
-				if entry.Filter == nil || entry.Filter(evt) {
-					instance.events.Enqueue(evt)
-				}
+				instance.events.Enqueue(evt)
 			}
 		}
 
@@ -211,6 +207,7 @@ func (instance *Instance) register(entry Entry) error {
 				}
 			}),
 			lister: lister,
+			filter: entry.Filter,
 		},
 	)
 
@@ -254,6 +251,10 @@ func (instance *Instance) Run(ctx context.Context) error {
 						state, ok := instance.gks.Load(event.GroupKind)
 						if !ok {
 							Logger(ctx).Warn("event received but not handler registered for groupkind", "gk", event.GroupKind)
+							return
+						}
+
+						if state.filter != nil && !state.filter(event) {
 							return
 						}
 
@@ -404,6 +405,7 @@ func safe(handler HandleFunc) HandleFunc {
 
 type ResourceCache[T any] struct {
 	lister kcache.GenericNamespaceLister
+	filter func(Event) bool
 }
 
 func (r ResourceCache[T]) Get(name string) (*T, error) {
@@ -411,8 +413,13 @@ func (r ResourceCache[T]) Get(name string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
+	raw := obj.(*unstructured.Unstructured)
+	if r.filter != nil && !r.filter(Event{Name: raw.GetName(), Namespace: raw.GetNamespace()}) {
+		gvk := raw.GetObjectKind().GroupVersionKind()
+		return nil, kerrors.NewNotFound(schema.GroupResource{Group: gvk.Group, Resource: gvk.Kind}, raw.GetName())
+	}
 	var result T
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, &result); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(raw.Object, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -424,9 +431,13 @@ func (r ResourceCache[T]) List(selector labels.Selector) ([]*T, error) {
 		return nil, err
 	}
 	result := make([]*T, len(objects))
-	for i, obj := range objects {
+	for i, item := range objects {
+		raw := item.(*unstructured.Unstructured)
+		if r.filter != nil && !r.filter(Event{Name: raw.GetName(), Namespace: raw.GetNamespace()}) {
+			continue
+		}
 		var value T
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, &value); err != nil {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(raw.Object, &value); err != nil {
 			return nil, err
 		}
 		result[i] = &value
@@ -446,6 +457,7 @@ func Cache[T any, obj internalk8s.MetaObject[T]](ctx context.Context, gk schema.
 			}
 			return state.lister
 		}(),
+		filter: state.filter,
 	}
 }
 
