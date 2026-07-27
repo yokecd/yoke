@@ -449,7 +449,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	}
 
 	if reflect.DeepEqual(previous, stages) {
-		return internal.Warning("resources are the same as previous revision: skipping creation of new revision")
+		return internal.Noop(internal.Warningf("resources are the same as previous revision: skipping creation of new revision"))
 	}
 
 	now := time.Now()
@@ -474,7 +474,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 
 	if params.HistoryCapSize > 0 {
 		if err := commander.k8s.CapReleaseHistory(ctx, fullReleaseName, targetNS, params.HistoryCapSize); err != nil {
-			return internal.Warning(fmt.Sprintf("failed to cap release history after successful takeoff of %s: %v", params.Release, err))
+			return internal.Warningf("failed to cap release history after successful takeoff of %s: %v", params.Release, err)
 		}
 	}
 

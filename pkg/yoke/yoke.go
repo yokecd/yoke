@@ -142,7 +142,7 @@ func (commander Commander) Mayday(ctx context.Context, params MaydayParams) erro
 	}
 
 	if len(release.History) == 0 {
-		return internal.Warning(fmt.Sprintf("mayday noop: no history found for release %q in namespace %q", params.Release, targetNS))
+		return internal.Warningf("mayday noop: no history found for release %q in namespace %q", params.Release, targetNS)
 	}
 
 	stages, err := commander.k8s.GetRevisionResources(ctx, release.ActiveRevision())
@@ -259,7 +259,7 @@ func (commander Commander) Turbulence(ctx context.Context, params TurbulencePara
 	diff := differ(expectedFile, actualFile, params.Context)
 
 	if diff == "" {
-		return internal.Warning("no turbulence detected")
+		return internal.Warningf("no turbulence detected")
 	}
 
 	_, err = fmt.Fprint(internal.Stdout(ctx), diff)

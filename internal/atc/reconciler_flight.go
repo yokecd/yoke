@@ -203,8 +203,12 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				RemoveCRDs:       flight.Spec.Prune.CRDs,
 				RemoveNamespaces: flight.Spec.Prune.Namespaces,
 			},
-		}); err != nil && !internal.IsWarning(err) {
-			return ctrl.Result{}, fmt.Errorf("failed to perform takeoff: %w", err)
+		}); err != nil {
+			if !internal.IsWarning(err) {
+				return ctrl.Result{}, fmt.Errorf("failed to perform takeoff: %w", err)
+			}
+			if internal.IsNoopErr(err) {
+			}
 		}
 
 		release, err := client.GetRelease(ctx, releasePrefix+flight.Name, flight.Namespace)
