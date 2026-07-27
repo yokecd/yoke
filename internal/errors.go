@@ -1,16 +1,44 @@
 package internal
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
-type Warning string
+type WarningErr struct {
+	error
+}
 
-func (warning Warning) Error() string { return string(warning) }
+func Warning(err error) error {
+	return WarningErr{err}
+}
 
-func (Warning) Is(err error) bool {
-	_, ok := err.(Warning)
+func Warningf(format string, args ...any) error {
+	return WarningErr{error: fmt.Errorf(format, args...)}
+}
+
+func (WarningErr) Is(err error) bool {
+	_, ok := err.(WarningErr)
 	return ok
 }
 
 func IsWarning(err error) bool {
-	return errors.Is(err, Warning(""))
+	return errors.Is(err, WarningErr{})
+}
+
+type NoopErr struct {
+	error
+}
+
+func Noop(err error) error {
+	return NoopErr{err}
+}
+
+func IsNoopErr(err error) bool {
+	return errors.Is(err, NoopErr{})
+}
+
+func (NoopErr) Is(err error) bool {
+	_, ok := err.(NoopErr)
+	return ok
 }
