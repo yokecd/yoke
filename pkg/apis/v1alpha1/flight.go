@@ -24,8 +24,18 @@ const (
 type Flight struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta `json:"metadata,omitzero"`
-	Spec              FlightSpec    `json:"spec"`
-	Status            flight.Status `json:"status,omitzero"`
+	Spec              FlightSpec   `json:"spec"`
+	Status            FlightStatus `json:"status,omitzero"`
+}
+
+type FlightStatus struct {
+	flight.Status
+	Inventory []InventoryItem `json:"inventory,omitzero"`
+}
+
+type InventoryItem struct {
+	Resource string `json:"resource"`
+	Version  string `json:"version"`
 }
 
 func (Flight) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {

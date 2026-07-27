@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -214,6 +215,34 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 		stages, err := client.GetRevisionResources(ctx, release.ActiveRevision())
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to get revision resources: %w", err)
+		}
+
+		items := func() []v1alpha1.InventoryItem {
+			resources := stages.Flatten()
+			items := make([]v1alpha1.InventoryItem, len(resources))
+			for i, resource := range stages.Flatten() {
+				gv, _ := schema.ParseGroupVersion(resource.GetAPIVersion())
+				items[i] = v1alpha1.InventoryItem{
+					Resource: internal.ResourceRef(resource),
+					Version:  gv.Version,
+				}
+			}
+			return items
+		}()
+
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current, err := flightIntf.Get(ctx, flight.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if current.Generation != flight.Generation {
+				return nil
+			}
+			current.Status.Inventory = items
+			_, err = flightIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+			return err
+		}); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update flight status with inventory: %w", err)
 		}
 
 		var wg sync.WaitGroup
