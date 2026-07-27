@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -101,6 +102,19 @@ func TestFlightInstance(t *testing.T) {
 			}
 			if hello := cm.Data["hello"]; hello != "42" {
 				return fmt.Errorf("expected configmap data hello to be 42 but got: %s", hello)
+			}
+			current, err := flightIntf.Get(context.Background(), flight.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			if expected := []v1alpha1.InventoryItem{
+				{
+					Resource: "default/ConfigMap:basic",
+					Version:  "v1",
+				},
+			}; !reflect.DeepEqual(current.Status.Inventory, expected) {
+				return fmt.Errorf("failed to get expected inventory (%#v) and got (%#v)", expected, current.Status.Inventory)
 			}
 			return nil
 		},
