@@ -30,7 +30,7 @@ func main() {
 							{
 								Name:    "job",
 								Image:   "alpine:latest",
-								Command: []string{"sleep", "5"},
+								Command: []string{"sleep", "1"},
 							},
 						},
 					},

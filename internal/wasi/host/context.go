@@ -84,42 +84,52 @@ type releaseTrackingKey struct{}
 
 type TrackedRelease struct {
 	Candidate *xsync.Set[string]
-	Release   *xsync.Set[string]
+	Release   []*unstructured.Unstructured
 }
 
 func WithReleaseTracking(ctx context.Context) context.Context {
-	return context.WithValue(ctx, releaseTrackingKey{}, TrackedRelease{
+	return context.WithValue(ctx, releaseTrackingKey{}, &TrackedRelease{
 		Candidate: &xsync.Set[string]{},
-		Release:   &xsync.Set[string]{},
+		Release:   nil,
 	})
 }
 
 func CandidateResources(ctx context.Context) *xsync.Set[string] {
-	resources, ok := ctx.Value(releaseTrackingKey{}).(TrackedRelease)
-	if !ok {
+	resources, ok := ctx.Value(releaseTrackingKey{}).(*TrackedRelease)
+	if !ok || resources == nil {
 		return nil
 	}
 	return resources.Candidate
 }
 
 func trackCandidateRef(ctx context.Context, ref string) {
-	if resources, ok := ctx.Value(releaseTrackingKey{}).(TrackedRelease); ok {
+	if resources, ok := ctx.Value(releaseTrackingKey{}).(*TrackedRelease); ok && resources != nil {
 		resources.Candidate.Add(ref)
 	}
 }
 
-func ReleaseResources(ctx context.Context) *xsync.Set[string] {
-	resources, ok := ctx.Value(releaseTrackingKey{}).(TrackedRelease)
-	if !ok {
+func ReleaseResourcesRefs(ctx context.Context) *xsync.Set[string] {
+	tracked, ok := ctx.Value(releaseTrackingKey{}).(*TrackedRelease)
+	if !ok || tracked == nil {
 		return nil
 	}
-	return resources.Release
+	refs := new(xsync.Set[string])
+	for _, resource := range tracked.Release {
+		refs.Add(internal.ResourceRef(resource))
+	}
+	return refs
+}
+
+func ReleaseResources(ctx context.Context) []*unstructured.Unstructured {
+	tracked, ok := ctx.Value(releaseTrackingKey{}).(*TrackedRelease)
+	if !ok || tracked == nil {
+		return nil
+	}
+	return tracked.Release
 }
 
 func SetReleaseResources(ctx context.Context, resources []*unstructured.Unstructured) {
-	if tracked, ok := ctx.Value(releaseTrackingKey{}).(TrackedRelease); ok {
-		for _, resource := range resources {
-			tracked.Release.Add(internal.ResourceRef(resource))
-		}
+	if tracked, ok := ctx.Value(releaseTrackingKey{}).(*TrackedRelease); ok && tracked != nil {
+		tracked.Release = resources
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davidmdm/x/xerr"
 	"github.com/davidmdm/x/xsync"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -40,8 +41,6 @@ type InstanceReconcilerParams struct {
 }
 
 func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
-	pollerCleanups := map[string]func(){}
-
 	reconciler := func(ctx context.Context, event ctrl.Event) (result ctrl.Result, err error) {
 		defer func() {
 			if cache.IsDisallowedModuleError(err) {
@@ -79,7 +78,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			if _, err := resourceIntf.Update(ctx, resource, metav1.UpdateOptions{FieldManager: fieldManager}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("failed to set default namespace on flight: %w", err)
 			}
-
 			return ctrl.Result{}, nil
 		}
 
@@ -151,13 +149,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 				}
 				ctrl.Logger(ctx).Error("failed to set ready condition", "error", err)
 			}
-		}
-
-		// There is potentially a background worker polling the state of the subresources for release readiness.
-		// Since we are going to be modifying the release readiness on error, we need to stop this process first.
-		if cleanup := pollerCleanups[event.String()]; cleanup != nil {
-			cleanup()
-			delete(pollerCleanups, event.String())
 		}
 
 		defer func() {
@@ -244,79 +235,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 		release := ReleaseName(resource)
 
 		var identity *unstructured.Unstructured
-
-		defer func() {
-			if err != nil || internal.GetFlightReadyCondition(identity) != nil {
-				return
-			}
-
-			release, err := client.GetRelease(ctx, release, event.Namespace)
-			if err != nil {
-				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to get release: %v", err))
-				return
-			}
-			if len(release.History) == 0 {
-				ctrl.Logger(ctx).Error("failed to watch for default ready condition: release not found")
-				return
-			}
-
-			resources, err := client.GetRevisionResources(ctx, release.ActiveRevision())
-			if err != nil {
-				ctrl.Logger(ctx).Error("failed to watch for default ready condition", "error", fmt.Errorf("failed to list revision resources: %v", err))
-				return
-			}
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-
-			ctx, cancel := context.WithCancel(ctx)
-
-			pollerCleanups[event.String()] = func() {
-				cancel()
-				wg.Wait()
-			}
-
-			e := make(chan error, 1)
-
-			go func() {
-				defer wg.Done()
-				e <- client.WaitForReadyMany(ctx, resources.Flatten(), k8s.WaitOptions{
-					Timeout:  k8s.NoTimeout,
-					Interval: 2 * time.Second,
-				})
-			}()
-
-			go func() {
-				// Release resources if no longer polling.
-				defer cancel()
-
-				defer wg.Done()
-				start := time.Now()
-
-				ticker := time.NewTicker(2 * time.Second)
-				defer ticker.Stop()
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-						setReadyCondition(
-							metav1.ConditionFalse,
-							"InProgress",
-							fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
-						)
-					case err := <-e:
-						if err != nil {
-							setReadyCondition(metav1.ConditionFalse, "Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
-						} else {
-							setReadyCondition(metav1.ConditionTrue, "Ready", "Successfully deployed")
-						}
-						return
-					}
-				}
-			}()
-		}()
 
 		defer func() {
 			if identity == nil || identity.Object["status"] == nil {
@@ -433,8 +351,6 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			}
 		}
 
-		setReadyCondition(metav1.ConditionFalse, "InProgress", "Flight is taking off")
-
 		if flightState.Mode.IsDynamic() {
 			ctx = host.WithResourceTracking(ctx)
 			defer func() {
@@ -454,27 +370,63 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 			atc.dispatcher.RemoveEvent(event.WithoutMeta())
 		}
 
+		// We should always do resource tracking as this will allow us to pull the resource refs and check readiness.
+		ctx = host.WithReleaseTracking(ctx)
+
 		if flightState.Mode == v1alpha1.AirwayModeSubscription {
-			ctx = host.WithReleaseTracking(ctx)
 			defer func() {
 				if err != nil {
 					flightState.TrackedResources = flightState.TrackedResources.Union(host.InternalResources(ctx))
 				} else {
-					flightState.TrackedResources = host.InternalResources(ctx).Union(host.CandidateResources(ctx).Intersection(host.ReleaseResources(ctx)))
+					flightState.TrackedResources = host.InternalResources(ctx).Union(host.CandidateResources(ctx).Intersection(host.ReleaseResourcesRefs(ctx)))
 				}
 			}()
 		} else {
 			flightState.TrackedResources = nil
 		}
 
-		if err := commander.Takeoff(ctx, takeoffParams); err != nil {
-			if !internal.IsWarning(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to takeoff: %w", err)
+		defer func() {
+			if err != nil && internal.IsWarning(err) {
+				ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
+				err = nil
 			}
-			ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
-		}
+		}()
 
-		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration}, nil
+		defer func() {
+			if (err != nil && !internal.IsNoopErr(err)) || internal.GetFlightReadyCondition(identity) != nil {
+				return
+			}
+			ready, readynessErr := func() (bool, error) {
+				var errs []error
+				var pending bool
+				for _, resource := range host.ReleaseResources(ctx) {
+					if ready, err := client.IsReady(ctx, resource); err != nil {
+						errs = append(errs, fmt.Errorf("%s: %w", internal.ResourceRef(resource), err))
+					} else if !ready {
+						pending = true
+						break
+					}
+				}
+				if err := xerr.MultiErrFrom("failed to check release readiness", errs...); err != nil {
+					return false, err
+				}
+				return !pending, nil
+			}()
+			if readynessErr != nil {
+				err = readynessErr
+				return
+			}
+			if ready {
+				setReadyCondition(metav1.ConditionTrue, "Ready", "Successfully deployed")
+			} else {
+				setReadyCondition(metav1.ConditionFalse, "InProgress", fmt.Errorf("waiting for flight to become ready"))
+				result.RequeueAfter = cmp.Or(min(result.RequeueAfter, 5*time.Second), 5*time.Second)
+			}
+		}()
+
+		setReadyCondition(metav1.ConditionFalse, "InProgress", "Flight is taking off")
+
+		return ctrl.Result{RequeueAfter: params.Airway.Spec.FixDriftInterval.Duration}, commander.Takeoff(ctx, takeoffParams)
 	}
 
 	return ctrl.Funcs{

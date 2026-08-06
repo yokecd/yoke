@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/davidmdm/x/xerr"
 	"github.com/yokecd/yoke/internal"
 	"github.com/yokecd/yoke/internal/k8s"
 	"github.com/yokecd/yoke/internal/wasi/cache"
@@ -34,8 +34,6 @@ func ClusterFlightReconsiler(modules *cache.ModuleCache) ctrl.Funcs {
 }
 
 func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs {
-	cleanups := map[string]func(){}
-
 	gvr := func() schema.GroupVersionResource {
 		if clusterScope {
 			return v1alpha1.ClusterFlightGVR()
@@ -59,10 +57,6 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			flightIntf  = k8s.TypedInterface[AltFlight](client, gvr).Namespace(evt.Namespace)
 			flightCache = ctrl.CacheFromEvent[AltFlight](ctx, evt)
 		)
-
-		if cleanup := cleanups[evt.String()]; cleanup != nil {
-			cleanup()
-		}
 
 		flight, err := flightCache.Get(evt.Name)
 		if err != nil {
@@ -165,9 +159,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 			return ctrl.Result{}, fmt.Errorf("failed to get wasm module: %w", err)
 		}
 
-		setReadyCondition(metav1.ConditionFalse, "InProgress", "performing takeoff")
-
-		if err := commander.Takeoff(ctx, yoke.TakeoffParams{
+		takeoffParams := yoke.TakeoffParams{
 			ForceConflicts: true,
 			ForceOwnership: true,
 			CrossNamespace: clusterScope,
@@ -208,113 +200,94 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 				RemoveCRDs:       flight.Spec.Prune.CRDs,
 				RemoveNamespaces: flight.Spec.Prune.Namespaces,
 			},
-		}); err != nil {
-			if !internal.IsWarning(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to perform takeoff: %w", err)
-			}
-			if internal.IsNoopErr(err) {
-			}
 		}
 
-		release, err := client.GetRelease(ctx, releasePrefix+flight.Name, flight.Namespace)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to lookup created revision: %w", err)
-		}
+		readinessByRef := map[string]bool{}
 
-		stages, err := client.GetRevisionResources(ctx, release.ActiveRevision())
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to get revision resources: %w", err)
-		}
+		ctx = host.WithReleaseTracking(ctx)
 
-		items := func() []v1alpha1.InventoryItem {
-			resources := stages.Flatten()
-			items := make([]v1alpha1.InventoryItem, len(resources))
-			for i, resource := range stages.Flatten() {
-				gv, _ := schema.ParseGroupVersion(resource.GetAPIVersion())
-				items[i] = v1alpha1.InventoryItem{
-					Resource: internal.ResourceRef(resource),
-					Version:  gv.Version,
-				}
-			}
-			return items
-		}()
-
-		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			current, err := flightIntf.Get(ctx, flight.Name, metav1.GetOptions{})
+		defer func() {
 			if err != nil {
-				return err
-			}
-			if current.Generation != flight.Generation {
-				return nil
-			}
-			current.Status.Inventory = items
-			_, err = flightIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
-			return err
-		}); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to update flight status with inventory: %w", err)
-		}
-
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		ctx, cancel := context.WithCancel(ctx)
-
-		cleanups[evt.String()] = func() {
-			cancel()
-			wg.Wait()
-		}
-
-		e := make(chan error, 1)
-
-		go func() {
-			defer wg.Done()
-			e <- client.WaitForReadyMany(ctx, stages.Flatten(), k8s.WaitOptions{
-				Timeout:  k8s.NoTimeout,
-				Interval: 2 * time.Second,
-			})
-		}()
-
-		go func() {
-			defer cancel()
-
-			defer wg.Done()
-			start := time.Now()
-
-			ticker := time.NewTicker(2 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					setReadyCondition(
-						metav1.ConditionFalse,
-						"InProgress",
-						fmt.Sprintf("Waiting for flight to become ready: elapsed: %s", time.Since(start).Round(time.Second)),
-					)
-				case err := <-e:
-					if err != nil {
-						setReadyCondition(metav1.ConditionFalse, "Error", fmt.Sprintf("Failed to wait for flight to become ready: %v", err))
-					} else {
-						setReadyCondition(metav1.ConditionTrue, "Ready", "Successfully deployed")
-					}
+				if !internal.IsWarning(err) {
 					return
 				}
+				ctrl.Logger(ctx).Warn("takeoff succeeded despite warnings", "warning", err)
+				err = nil
+			}
+
+			items := func() []v1alpha1.InventoryItem {
+				resources := host.ReleaseResources(ctx)
+				items := make([]v1alpha1.InventoryItem, len(resources))
+				for i, resource := range resources {
+					gv, _ := schema.ParseGroupVersion(resource.GetAPIVersion())
+					ref := internal.ResourceRef(resource)
+					items[i] = v1alpha1.InventoryItem{
+						Resource: ref,
+						Version:  gv.Version,
+						Ready:    readinessByRef[ref],
+					}
+				}
+				return items
+			}()
+
+			if updateErr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				current, err := flightIntf.Get(ctx, flight.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if current.Generation != flight.Generation {
+					return nil
+				}
+				current.Status.Inventory = items
+				_, err = flightIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+				return err
+			}); updateErr != nil {
+				err = fmt.Errorf("failed to update flight status with inventory: %w", updateErr)
 			}
 		}()
 
-		return ctrl.Result{RequeueAfter: flight.Spec.FixDriftInterval.Duration}, nil
-	}
+		defer func() {
+			if err != nil && !internal.IsNoopErr(err) {
+				return
+			}
+			ready, readynessErr := func() (bool, error) {
+				var errs []error
+				var pending bool
+				for _, resource := range host.ReleaseResources(ctx) {
+					ready, err := client.IsReady(ctx, resource)
+					if err != nil {
+						errs = append(errs, fmt.Errorf("%s: %w", internal.ResourceRef(resource), err))
+						continue
+					}
+					readinessByRef[internal.ResourceRef(resource)] = ready
+					if !ready {
+						pending = true
+					}
+				}
+				if err := xerr.MultiErrFrom("failed to check release readiness", errs...); err != nil {
+					return false, err
+				}
+				return !pending, nil
+			}()
+			if readynessErr != nil {
+				err = readynessErr
+				return
+			}
+			if ready {
+				setReadyCondition(metav1.ConditionTrue, "Ready", "Successfully deployed")
+			} else {
+				setReadyCondition(metav1.ConditionFalse, "InProgress", fmt.Errorf("waiting for flight to become ready"))
+				result.RequeueAfter = cmp.Or(min(result.RequeueAfter, 5*time.Second), 5*time.Second)
+			}
+		}()
 
-	teardown := func() {
-		for _, cleanup := range cleanups {
-			cleanup()
-		}
+		setReadyCondition(metav1.ConditionFalse, "InProgress", "Flight is taking off")
+
+		return ctrl.Result{RequeueAfter: flight.Spec.FixDriftInterval.Duration}, commander.Takeoff(ctx, takeoffParams)
 	}
 
 	return ctrl.Funcs{
 		Handler:  reconciler,
-		Teardown: teardown,
+		Teardown: func() {},
 	}
 }
