@@ -54,38 +54,38 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 	}
 
 	airwayStatus := func(status metav1.ConditionStatus, reason string, msg any) {
-		current, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current, err := airwayIntf.Get(ctx, airway.GetName(), metav1.GetOptions{})
+			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return nil
+				}
+				return err
 			}
-			ctrl.Logger(ctx).Error("failed to update status", "error", err)
-			return
-		}
-
-		if current.GetGeneration() != airway.GetGeneration() {
-			// Don't update status if current generation has changed.
-			return
-		}
-
-		meta.SetStatusCondition((*[]metav1.Condition)(&current.Status.Conditions), metav1.Condition{
-			Type:               "Ready",
-			Status:             status,
-			ObservedGeneration: current.Generation,
-			Reason:             reason,
-			Message:            fmt.Sprintf("%v", msg),
-		})
-
-		updated, err := airwayIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return
+			if current.GetGeneration() != airway.GetGeneration() {
+				return nil
 			}
+			if changed := meta.SetStatusCondition((*[]metav1.Condition)(&current.Status.Conditions), metav1.Condition{
+				Type:               "Ready",
+				Status:             status,
+				ObservedGeneration: current.Generation,
+				Reason:             reason,
+				Message:            fmt.Sprintf("%v", msg),
+			}); !changed {
+				return nil
+			}
+			updated, err := airwayIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+			if err != nil {
+				if kerrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			airway = updated
+			return nil
+		}); err != nil {
 			ctrl.Logger(ctx).Error("failed to update airway status", "error", err)
-			return
 		}
-
-		airway = updated
 	}
 
 	if airway.DeletionTimestamp == nil && !slices.Contains(airway.Finalizers, cleanupAirwayFinalizer) {
