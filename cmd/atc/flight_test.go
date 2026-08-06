@@ -112,6 +112,7 @@ func TestFlightInstance(t *testing.T) {
 				{
 					Resource: "default/ConfigMap:basic",
 					Version:  "v1",
+					Ready:    true,
 				},
 			}; !reflect.DeepEqual(current.Status.Inventory, expected) {
 				return fmt.Errorf("failed to get expected inventory (%#v) and got (%#v)", expected, current.Status.Inventory)

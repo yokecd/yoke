@@ -23,7 +23,7 @@ func (WarningErr) Is(err error) bool {
 }
 
 func IsWarning(err error) bool {
-	return errors.Is(err, WarningErr{})
+	return errors.Is(err, WarningErr{}) || errors.Is(err, NoopErr{})
 }
 
 type NoopErr struct {

@@ -36,6 +36,7 @@ type FlightStatus struct {
 type InventoryItem struct {
 	Resource string `json:"resource"`
 	Version  string `json:"version"`
+	Ready    bool   `json:"ready"`
 }
 
 func (Flight) OpenAPISchema() *apiextensionsv1.JSONSchemaProps {
