@@ -73,36 +73,41 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 		}
 
 		setReadyCondition := func(status metav1.ConditionStatus, reason string, msg any) {
-			current, err := flightIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
-			if err != nil {
-				if kerrors.IsNotFound(err) {
-					return
+			if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				current, err := flightIntf.Get(ctx, flight.GetName(), metav1.GetOptions{})
+				if err != nil {
+					if kerrors.IsNotFound(err) {
+						return nil
+					}
+					return err
 				}
-				ctrl.Logger(ctx).Error("failed to update status", "error", err)
-				return
-			}
-			if current.GetGeneration() != flight.GetGeneration() {
-				return
-			}
-
-			meta.SetStatusCondition((*[]metav1.Condition)(&current.Status.Conditions), metav1.Condition{
-				Type:               "Ready",
-				Status:             status,
-				ObservedGeneration: flight.Generation,
-				Reason:             reason,
-				Message:            fmt.Sprintf("%v", msg),
-			})
-
-			updated, err := flightIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
-			if err != nil {
-				if kerrors.IsNotFound(err) {
-					return
+				if current.GetGeneration() != flight.GetGeneration() {
+					return nil
 				}
+
+				if changed := meta.SetStatusCondition((*[]metav1.Condition)(&current.Status.Conditions), metav1.Condition{
+					Type:               "Ready",
+					Status:             status,
+					ObservedGeneration: flight.Generation,
+					Reason:             reason,
+					Message:            fmt.Sprintf("%v", msg),
+				}); !changed {
+					return nil
+				}
+
+				updated, err := flightIntf.UpdateStatus(ctx, current, metav1.UpdateOptions{FieldManager: fieldManager})
+				if err != nil {
+					if kerrors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+
+				flight = updated
+				return nil
+			}); err != nil {
 				ctrl.Logger(ctx).Error("failed to update flight status", "error", err)
-				return
 			}
-
-			flight = updated
 		}
 
 		defer func() {

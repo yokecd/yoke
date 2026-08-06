@@ -125,13 +125,15 @@ func (atc atc) InstanceReconciler(params InstanceReconcilerParams) ctrl.Funcs {
 
 				conditions := internal.GetFlightConditions(current)
 
-				meta.SetStatusCondition(&conditions, metav1.Condition{
+				if changed := meta.SetStatusCondition(&conditions, metav1.Condition{
 					Type:               "Ready",
 					Status:             status,
 					ObservedGeneration: current.GetGeneration(),
 					Reason:             reason,
 					Message:            fmt.Sprintf("%v", msg),
-				})
+				}); !changed {
+					return nil
+				}
 
 				_ = unstructured.SetNestedField(current.Object, internal.MustUnstructuredObject[any](conditions), "status", "conditions")
 
