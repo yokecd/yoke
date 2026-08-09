@@ -34,6 +34,10 @@ func Noop(err error) error {
 	return NoopErr{err}
 }
 
+func Noopf(format string, args ...any) error {
+	return NoopErr{error: fmt.Errorf(format, args...)}
+}
+
 func IsNoopErr(err error) bool {
 	return errors.Is(err, NoopErr{})
 }
