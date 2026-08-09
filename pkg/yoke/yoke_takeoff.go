@@ -449,7 +449,7 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	}
 
 	if reflect.DeepEqual(previous, stages) {
-		return internal.Noop(internal.Warningf("resources are the same as previous revision: skipping creation of new revision"))
+		return internal.Noopf("resources are the same as previous revision: skipping creation of new revision")
 	}
 
 	now := time.Now()
