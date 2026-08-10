@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cmp"
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -10,9 +10,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/informers"
 	kcache "k8s.io/client-go/tools/cache"
-	retryWatcher "k8s.io/client-go/tools/watch"
 
 	"github.com/yokecd/yoke/internal/home"
 	"github.com/yokecd/yoke/internal/k8s"
@@ -36,64 +36,66 @@ func WatchDockerConfig(ctx context.Context, params WatchDockerConfigParams) erro
 
 	secretIntf := params.Client.Clientset.CoreV1().Secrets(params.Namespace)
 
-	fieldSelector := "metadata.name=" + params.SecretName
-
-	secrets, err := secretIntf.List(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
+	secret, err := secretIntf.Get(ctx, params.SecretName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to lookup docker config secret: %w", err)
 	}
 
-	if len(secrets.Items) == 0 {
-		params.Logger.Warn("no docker config found", "secretName", params.SecretName)
+	configJSON := secret.Data[keyDockerConfig]
+	if len(configJSON) == 0 {
+		return fmt.Errorf("docker config secret found but no data found under expected key %s", keyDockerConfig)
 	}
 
-	if len(secrets.Items) > 0 {
-		configJSON := secrets.Items[0].Data[keyDockerConfig]
+	if err := os.WriteFile(targetPath, configJSON, 0o644); err != nil {
+		return fmt.Errorf("failed to write docker config: %w", err)
+	}
+
+	params.Logger.Info("successfully setup docker credentials from secret", "secretName", params.SecretName)
+
+	factory := informers.NewSharedInformerFactoryWithOptions(
+		params.Client.Clientset,
+		0,
+		informers.WithNamespace(params.Namespace),
+		informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("metadata.name", params.SecretName).String()
+		}),
+	)
+
+	secretInformer := factory.Core().V1().Secrets()
+
+	writeFunc := func(secret *corev1.Secret) {
+		configJSON := secret.Data[keyDockerConfig]
+		if data, err := os.ReadFile(targetPath); err == nil && bytes.Equal(configJSON, data) {
+			return
+		}
 		if len(configJSON) == 0 {
-			return fmt.Errorf("docker config secret found but no data found under expected key %s", keyDockerConfig)
+			params.Logger.Error("empty config in secret")
+			return
 		}
 		if err := os.WriteFile(targetPath, configJSON, 0o644); err != nil {
-			return fmt.Errorf("failed to write docker config: %w", err)
+			params.Logger.Error("failed to write docker config", "error", err)
+			return
 		}
-		params.Logger.Info("init: successfully setup docker credentials from secret", "secretName", params.SecretName)
+		params.Logger.Info("docker config written")
 	}
 
-	watcher, err := retryWatcher.NewRetryWatcherWithContext(ctx, cmp.Or(secrets.ResourceVersion, "1"), &kcache.ListWatch{
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-			opts.FieldSelector = fieldSelector
-			return secretIntf.Watch(ctx, opts)
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to watch for dockerconfig secrets: %w", err)
-	}
-	defer watcher.Stop()
-
-	params.Logger.Info("watching for docker credential changes", "secretName", params.SecretName)
-
-	events := watcher.ResultChan()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return context.Cause(ctx)
-		case evt, ok := <-events:
-			if !ok {
-				return fmt.Errorf("watcher exited unexpectedly")
-			}
-
-			switch evt.Type {
-			case watch.Added, watch.Modified:
-				if err := os.WriteFile(targetPath, evt.Object.(*corev1.Secret).Data[keyDockerConfig], 0o644); err != nil {
-					params.Logger.Error("failed to write docker config", "error", err)
-				}
-			case watch.Deleted:
+	secretInformer.Informer().AddEventHandler(
+		kcache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj any) { writeFunc(obj.(*corev1.Secret)) },
+			UpdateFunc: func(_ any, obj any) { writeFunc(obj.(*corev1.Secret)) },
+			DeleteFunc: func(obj any) {
 				if err := os.Remove(targetPath); err != nil {
-					params.Logger.Error("failed to remove dockerconfig json", "error", err)
+					params.Logger.Error("failed to remove docker config", "error", err)
+					return
 				}
-			case watch.Error:
-				params.Logger.Error("docker config secret watcher sent error", "error", evt)
-			}
-		}
-	}
+				params.Logger.Info("removed docker config")
+			},
+		},
+	)
+
+	factory.StartWithContext(ctx)
+
+	<-ctx.Done()
+
+	return context.Cause(ctx)
 }
