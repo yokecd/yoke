@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/yokecd/yoke/internal"
@@ -92,6 +93,25 @@ func (c TypedIntf[T]) Apply(ctx context.Context, api *T, options metav1.ApplyOpt
 		unstructured.RemoveNestedField(obj.Object, "metadata", field)
 	}
 	obj, err = c.getIntf().Apply(ctx, obj.GetName(), obj, options)
+	if err != nil {
+		return nil, err
+	}
+	result := *api
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &result); err != nil {
+		return nil, fmt.Errorf("failed to convert unstructerd value to typed api: %w", err)
+	}
+	return &result, nil
+}
+
+func (c TypedIntf[T]) Patch(ctx context.Context, api *T, pt types.PatchType, data []byte, opts metav1.PatchOptions) (*T, error) {
+	obj, err := internal.ToUnstructured(api)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
+	}
+	if ns := obj.GetNamespace(); ns != "" {
+		c = c.Namespace(ns)
+	}
+	obj, err = c.getIntf().Patch(ctx, obj.GetName(), pt, data, opts)
 	if err != nil {
 		return nil, err
 	}
