@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -87,6 +88,9 @@ func (c TypedIntf[T]) Apply(ctx context.Context, api *T, options metav1.ApplyOpt
 	if ns := obj.GetNamespace(); ns != "" {
 		c = c.Namespace(ns)
 	}
+	for _, field := range []string{"managedFields", "uid", "resourceVersion"} {
+		unstructured.RemoveNestedField(obj.Object, "metadata", field)
+	}
 	obj, err = c.getIntf().Apply(ctx, obj.GetName(), obj, options)
 	if err != nil {
 		return nil, err
@@ -105,6 +109,9 @@ func (c TypedIntf[T]) ApplyStatus(ctx context.Context, api *T, options metav1.Ap
 	}
 	if ns := obj.GetNamespace(); ns != "" {
 		c = c.Namespace(ns)
+	}
+	for _, field := range []string{"managedFields", "uid", "resourceVersion"} {
+		unstructured.RemoveNestedField(obj.Object, "metadata", field)
 	}
 	obj, err = c.getIntf().ApplyStatus(ctx, obj.GetName(), obj, options)
 	if err != nil {
