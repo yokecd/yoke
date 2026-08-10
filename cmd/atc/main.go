@@ -93,6 +93,12 @@ func run() (err error) {
 		err = xerr.Join(err, teardown(context.Background()))
 	}()
 
+	// TODO: remove when we move to version 1.0.0
+	logger.Info("updating instance release names")
+	if err := (*ReleaseNameUpdater)(client).Update(ctx); err != nil {
+		return fmt.Errorf("failed to update release names: %w", err)
+	}
+
 	moduleCache := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList, cfg.ModuleVerificationKeys)
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
