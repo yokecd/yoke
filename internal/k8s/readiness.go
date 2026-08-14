@@ -116,7 +116,13 @@ func MeetsConditions(resource *unstructured.Unstructured, conditions ...string) 
 
 	for _, conditionType := range conditions {
 		condition := meta.FindStatusCondition(status.Conditions, conditionType)
-		if condition == nil || condition.ObservedGeneration != resource.GetGeneration() || condition.Status != metav1.ConditionTrue {
+		if condition == nil {
+			return false
+		}
+		if condition.ObservedGeneration > 0 && condition.ObservedGeneration != resource.GetGeneration() {
+			return false
+		}
+		if condition.Status != metav1.ConditionTrue {
 			return false
 		}
 	}
