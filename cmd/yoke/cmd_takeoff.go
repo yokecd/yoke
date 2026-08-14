@@ -82,6 +82,8 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 		},
 	)
 
+	flagset.BoolVar(&params.LoadCustomReadiness, "load-custom-readiness", false, "loads custom resource readiness validation functions from cluster")
+
 	var removeAll bool
 	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")
 	flagset.BoolVar(&params.RemoveCRDs, "remove-crds", false, "enables pruning of crds owned by the release.\nDestructive and dangerous use with caution.")

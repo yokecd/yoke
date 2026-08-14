@@ -19,6 +19,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/go-containerregistry v0.21.9
 	github.com/jedib0t/go-pretty/v6 v6.8.3
+	github.com/mmcdole/lunar v0.1.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/stretchr/testify v1.11.1
 	github.com/tetratelabs/wazero v1.6.0

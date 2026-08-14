@@ -322,7 +322,7 @@ func (client Client) PruneReleaseDiff(ctx context.Context, previous, next intern
 }
 
 func (client Client) GetRelease(ctx context.Context, name, ns string) (*internal.Release, error) {
-	defer internal.DebugTimer(ctx, "get revisions for "+name)
+	defer internal.DebugTimer(ctx, "get revisions for "+name)()
 
 	mapping, err := client.Mapper.RESTMapping(schema.GroupKind{Kind: "Secret"})
 	if err != nil {
