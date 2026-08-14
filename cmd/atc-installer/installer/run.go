@@ -41,6 +41,7 @@ type Config struct {
 	CacheFS                string            `json:"cacheFS,omitzero" Description:"controls location to mount empty dir for wasm module fs cache. Defaults to /tmp if unset"`
 	ModuleAllowList        []string          `json:"moduleAllowList,omitzero" Description:"list of patterns that define the module allow-list. If empty all modules are allowed."`
 	ModuleVerificationKeys []string          `json:"moduleVerificationKeys,omitzero" Description:"list of public keys uses to verify modules. Allowlist takes precedence."`
+	DisableCustomReadiness bool              `json:"disableCustomReadiness" Description:"omit loading custom readiness definition from in-cluster configmaps."`
 }
 
 func Run(cfg Config) (flight.Stages, error) {
@@ -190,6 +191,7 @@ func Run(cfg Config) (flight.Stages, error) {
 		{Name: "LOG_FORMAT", Value: cfg.LogFormat},
 		{Name: "VERBOSE", Value: strconv.FormatBool(cfg.Verbose)},
 		{Name: "CACHE_FS", Value: cfg.CacheFS},
+		{Name: "DISABLE_CUSTOM_READINESS", Value: strconv.FormatBool(cfg.DisableCustomReadiness)},
 	}
 
 	if len(cfg.ModuleAllowList) > 0 {

@@ -28,6 +28,8 @@ type Config struct {
 	Verbose bool
 
 	TLS TLSConfig
+
+	DisableCustomReadiness bool
 }
 
 type File struct {
@@ -49,6 +51,11 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Port, "PORT", conf.Default(3000))
 	conf.Var(parser, &cfg.KubeConfig, "KUBE")
 	conf.Var(parser, &cfg.Concurrency, "CONCURRENCY", conf.Default(runtime.GOMAXPROCS(0)))
+	conf.Var(parser, &cfg.Verbose, "VERBOSE")
+	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
+	conf.Var(parser, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
+	conf.Var(parser, &cfg.DisableCustomReadiness, "DISABLE_CUSTOM_READINESS")
+	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
 
 	conf.Var(parser, &cfg.TLS.CA.Path, "TLS_CA_CERT", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.TLS.ServerCert.Path, "TLS_SERVER_CERT", conf.RequiredNonEmpty[string]())
@@ -57,14 +64,6 @@ func LoadConfig() (*Config, error) {
 	conf.Var(parser, &cfg.Service.Name, "SVC_NAME", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.Service.Namespace, "SVC_NAMESPACE", conf.RequiredNonEmpty[string]())
 	conf.Var(parser, &cfg.Service.Port, "SVC_PORT", conf.RequiredNonEmpty[int32]())
-
-	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
-
-	conf.Var(parser, &cfg.Verbose, "VERBOSE")
-
-	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
-
-	conf.Var(parser, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
 
 	var verificationKeyPath string
 	conf.Var(parser, &verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")

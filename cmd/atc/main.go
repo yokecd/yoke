@@ -93,6 +93,15 @@ func run() (err error) {
 		err = xerr.Join(err, teardown(context.Background()))
 	}()
 
+	if !cfg.DisableCustomReadiness {
+		readiness, cancel, err := client.WatchCustomReadiness(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to watch custom readiness: %w", err)
+		}
+		defer cancel()
+		ctx = internalk8s.WithCustomReadiness(ctx, readiness)
+	}
+
 	moduleCache := cache.NewModuleCache(cfg.CacheFS, cfg.ModuleAllowList, cfg.ModuleVerificationKeys)
 	eventDispatcher := new(atc.EventDispatcher)
 	flightStates := &xsync.Map[string, atc.InstanceState]{}
