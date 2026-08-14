@@ -43,18 +43,27 @@ func FromK8Client(client *k8s.Client) *Commander {
 }
 
 type DescentParams struct {
-	Release    string
-	RevisionID int
-	Namespace  string
-	Wait       time.Duration
-	Poll       time.Duration
-	Lock       bool
+	Release             string
+	RevisionID          int
+	Namespace           string
+	Wait                time.Duration
+	Poll                time.Duration
+	Lock                bool
+	LoadCustomReadiness bool
 
 	PruneOpts
 }
 
 func (commander Commander) Descent(ctx context.Context, params DescentParams) (err error) {
 	defer internal.DebugTimer(ctx, "descent")()
+
+	if params.LoadCustomReadiness {
+		readiness, err := commander.k8s.LoadCustomReadinessFuncs(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to load custom readiness: %w", err)
+		}
+		ctx = k8s.WithCustomReadiness(ctx, readiness)
+	}
 
 	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 

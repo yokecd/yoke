@@ -43,6 +43,7 @@ func GetDescentfParams(settings GlobalSettings, args []string) (*DescentParams, 
 	flagset.DurationVar(&params.Wait, "wait", 0, "time to wait for release to become ready")
 	flagset.DurationVar(&params.Poll, "poll", 5*time.Second, "interval to poll resource state at. Used with --wait")
 	flagset.BoolVar(&params.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
+	flagset.BoolVar(&params.LoadCustomReadiness, "load-custom-readiness", false, "loads custom resource readiness validation functions from cluster")
 
 	var removeAll bool
 	flagset.BoolVar(&removeAll, "remove-all", false, "enables pruning of crds and namespaces owned by the release if a new revision would orphan them.\nDestructive and dangerous use with caution.")

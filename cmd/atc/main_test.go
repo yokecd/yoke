@@ -309,7 +309,7 @@ func TestAirTrafficController(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if !k8s.FlightIsReady(resource) {
+			if !k8s.MeetsConditions(resource, "Ready") {
 				return fmt.Errorf("expected airway to be Ready but was not.")
 			}
 			return nil

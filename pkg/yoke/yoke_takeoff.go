@@ -176,10 +176,23 @@ type TakeoffParams struct {
 	// If the path is to a folder, all PEM files are loaded. If the key is a private key, it will infer the public key from it.
 	// Only one key is loaded per PEM file.
 	VerifyKeyPath string
+
+	// LoadCustomReadiness instructs yoke to load the readiness configmaps in your cluster.
+	// These configmaps have labels "resource.yoke.cd/readiness in (lua,conditions)" and allow you to define the status conditions,
+	// or a custom lua script to define readiness for a given GroupKind. This allows you to define readiness for resources that yoke does not know about.
+	LoadCustomReadiness bool
 }
 
 func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (err error) {
 	defer internal.DebugTimer(ctx, "takeoff of "+params.Release)()
+
+	if params.LoadCustomReadiness {
+		readiness, err := commander.k8s.LoadCustomReadinessFuncs(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to load custom readiness: %w", err)
+		}
+		ctx = k8s.WithCustomReadiness(ctx, readiness)
+	}
 
 	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
 
