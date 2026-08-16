@@ -49,7 +49,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 		}
 	)
 
-	airwayResource := internal.Must2(internal.ToUnstructured(&apiextensionsv1.CustomResourceDefinition{
+	airwayResource := internal.MustUnstructured(&apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1.SchemeGroupVersion.Identifier(),
@@ -98,7 +98,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 				},
 			},
 		},
-	}))
+	})
 
 	flightResources := func() (resources []*unstructured.Unstructured) {
 		type Def struct {
@@ -123,7 +123,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 				Scope: apiextensionsv1.ClusterScoped,
 			},
 		} {
-			resources = append(resources, internal.Must2(internal.ToUnstructured(
+			resources = append(resources, internal.MustUnstructured(
 				&apiextensionsv1.CustomResourceDefinition{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "CustomResourceDefinition",
@@ -165,7 +165,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 						},
 					},
 				},
-			)))
+			))
 		}
 		return
 	}()
@@ -396,7 +396,7 @@ func ApplyResources(ctx context.Context, client *k8s.Client, cfg *Config) (teard
 
 	var webhooks []*unstructured.Unstructured
 	for _, webhook := range typedWebhooks {
-		webhooks = append(webhooks, internal.Must2(internal.ToUnstructured(webhook)))
+		webhooks = append(webhooks, internal.MustUnstructured(webhook))
 	}
 
 	if err := client.ApplyResources(ctx, webhooks, k8s.ApplyResourcesOpts{ApplyOpts: forceful}); err != nil {

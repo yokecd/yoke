@@ -92,7 +92,7 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 		if customCheck, ok := customReadiness.Load(gk); ok {
 			return customCheck(resource)
 		}
-		if customCheck, ok := customReadiness.Load(schema.GroupKind{Kind: "*", Group: gk.Group}); ok {
+		if customCheck, ok := customReadiness.Load(schema.GroupKind{Kind: "_", Group: gk.Group}); ok {
 			return customCheck(resource)
 		}
 	}
@@ -285,6 +285,10 @@ func registerReadinessConfigMap(readiness *CustomReadiness, configMap *corev1.Co
 				value, err := state.CallOne(fn, resource.Value())
 				if err != nil {
 					return false, fmt.Errorf("failed to invoke lua readiness function: %w", err)
+				}
+
+				if value.IsNil() {
+					return false, nil
 				}
 
 				ready, ok := value.AsBool()

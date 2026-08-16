@@ -3560,7 +3560,7 @@ func TestValidationCycle(t *testing.T) {
 
 	require.NoError(
 		t,
-		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+		client.WaitForReady(context.Background(), internal.MustUnstructured(airway), k8s.WaitOptions{
 			Timeout:  30 * time.Second,
 			Interval: time.Second,
 		}),
@@ -3670,7 +3670,7 @@ func TestIdentityWithError(t *testing.T) {
 
 	require.NoError(
 		t,
-		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+		client.WaitForReady(context.Background(), internal.MustUnstructured(airway), k8s.WaitOptions{
 			Timeout:  30 * time.Second,
 			Interval: time.Second,
 		}),
@@ -3878,7 +3878,7 @@ func TestInvalidChecksum(t *testing.T) {
 
 	require.NoError(
 		t,
-		client.WaitForReady(context.Background(), internal.Must2(internal.ToUnstructured(airway)), k8s.WaitOptions{
+		client.WaitForReady(context.Background(), internal.MustUnstructured(airway), k8s.WaitOptions{
 			Timeout:  30 * time.Second,
 			Interval: time.Second,
 		}),

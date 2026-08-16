@@ -127,6 +127,7 @@ func (c TypedIntf[T]) ApplyStatus(ctx context.Context, api *T, options metav1.Ap
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert typed api to unstructured object: %w", err)
 	}
+
 	if ns := obj.GetNamespace(); ns != "" {
 		c = c.Namespace(ns)
 	}

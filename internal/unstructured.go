@@ -31,6 +31,14 @@ func ToUnstructured(value any) (*unstructured.Unstructured, error) {
 	return &unstructured.Unstructured{Object: obj}, nil
 }
 
+func MustUnstructured(value any) *unstructured.Unstructured {
+	obj, err := ToUnstructured(value)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
 func MustUnstructuredObject[T any](value any) T {
 	result, err := UnstructuredObject[T](value)
 	if err != nil {
