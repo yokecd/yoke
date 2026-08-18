@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	lua "github.com/mmcdole/lunar"
 
@@ -204,7 +205,7 @@ func (client *Client) WatchCustomReadiness(ctx context.Context) (result *CustomR
 
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		client.Clientset,
-		0,
+		time.Minute,
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = metav1.FormatLabelSelector(&selectorResourceReadiness)
 		}),
