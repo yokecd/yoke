@@ -52,7 +52,7 @@ type Client struct {
 }
 
 func (client *Client) AirwayIntf() TypedIntf[v1alpha1.Airway] {
-	return TypedInterface[v1alpha1.Airway](client, v1alpha1.AirwayGVR())
+	return client.TypedInterface[v1alpha1.Airway](v1alpha1.AirwayGVR())
 }
 
 func NewClientFromConfigFlags(cfgFlags *genericclioptions.ConfigFlags) (*Client, error) {

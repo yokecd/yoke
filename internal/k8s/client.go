@@ -189,7 +189,7 @@ type MetaObject[T any] interface {
 	metav1.Object
 }
 
-func TypedInterface[T any, obj MetaObject[T]](client *Client, resource schema.GroupVersionResource) TypedIntf[T] {
+func (client *Client) TypedInterface[T any, obj MetaObject[T]](resource schema.GroupVersionResource) TypedIntf[T] {
 	return TypedIntf[T]{
 		intf: client.Dynamic.Resource(resource),
 		ns:   "",
