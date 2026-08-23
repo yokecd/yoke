@@ -1056,7 +1056,7 @@ func TestClusterScopeDynamicAirway(t *testing.T) {
 		require.NoError(t, client.EnsureNamespace(context.Background(), ns))
 	}
 
-	testIntf := k8s.TypedInterface[EmptyCRD](client, schema.GroupVersionResource{
+	testIntf := client.TypedInterface[EmptyCRD](schema.GroupVersionResource{
 		Group:    "examples.com",
 		Version:  "v1",
 		Resource: "tests",
@@ -2218,8 +2218,8 @@ func TestDynamicWithExternalResource(t *testing.T) {
 
 	configMapIntf := client.Clientset.CoreV1().ConfigMaps("default")
 
-	backendIntf := k8s.
-		TypedInterface[EmptyCRD](client, schema.GroupVersionResource{
+	backendIntf := client.
+		TypedInterface[EmptyCRD](schema.GroupVersionResource{
 		Group:    "examples.com",
 		Version:  "v1",
 		Resource: "backends",
@@ -2382,8 +2382,8 @@ func TestExternalDynamicCreateEvent(t *testing.T) {
 
 	configmapIntf := client.Clientset.CoreV1().ConfigMaps("default")
 
-	cloneIntf := k8s.
-		TypedInterface[CopyJob](client, schema.GroupVersionResource{
+	cloneIntf := client.
+		TypedInterface[CopyJob](schema.GroupVersionResource{
 		Group:    "examples.com",
 		Version:  "v1",
 		Resource: "clones",
@@ -2544,7 +2544,7 @@ func TestStatusUpdates(t *testing.T) {
 		Resource: "backends",
 	}
 
-	backendIntf := k8s.TypedInterface[CR](client, backendGVR).Namespace("default")
+	backendIntf := client.TypedInterface[CR](backendGVR).Namespace("default")
 
 	cases := []struct {
 		Name        string
@@ -2783,7 +2783,7 @@ func TestDeploymentStatus(t *testing.T) {
 		Resource: "backends",
 	}
 
-	backendIntf := k8s.TypedInterface[CR](client, backendGVR).Namespace("default")
+	backendIntf := client.TypedInterface[CR](backendGVR).Namespace("default")
 
 	be := &CR{
 		TypeMeta: metav1.TypeMeta{
@@ -3310,8 +3310,8 @@ func TestTimeout(t *testing.T) {
 		)
 	}()
 
-	timeoutIntf := k8s.
-		TypedInterface[EmptyCRD](client, schema.GroupVersionResource{
+	timeoutIntf := client.
+		TypedInterface[EmptyCRD](schema.GroupVersionResource{
 		Group:    "examples.com",
 		Version:  "v1",
 		Resource: "timeouts",
@@ -3403,7 +3403,7 @@ func TestSubscriptionMode(t *testing.T) {
 		)
 	}()
 
-	subIntf := k8s.TypedInterface[EmptyCRD](client, schema.GroupVersionResource{
+	subIntf := client.TypedInterface[EmptyCRD](schema.GroupVersionResource{
 		Group:    "example.com",
 		Version:  "v1",
 		Resource: "subscriptions",
@@ -3568,7 +3568,7 @@ func TestValidationCycle(t *testing.T) {
 
 	require.NoError(t, client.EnsureNamespace(context.Background(), "foo"))
 
-	backendIntf := k8s.TypedInterface[backendv1.Backend](client, schema.GroupVersionResource{
+	backendIntf := client.TypedInterface[backendv1.Backend](schema.GroupVersionResource{
 		Resource: "backends",
 		Group:    "examples.com",
 		Version:  "v1",
@@ -3682,7 +3682,7 @@ func TestIdentityWithError(t *testing.T) {
 		Version:  "v1",
 	}
 
-	testIntf := k8s.TypedInterface[CR](client, testGVR).Namespace("default")
+	testIntf := client.TypedInterface[CR](testGVR).Namespace("default")
 
 	test, err := testIntf.Create(
 		context.Background(),
@@ -3798,7 +3798,7 @@ func TestInvalidFlightURL(t *testing.T) {
 		Resource: "backends",
 	}
 
-	backendIntf := k8s.TypedInterface[backendv1.Backend](client, backendGVR).Namespace("default")
+	backendIntf := client.TypedInterface[backendv1.Backend](backendGVR).Namespace("default")
 
 	be, err := backendIntf.Create(
 		context.Background(),
@@ -3890,7 +3890,7 @@ func TestInvalidChecksum(t *testing.T) {
 		Resource: "backends",
 	}
 
-	backendIntf := k8s.TypedInterface[backendv1.Backend](client, backendGVR).Namespace("default")
+	backendIntf := client.TypedInterface[backendv1.Backend](backendGVR).Namespace("default")
 
 	be, err := backendIntf.Create(
 		context.Background(),

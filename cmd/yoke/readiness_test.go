@@ -171,7 +171,7 @@ func TestReadinessLoading(t *testing.T) {
 	})
 
 	t.Run("during takeoff", func(t *testing.T) {
-		crdIntf := k8s.TypedInterface[apiextv1.CustomResourceDefinition](client, schema.GroupVersionResource{
+		crdIntf := client.TypedInterface[apiextv1.CustomResourceDefinition](schema.GroupVersionResource{
 			Group:    apiextv1.SchemeGroupVersion.Group,
 			Version:  apiextv1.SchemeGroupVersion.Version,
 			Resource: "customresourcedefinitions",
@@ -322,7 +322,7 @@ func TestReadinessLoading(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 		eventuallyNotDone()
 
-		testIntf := k8s.TypedInterface[TestResource](client, schema.GroupVersionResource{Group: "yoke.cd", Version: "v1", Resource: "tests"}).Namespace("default")
+		testIntf := client.TypedInterface[TestResource](schema.GroupVersionResource{Group: "yoke.cd", Version: "v1", Resource: "tests"}).Namespace("default")
 
 		test, err := testIntf.Get(t.Context(), "test", metav1.GetOptions{})
 		require.NoError(t, err)

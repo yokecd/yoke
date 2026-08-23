@@ -35,7 +35,7 @@ func TestFlightInstance(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	toJSONString := func(t *testing.T, value any) string {
 		var buffer bytes.Buffer
@@ -147,7 +147,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	_, err = flightIntf.Create(
 		context.Background(),
@@ -159,7 +159,7 @@ func TestFlightCrossNamespace(t *testing.T) {
 	)
 	require.ErrorContains(t, err, "Multiple namespaces detected (if desired enable multinamespace releases)")
 
-	clusterFlightIntf := k8s.TypedInterface[v1alpha1.ClusterFlight](client, v1alpha1.ClusterFlightGVR())
+	clusterFlightIntf := client.TypedInterface[v1alpha1.ClusterFlight](v1alpha1.ClusterFlightGVR())
 
 	// Crossnamespace depends on "foo" and "bar"
 	for _, ns := range []string{"foo", "bar"} {
@@ -220,7 +220,7 @@ func TestFlightInputObject(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	flight, err := flightIntf.Create(
 		context.Background(),
@@ -276,7 +276,7 @@ func TestFlightValidationWebhook(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	_, err = flightIntf.Create(
 		context.Background(),
@@ -297,7 +297,7 @@ func TestNotAllowedFlightWasmURL(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	_, err = flightIntf.Create(
 		context.Background(),
@@ -314,7 +314,7 @@ func TestFlightInvalidChecksum(t *testing.T) {
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
 	require.NoError(t, err)
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	// Create the flight initially so that we can warm the cache.
 	// Otherwise it'll behave different when we run this test alone versus with the rest of the test suite.
@@ -420,7 +420,7 @@ func TestFlightCodeSigning(t *testing.T) {
 		Insecure: true,
 	}))
 
-	flightIntf := k8s.TypedInterface[v1alpha1.Flight](client, v1alpha1.FlightGVR()).Namespace("default")
+	flightIntf := client.TypedInterface[v1alpha1.Flight](v1alpha1.FlightGVR()).Namespace("default")
 
 	_, err = flightIntf.Create(
 		context.Background(),
