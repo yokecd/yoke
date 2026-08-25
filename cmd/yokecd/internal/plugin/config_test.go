@@ -43,7 +43,7 @@ func TestConfigUnmarshalling(t *testing.T) {
 				{ name: wasm, string: value },
 				{ name: args, array: hello },
 			]`,
-			Error: "invalid config: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal string into Go struct field CmpParam.array of type []string",
+			Error: "invalid config: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal string into Go struct field .1.array of type []string",
 		},
 		{
 			Name: "full wasm with input and args",
