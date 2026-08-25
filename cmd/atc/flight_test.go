@@ -290,7 +290,7 @@ func TestFlightValidationWebhook(t *testing.T) {
 		},
 		metav1.CreateOptions{},
 	)
-	require.ErrorContains(t, err, "failed to decode input: json: cannot unmarshal number into Go value of type string")
+	require.ErrorContains(t, err, "failed to decode input: json: cannot unmarshal number into Go struct field .answer of type string")
 }
 
 func TestNotAllowedFlightWasmURL(t *testing.T) {
