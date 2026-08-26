@@ -4,7 +4,102 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-04-08) atc/v0.19.11 - atc-installer/v0.18.6 - latest - v0.20.12 - yokecd/v0.19.9 - yokecd-installer/v0.19.10
+## (2026-08-25) atc/v0.20.0 - atc-installer/v0.19.0 - latest - v0.21.0 - yokecd/v0.20.0 - yokecd-installer/v0.20.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- go1.27: bump docker image versions to use go1.27 and fix tests ([6013565](https://github.com/yokecd/yoke/commit/6013565defe4d7fe273e5694103aa5c952a2bf58))
+- pkg/client: breaking change: move all k8s.TypedInterface generic function to be generic method on Client ([068b4ed](https://github.com/yokecd/yoke/commit/068b4eda69f7b06a8a69f2c27582a172d8297bc0))
+
+## (2026-08-17) atc/v0.19.26 - atc-installer/v0.18.15 - v0.20.27 - yokecd/v0.19.18 - yokecd-installer/v0.19.18
+
+- atc: give custom readiness watcher a 1 minute resync period ([6f82f7e](https://github.com/yokecd/yoke/commit/6f82f7e3ac46d3ef4ef915df59b9b6d008110118))
+- deps: update deps ([7ac0a06](https://github.com/yokecd/yoke/commit/7ac0a0608e3608f651573fd88b16d3e8e62562f1))
+- yoke: add tests for custom readiness and change wildcard pattern to use underscores ([9bfce47](https://github.com/yokecd/yoke/commit/9bfce47fa7916b0674a49432f894755940f3ff03))
+- k8s: only invalidate status condition if observed generation is greater than 0 when comparing against resource generation ([42a1ccd](https://github.com/yokecd/yoke/commit/42a1ccd4e8fb535292ed281688a418ef6306587e))
+- atc: support custom readiness watcher for atc and as option in atc-installer ([b2d17af](https://github.com/yokecd/yoke/commit/b2d17afe349b498ceb4e2f1c8b50120bd562fc6b))
+- yoke: add custom readiness loading to takeoff and descent ([f4e020d](https://github.com/yokecd/yoke/commit/f4e020d80600448bf81e19d1892d89e962c29d6e))
+
+## (2026-08-10) atc/v0.19.25 - atc-installer/v0.18.14 - v0.20.26 - yokecd/v0.19.17
+
+- pkg/k8s: add Patch method to k8s.Client ([b564542](https://github.com/yokecd/yoke/commit/b5645422abd93d43890d015f9d4ded37206a3ec2))
+
+## (2026-08-10) atc-installer/v0.18.13 - atc/v0.19.24 - v0.20.25 - yokecd/v0.19.16
+
+- pkg/k8s: Apply automatically removes incompatible metadata from request ([e096a8a](https://github.com/yokecd/yoke/commit/e096a8a369f0db1826888eaffdf4aa2976d6ff55))
+- atc: reimplement docker watcher to use shared informer for secret watching ([6db2a03](https://github.com/yokecd/yoke/commit/6db2a030c235ac2b0005c3dda789aebb0bc67314))
+
+## (2026-08-09) atc-installer/v0.18.12 - atc/v0.19.23 - v0.20.24 - yokecd-installer/v0.19.17 - yokecd/v0.19.15
+
+- deps: update dependencies ([ed27bce](https://github.com/yokecd/yoke/commit/ed27bcedc6ccda9a4b3731ae131f649cd4844461))
+- internal/errors: refactored used of noop error ([c7d9e51](https://github.com/yokecd/yoke/commit/c7d9e5114693afe6e21e9bc307563d865d09604f))
+- pkg/openapi: fix flight test by adding new inventory properties ([a877c65](https://github.com/yokecd/yoke/commit/a877c656124341f592069a197b63b2cddb3ae130))
+- atc: move flight and instance polling into main reconciliation loop with standard requeuing instead of background goroutines ([7005633](https://github.com/yokecd/yoke/commit/7005633258f43e080ceb68c11a798aa828e6454b))
+- atc: standardize readiness condition updates with retries and early exits ([105ec6c](https://github.com/yokecd/yoke/commit/105ec6cdbbc7bdd84294f0414ec55d88e3527ed3))
+- atc: rewrite inventory polling logic to meld into standard ([f5f3ba9](https://github.com/yokecd/yoke/commit/f5f3ba96b50391537b4af9a08f10122b33066eac))
+- atc: flight resource tracks inventory in status ([3a9c90f](https://github.com/yokecd/yoke/commit/3a9c90f82945f3a4ac587e1400d75c61258bc7bc))
+
+## (2026-07-23) atc/v0.19.22 - v0.20.23
+
+- k8s/ctrl: fix bug in filtered list returned from resource cache having nil items ([ea46e3e](https://github.com/yokecd/yoke/commit/ea46e3eb70f6af3e1127d9c0f9912a18a6ffe26f))
+
+## (2026-07-23) atc/v0.19.21 - v0.20.22
+
+- k8s/ctrl: propagate event filter to resource cache ([a7e7c27](https://github.com/yokecd/yoke/commit/a7e7c275c188735bc3ad1411ba7568f2279c14c9))
+- Merge pull request #272 from yokecd/k8s-ctrl-filter ([e2bdb0c](https://github.com/yokecd/yoke/commit/e2bdb0ce41613dcfc0e11d4f13e13a4d6e4dae1d))
+- k8s/ctrl: add filter option for controller events ([899a265](https://github.com/yokecd/yoke/commit/899a265f4858edc76ac152a8f7f425b9731ae273))
+
+## (2026-07-16) yokecd-installer/v0.19.16
+
+- yokecd-installer: use ArgoCD Helm Chart version 10.1.3 ([dc97469](https://github.com/yokecd/yoke/commit/dc974690f39addc0cd9031739a91a72f2fd8e2c9))
+
+## (2026-06-24) atc-installer/v0.18.11 - atc/v0.19.20 - v0.20.21 - yokecd/v0.19.14
+
+- pkg/k8s: make generic typed interface client namespace aware when dealing with input resources ([3ac3267](https://github.com/yokecd/yoke/commit/3ac3267ce313c58acc80c710f9a8507dad887ce5))
+
+## (2026-06-23) atc/v0.19.19 - v0.20.20
+
+- pkg/k8s/ctrl: add convenience func Terminalf for building terminal errors with fmt.Errorf constructions ([685940d](https://github.com/yokecd/yoke/commit/685940d43377f2a80aa3b19faf06c179f613e521))
+
+## (2026-06-18) atc/v0.19.18 - v0.20.19
+
+- pkg/k8s/ctrl: introduce terminal error to signal error without retries ([8fd69e1](https://github.com/yokecd/yoke/commit/8fd69e1e55999ac7b73c8cd43498b9cd3445b264))
+
+## (2026-06-12) atc/v0.19.17 - v0.20.18
+
+- pkg/k8s: fix k8s.WaitForReady function signature ([71def3e](https://github.com/yokecd/yoke/commit/71def3efcdae068d0c2839ae9943d0673435187c))
+
+## (2026-06-12) atc-installer/v0.18.10 - atc/v0.19.16 - v0.20.17 - yokecd-installer/v0.19.15 - yokecd/v0.19.13
+
+- deps: update dependencies ([eba85f5](https://github.com/yokecd/yoke/commit/eba85f57579ae0e709b6e87845170d1500a5f283))
+- refactor/formatting: run new version of gofumpt ([cf0a457](https://github.com/yokecd/yoke/commit/cf0a457fb1fb7c3bf7a437768e5b067a9c9ad42b))
+- pkg/k8s: expose k8s.WaitForReady polling mechanism to public api ([3b31073](https://github.com/yokecd/yoke/commit/3b310730a3679524c3c807457d96b943c888d47f))
+
+## (2026-06-08) atc/v0.19.15 - v0.20.16 - yokecd-installer/v0.19.14
+
+- openapi/validation: order multi errors during validation lexigraphically and fix flaky test ([ed89033](https://github.com/yokecd/yoke/commit/ed8903300aeb9e17b8556c31a15334007efbcb96))
+- pkg/helm: surface error during processing dependencies for charts ([2952d1b](https://github.com/yokecd/yoke/commit/2952d1bc891c0b46310400086a6ace00cd537a4f))
+- k8s/controller: expose informer cache ([2c6b755](https://github.com/yokecd/yoke/commit/2c6b755d1493b0aa8a43d3b66b16744d4c347aec))
+
+## (2026-05-24) atc-installer/v0.18.9 - atc/v0.19.14 - v0.20.15 - yokecd-installer/v0.19.13 - yokecd/v0.19.12
+
+- deps: update deps ([844fe8b](https://github.com/yokecd/yoke/commit/844fe8b8322bc4e38d95cb29afbcc80ae429d36a))
+
+## (2026-05-10) atc-installer/v0.18.8 - atc/v0.19.13 - v0.20.14 - yokecd-installer/v0.19.12 - yokecd/v0.19.11
+
+- pkg/openapi: fix resource.Quantity and remove unneeded anyOf that causes structural schema issues ([891f504](https://github.com/yokecd/yoke/commit/891f504c0aeaa7173c99bb0bbe4a95d1ff6fb33c))
+
+## (2026-05-05) atc-installer/v0.18.7 - atc/v0.19.12 - v0.20.13 - yokecd/v0.19.10
+
+- pkg/k8s/ctrl: promote internal k8s controller to a public package for external consumption ([51fd412](https://github.com/yokecd/yoke/commit/51fd4124c6b4ee3ce953d21ebd9321d93f341a93))
+
+## (2026-04-21) yokecd-installer/v0.19.11
+
+- yokecd-installer: use ArgoCD Helm Chart version 9.5.0 ([889d29d](https://github.com/yokecd/yoke/commit/889d29d0bc6459ddce1a50ab41d5113f7e9625c3))
+- openapi/validation: add package to allow users to validate values against schemas ([7c14c35](https://github.com/yokecd/yoke/commit/7c14c3588aeb78402dd5b90445750d253a2af5a4))
+
+## (2026-04-08) atc-installer/v0.18.6 - atc/v0.19.11 - v0.20.12 - yokecd-installer/v0.19.10 - yokecd/v0.19.9
 
 - atc-installer: use ED25519 keys instead of RSA for TLS ([5aa8d08](https://github.com/yokecd/yoke/commit/5aa8d080df82936736db996ad796aded29adfc16))
 - deps: update deps and use external xsync package ([036b394](https://github.com/yokecd/yoke/commit/036b394278f50650f76a9a1f56ef94ab516cb84e))
@@ -26,7 +121,7 @@
 - ci: use GH_PACKAGES_TOKEN for authenticating with ghcr ([a3cbe4c](https://github.com/yokecd/yoke/commit/a3cbe4c9732effa9435b79d0e12803f7f3f421d0))
 - atc: decouple crd deletion from airway reconciliation loop ([8d4794b](https://github.com/yokecd/yoke/commit/8d4794bedb872395835be915789a73594253053b))
 
-## (2026-03-21) atc/v0.19.7 - atc-installer/v0.18.5 - v0.20.8 - yokecd/v0.19.7 - yokecd-installer/v0.19.8
+## (2026-03-21) atc-installer/v0.18.5 - atc/v0.19.7 - v0.20.8 - yokecd-installer/v0.19.8 - yokecd/v0.19.7
 
 - yokecd: add module verification keys support ([e38e6cb](https://github.com/yokecd/yoke/commit/e38e6cbedac8756e936212fa7b922c9d20e1edd8))
 - yoke: add force option to override signature when signing already signed modules ([90f0aa1](https://github.com/yokecd/yoke/commit/90f0aa1e6dc7f75ddd6581de8c32951c694fb4cf))
@@ -44,7 +139,7 @@
 - atc/test: dump atc logs on atc integration test failures ([c117827](https://github.com/yokecd/yoke/commit/c117827132ee3791f4e3483dc0b5e338bd7bfbfa))
 - atc: move checksum checks into admission control ([0a3526c](https://github.com/yokecd/yoke/commit/0a3526c775ff8dd5683cb74d6f331548b88055ea))
 
-## (2026-03-01) atc/v0.19.5 - atc-installer/v0.18.4 - v0.20.5 - yokecd/v0.19.5 - yokecd-installer/v0.19.7
+## (2026-03-01) atc-installer/v0.18.4 - atc/v0.19.5 - v0.20.5 - yokecd-installer/v0.19.7 - yokecd/v0.19.5
 
 - yoke: infer checksum from path before first dot or extensions ([4434f07](https://github.com/yokecd/yoke/commit/4434f07f4d75316a54fd469baaf740d48f50af5e))
 - yoke: add all labels to stow output ([8015617](https://github.com/yokecd/yoke/commit/8015617649f9f728ab17d866f40894b2d21c912b))
@@ -59,11 +154,11 @@
 
 - yokecd-installer: use ArgoCD Helm Chart version 9.4.5 ([3ddc485](https://github.com/yokecd/yoke/commit/3ddc4859a05adb49c205e1d77c4f31c6211fd4df))
 
-## (2026-02-21) atc/v0.19.4 - atc-installer/v0.18.3 - v0.20.4 - yokecd/v0.19.4 - yokecd-installer/v0.19.5
+## (2026-02-21) atc-installer/v0.18.3 - atc/v0.19.4 - v0.20.4 - yokecd-installer/v0.19.5 - yokecd/v0.19.4
 
 - yoke: add digest pinning using release history ([9e0cb6d](https://github.com/yokecd/yoke/commit/9e0cb6df8ef5d1fb94a51e2ec95c876e8e2eb709))
 
-## (2026-02-17) atc/v0.19.3 - atc-installer/v0.18.2 - v0.20.3 - yokecd/v0.19.3 - yokecd-installer/v0.19.4
+## (2026-02-17) atc-installer/v0.18.2 - atc/v0.19.3 - v0.20.3 - yokecd-installer/v0.19.4 - yokecd/v0.19.3
 
 - deps: update go to 1.26 and modernize ([5b0b0bc](https://github.com/yokecd/yoke/commit/5b0b0bc87294f293226f219a67d57268c06edbc4))
 
@@ -71,32 +166,32 @@
 
 - yokecd-installer: use ArgoCD Helm Chart version 9.4.2 ([ffa41e1](https://github.com/yokecd/yoke/commit/ffa41e1be04508fc793bc9e739cb4d2cb9f19c05))
 
-## (2026-02-15) atc/v0.19.2 - atc-installer/v0.18.1 - v0.20.2 - yokecd/v0.19.2 - yokecd-installer/v0.19.2
+## (2026-02-15) atc-installer/v0.18.1 - atc/v0.19.2 - v0.20.2 - yokecd-installer/v0.19.2 - yokecd/v0.19.2
 
 - atc: validate flight override against module allow list ([ead3464](https://github.com/yokecd/yoke/commit/ead34642fb2eb3f26516aeb7fe1a384dd85388b7))
 - atc: test Flight resource respects moduleAllowList ([b738e87](https://github.com/yokecd/yoke/commit/b738e87679ca311360c64f97a606dfa1b42d2f0f))
 - yokecd: add moduleAllowList to installer and server logic ([ede3f15](https://github.com/yokecd/yoke/commit/ede3f151dbc750391bc4770466a75bc8740e37b2))
 - atc: implement module allow-list using globs ([5cb2fa1](https://github.com/yokecd/yoke/commit/5cb2fa1ab4f338950903bcbdd955c10c4a7de4fa))
 
-## (2026-02-10) atc/v0.19.1 - atc-installer/v0.18.0 - v0.20.1 - yokecd/v0.19.1 - yokecd-installer/v0.19.1
+## (2026-02-10) atc-installer/v0.18.0 - atc/v0.19.1 - v0.20.1 - yokecd-installer/v0.19.1 - yokecd/v0.19.1
 
 - wasi/k8s: support running wasi/k8s package on other os for development purposes ([bc9c576](https://github.com/yokecd/yoke/commit/bc9c576a790df8c42aa06b90fb406220f1de22a0))
 - internal/unstructured: use apimachinery unstructured converter for casting to unstructured instead of naive json impl ([f9301b3](https://github.com/yokecd/yoke/commit/f9301b328fd5b80ceca5588af1e2b8a4d7eb5081))
 
-## (2026-02-06) atc/v0.19.0 - v0.20.0 - yokecd/v0.19.0 - yokecd-installer/v0.19.0
+## (2026-02-06) atc/v0.19.0 - v0.20.0 - yokecd-installer/v0.19.0 - yokecd/v0.19.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
 
 - yoke: breaking change: set release metadata as an annotation instead of labels ([f973056](https://github.com/yokecd/yoke/commit/f97305640524f75df4f658be45edca0b0196beb7))
 
-## (2026-01-31) atc/v0.18.8 - atc-installer/v0.17.4 - v0.19.9 - yokecd/v0.18.7 - yokecd-installer/v0.18.4
+## (2026-01-31) atc-installer/v0.17.4 - atc/v0.18.8 - v0.19.9 - yokecd-installer/v0.18.4 - yokecd/v0.18.7
 
 - yokecd-installer: use ArgoCD Helm Chart version 9.3.7 ([ec52893](https://github.com/yokecd/yoke/commit/ec528936bfbb303e39b51255a3dbfa3224dc502c))
 - ci: update argocd-chart-update workflow to capture argocd chart version ([e220989](https://github.com/yokecd/yoke/commit/e2209893cec52a0c528cc3f31c69d1fc2bf12d74))
 - roadmap: update roadmap ([0ea2691](https://github.com/yokecd/yoke/commit/0ea269190e6aa749f8a3cf7de926739e73c309f7))
 
-## (2026-01-24) atc/v0.18.7 - atc-installer/v0.17.3 - v0.19.8 - yokecd/v0.18.6 - yokecd-installer/v0.18.3
+## (2026-01-24) atc-installer/v0.17.3 - atc/v0.18.7 - v0.19.8 - yokecd-installer/v0.18.3 - yokecd/v0.18.6
 
 - atc: set identity status if written over stdout even on non-zero exit codes ([488c432](https://github.com/yokecd/yoke/commit/488c432b1a7efaf4d69427b0d051ac0af6870657))
 - deps: update dependencies ([39c3a90](https://github.com/yokecd/yoke/commit/39c3a90a8736257453c29932dc4d275b45b3b6bd))
@@ -105,12 +200,12 @@
 
 - yokecd-installer: bump ArgoCD Chart to latest ([c8f0bd3](https://github.com/yokecd/yoke/commit/c8f0bd377fb3148f503be7e2f8b80a58e8a78976))
 
-## (2026-01-19) atc/v0.18.6 - atc-installer/v0.17.2 - v0.19.7 - yokecd/v0.18.5 - yokecd-installer/v0.18.1
+## (2026-01-19) atc-installer/v0.17.2 - atc/v0.18.6 - v0.19.7 - yokecd-installer/v0.18.1 - yokecd/v0.18.5
 
 - refactor: use openapi.SchemaFor instead of openapi.SchemaFrom in codebase ([cfeb4fc](https://github.com/yokecd/yoke/commit/cfeb4fc7837c29190701d4eb6ac2f614ffb6f215))
 - pkg/apis: implement runtime.Object for v1alhpa1 apis ([37c08c3](https://github.com/yokecd/yoke/commit/37c08c38ebf356f5589a0f9bb498458413a03415))
 
-## (2026-01-17) atc/v0.18.5 - atc-installer/v0.17.1 - v0.19.6 - yokecd/v0.18.4 - yokecd-installer/v0.18.0
+## (2026-01-17) atc-installer/v0.17.1 - atc/v0.18.5 - v0.19.6 - yokecd-installer/v0.18.0 - yokecd/v0.18.4
 
 - pkg/openapi: support resource.Quantity ([b5c7bff](https://github.com/yokecd/yoke/commit/b5c7bff475e6596843272aa7a4255c8c5608a987))
 - pkg/openapi: support intstr.IntOrString ([b4a7e57](https://github.com/yokecd/yoke/commit/b4a7e5752d2f42238ab8479829f919dfa64a0fbd))
@@ -130,7 +225,7 @@
 
 - atc: do not error on flight reconciliation takeoff for warnings ([746f13e](https://github.com/yokecd/yoke/commit/746f13ef7c3be29403d9fff3b6d523c3351161e4))
 
-## (2025-12-06) atc/v0.18.1 - atc-installer/v0.17.0 - v0.19.2 - yokecd/v0.18.1
+## (2025-12-06) atc-installer/v0.17.0 - atc/v0.18.1 - v0.19.2 - yokecd/v0.18.1
 
 - yoke/takeoff: fix eval namespace to use new context namespace ([32a9e67](https://github.com/yokecd/yoke/commit/32a9e67cb87d5b2a9a14ef73729e2768cef22b9e))
 - atc: teardown validationWebhooks on shutdown ([271aa13](https://github.com/yokecd/yoke/commit/271aa13c410188b35c9f3ce5cf327b8b8e124e9d))
@@ -148,7 +243,7 @@
 
 - yoke: breaking change: use context namespace as default namespace when running yoke ([38c4858](https://github.com/yokecd/yoke/commit/38c4858fc8d896d38cb1cccdf6c514b351bec4c2))
 
-## (2025-11-30) atc/v0.17.5 - atc-installer/v0.16.1 - v0.18.4 - yokecd/v0.17.1 - yokecd-installer/v0.17.1
+## (2025-11-30) atc-installer/v0.16.1 - atc/v0.17.5 - v0.18.4 - yokecd-installer/v0.17.1 - yokecd/v0.17.1
 
 - pkg/v1alpha1: add openapi descriptions to Airway and Flight resources ([69b025a](https://github.com/yokecd/yoke/commit/69b025a4a06fbed14779e907f53929622cf8812f))
 - pkg/openapi: add test for flight CR openapi generation ([4a142a2](https://github.com/yokecd/yoke/commit/4a142a213616790078e9e3ffc895a3b2b4bc302b))
@@ -173,7 +268,7 @@
 
 - atc: fix flights.yoke.cd admission webhook not using spec input ([e74e4dd](https://github.com/yokecd/yoke/commit/e74e4ddf4e5ae360fc1cc265ad54ec02463e3764))
 
-## (2025-11-25) atc/v0.17.0 - atc-installer/v0.16.0 - v0.18.0 - yokecd/v0.17.0 - yokecd-installer/v0.17.0
+## (2025-11-25) atc-installer/v0.16.0 - atc/v0.17.0 - v0.18.0 - yokecd-installer/v0.17.0 - yokecd/v0.17.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -199,7 +294,7 @@
 
 </details>
 
-## (2025-11-15) atc/v0.16.4 - v0.17.4 - yokecd/v0.16.5 - yokecd-installer/v0.16.3
+## (2025-11-15) atc/v0.16.4 - v0.17.4 - yokecd-installer/v0.16.3 - yokecd/v0.16.5
 
 - internal/xhttp: move memstat handler from plugin svr to shared xhttp package and make GC opt-in ([fb25724](https://github.com/yokecd/yoke/commit/fb2572474e38abca1cbda6a63cd90b2c2b5c3d06))
 - yokecd-installer: change yokecd server options to support cacheFS and remove old ttl options ([410384a](https://github.com/yokecd/yoke/commit/410384a5c905d3173b468e0bd23cd940b6ed7e77))
@@ -211,7 +306,7 @@
 
 - yokecd: add GET /memstats endpoint to yokecd plugin server ([fbcb365](https://github.com/yokecd/yoke/commit/fbcb365fdb0ce4a634100e80b84dec35ded880f4))
 
-## (2025-10-24) atc/v0.16.3 - v0.17.3 - yokecd/v0.16.3 - yokecd-installer/v0.16.2
+## (2025-10-24) atc/v0.16.3 - v0.17.3 - yokecd-installer/v0.16.2 - yokecd/v0.16.3
 
 - yoke: support yoke version when yoke is used a dependency ([aa9be9d](https://github.com/yokecd/yoke/commit/aa9be9de70460b7f416a20ce616c4b59e1d30354))
 
@@ -234,7 +329,7 @@
 
 - atc: add subscription mode ([f9fb08e](https://github.com/yokecd/yoke/commit/f9fb08e436bed2f571577dbeb0c6bf9dc75973db))
 
-## (2025-10-16) atc/v0.16.0 - atc-installer/v0.15.0 - v0.17.0 - yokecd/v0.16.0 - yokecd-installer/v0.16.0
+## (2025-10-16) atc-installer/v0.15.0 - atc/v0.16.0 - v0.17.0 - yokecd-installer/v0.16.0 - yokecd/v0.16.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -264,11 +359,11 @@
 
 - yoke: fix index out of bound in yoke atc command ([d346dc5](https://github.com/yokecd/yoke/commit/d346dc566f5881ad940a88e0fe4169fe7a3f8680))
 
-## (2025-10-02) atc/v0.15.12 - atc-installer/v0.14.6
+## (2025-10-02) atc-installer/v0.14.6 - atc/v0.15.12
 
 - atc: reduce logging noise of the external-resource validating webhook logs by putting them behind a verbose flag ([de5cb0b](https://github.com/yokecd/yoke/commit/de5cb0b7d6b6f7a25e3cf109c972512e8dd306b5))
 
-## (2025-09-29) atc/v0.15.11 - atc-installer/v0.14.5 - v0.16.10 - yokecd/v0.15.9 - yokecd-installer/v0.15.5
+## (2025-09-29) atc-installer/v0.14.5 - atc/v0.15.11 - v0.16.10 - yokecd-installer/v0.15.5 - yokecd/v0.15.9
 
 - yoke: ignore metadata fields that should not be part of a server-side apply to be compatible with resource lookups ([1337bbe](https://github.com/yokecd/yoke/commit/1337bbe0c421def876bda9b712d62e78770400ce))
 - flight/wasi/k8s: add LookupResource func to lookup live state for a flight.Resource ([6baaad9](https://github.com/yokecd/yoke/commit/6baaad95c687fc1127d2ee5e680bff8b394bb8fc))
@@ -277,7 +372,7 @@
 
 - atc: keep of track of external resources that are not found so we can wait for their creation ([e38648b](https://github.com/yokecd/yoke/commit/e38648b600506df4901c9d4193f3eb6170a8a225))
 
-## (2025-09-27) atc/v0.15.9 - atc-installer/v0.14.4
+## (2025-09-27) atc-installer/v0.14.4 - atc/v0.15.9
 
 - ci: only run build jobs if on main ([c88c6f6](https://github.com/yokecd/yoke/commit/c88c6f68a38d9236f8f44dff1db77e5ce33fe918))
 - atc: support logging in slog text format ([9907fb3](https://github.com/yokecd/yoke/commit/9907fb3e59acd7af6b0f99f248555bcd65fc1783))
@@ -315,7 +410,7 @@
 
 </details>
 
-## (2025-08-27) atc/v0.15.7 - atc-installer/v0.14.2 - v0.16.7 - yokecd/v0.15.6 - yokecd-installer/v0.15.3
+## (2025-08-27) atc-installer/v0.14.2 - atc/v0.15.7 - v0.16.7 - yokecd-installer/v0.15.3 - yokecd/v0.15.6
 
 - deps: update Go to v1.25.0 and update dependencies ([a7d1c49](https://github.com/yokecd/yoke/commit/a7d1c49d0884a64f9e0fbe0b0ca39194f1b426ce))
 - refactor: introduce typed generic wrapper for unstructured client ([582471c](https://github.com/yokecd/yoke/commit/582471c10de5307a8fba5ad2c97b9848f581d276))
@@ -324,7 +419,7 @@
 
 - feat: add functionality to quit atc when pressing esc on top level ([c3a33a5](https://github.com/yokecd/yoke/commit/c3a33a522764a6900194538474009264cce4eea9))
 
-## (2025-08-10) atc/v0.15.6 - v0.16.5 - yokecd/v0.15.5 - yokecd-installer/v0.15.2
+## (2025-08-10) atc/v0.15.6 - v0.16.5 - yokecd-installer/v0.15.2 - yokecd/v0.15.5
 
 - internal/releaser: release yoke cli built with vcs information instead of local ([5645e38](https://github.com/yokecd/yoke/commit/5645e381040e3ed4de559baccc64892ce3772671))
 - yoke/version: include go toolchain in version output ([194c187](https://github.com/yokecd/yoke/commit/194c187efafc1b063c105470b30da28a775b930d))
@@ -334,7 +429,7 @@
 - atc: apply Airway CRD with forceful options on startup ([8237363](https://github.com/yokecd/yoke/commit/823736382cc8704873e913dc7ba81f84df1abe21))
 - yoke/tests: fix flaky test ([6fc2e60](https://github.com/yokecd/yoke/commit/6fc2e602bac630fc0565fdd2d3145cd2a1ef90aa))
 
-## (2025-08-02) atc/v0.15.4 - atc-installer/v0.14.1 - v0.16.4 - yokecd/v0.15.4 - yokecd-installer/v0.15.1
+## (2025-08-02) atc-installer/v0.14.1 - atc/v0.15.4 - v0.16.4 - yokecd-installer/v0.15.1 - yokecd/v0.15.4
 
 - deps: update deps ([e4a309f](https://github.com/yokecd/yoke/commit/e4a309f4e138630c85a560464cb7085b4356e774))
 
@@ -353,7 +448,7 @@
 - internal/wasi: refactor to make cluster-access contextual to the host module ([8ed3204](https://github.com/yokecd/yoke/commit/8ed3204cf46fd68df3434e24e87d5aae9730e95e))
 - pkg/yoke: refactor EvalParams to use namespace directly instead of passing via flightParams ([9fed95d](https://github.com/yokecd/yoke/commit/9fed95d0e7ab3c968727817ee5515ddb1a56b691))
 
-## (2025-07-20) atc/v0.15.0 - atc-installer/v0.14.0 - v0.16.0 - yokecd/v0.15.0 - yokecd-installer/v0.15.0
+## (2025-07-20) atc-installer/v0.14.0 - atc/v0.15.0 - v0.16.0 - yokecd-installer/v0.15.0 - yokecd/v0.15.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -384,7 +479,7 @@
 
 - yokecd: add support for JSON path keys in input map ([b2fad79](https://github.com/yokecd/yoke/commit/b2fad797c291d95db5308ececb5c1d0acac56b97))
 
-## (2025-07-07) yokecd/v0.14.1 - yokecd-installer/v0.14.4
+## (2025-07-07) yokecd-installer/v0.14.4 - yokecd/v0.14.1
 
 - yokecd-installer: add docker auth secret config ([fc4fc1d](https://github.com/yokecd/yoke/commit/fc4fc1d9d0bbec65d844f80f0a1f90068b0b95fb))
 - yokecd: add new input parameters for handling files ([8862bf8](https://github.com/yokecd/yoke/commit/8862bf8de5f5aa548f7d5a641ddb490b1437f4cf))
@@ -397,7 +492,7 @@
 
 - yokecd-installer: add an option to configutr yokecd image ([ee30de9](https://github.com/yokecd/yoke/commit/ee30de9f76fb25549288f4b9fc0707129b4fd3dd))
 
-## (2025-07-04) yokecd/v0.14.0 - yokecd-installer/v0.14.1
+## (2025-07-04) yokecd-installer/v0.14.1 - yokecd/v0.14.0
 
 - yokecd-installer: remove debug log ([6d7ed9c](https://github.com/yokecd/yoke/commit/6d7ed9ced12ccb05dd537bfeec552dfb812b6688))
 
@@ -414,7 +509,7 @@
 
 - atc: add airway printer columns ([b882bd2](https://github.com/yokecd/yoke/commit/b882bd296574880d59cf5f78ebd693470b05be95))
 
-## (2025-07-02) atc/v0.13.4 - atc-installer/v0.13.3 - v0.14.3 - yokecd/v0.13.4 - yokecd-installer/v0.13.3
+## (2025-07-02) atc-installer/v0.13.3 - atc/v0.13.4 - v0.14.3 - yokecd-installer/v0.13.3 - yokecd/v0.13.4
 
 - yoke: use hashes for release lock keys ([62ab2b6](https://github.com/yokecd/yoke/commit/62ab2b67d9b32d1be7336b6e3300602d4994883d))
 - yoke: add unlatch command for releaing orphaned locks ([a5a5cef](https://github.com/yokecd/yoke/commit/a5a5cef359f14ac467967402a6fbf3be372cb97e))
@@ -422,11 +517,11 @@
 - yokecd: pass plugin env variables to flight execution ([564222c](https://github.com/yokecd/yoke/commit/564222c3cd634658604c66cdf12d2dc508e41a5d))
 - deps: update client-go to v0.33.2 ([3694d02](https://github.com/yokecd/yoke/commit/3694d0282ad90abd6682e8e622be47c571652f14))
 
-## (2025-06-17) atc/v0.13.3 - v0.14.2 - yokecd/v0.13.3 - yokecd-installer/v0.13.2
+## (2025-06-17) atc/v0.13.3 - v0.14.2 - yokecd-installer/v0.13.2 - yokecd/v0.13.3
 
 - atc: reject override annotation updates from users who cannot manage airways ([1eea2e2](https://github.com/yokecd/yoke/commit/1eea2e2c72edb193229c1cc20059a349e04700a1))
 
-## (2025-06-14) atc/v0.13.2 - atc-installer/v0.13.2 - v0.14.1 - yokecd/v0.13.2 - yokecd-installer/v0.13.1
+## (2025-06-14) atc-installer/v0.13.2 - atc/v0.13.2 - v0.14.1 - yokecd-installer/v0.13.1 - yokecd/v0.13.2
 
 - atc: remove call to turbulence command now that takeoff reapplies state ([121f0cd](https://github.com/yokecd/yoke/commit/121f0cd99cbc833b335b7dec0b8b37dacd7f7ed7))
 
@@ -436,11 +531,11 @@
 - yokecd: add yoke meta labels to created resources ([aaac61f](https://github.com/yokecd/yoke/commit/aaac61f5439a692471fc4c13333095a8365229e3))
 - yokecd: support stages using argocd sync-waves ([4151256](https://github.com/yokecd/yoke/commit/4151256a359d3a1fab8be5b02f52f277146ac4fe))
 
-## (2025-06-08) atc/v0.13.1 - atc-installer/v0.13.1
+## (2025-06-08) atc-installer/v0.13.1 - atc/v0.13.1
 
 - atc: manage crds and validation webhook resource on startup instead of installer ([d9a62d4](https://github.com/yokecd/yoke/commit/d9a62d4b97e7d38efa71230c0bff767f9bbb4a03))
 
-## (2025-06-08) atc/v0.13.0 - atc-installer/v0.13.0 - v0.14.0 - yokecd/v0.13.0 - yokecd-installer/v0.13.0
+## (2025-06-08) atc-installer/v0.13.0 - atc/v0.13.0 - v0.14.0 - yokecd-installer/v0.13.0 - yokecd/v0.13.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -449,18 +544,18 @@
 - yoke: breaking change: crds and ns no longer removed by default ([e1da50b](https://github.com/yokecd/yoke/commit/e1da50b2621e2315e87c229741fbc2102a714a63))
 - use multistage build for yokecd to reduce image size ([0465e12](https://github.com/yokecd/yoke/commit/0465e124621491eb3eaeb9bc3e58793a73d0ca31))
 
-## (2025-06-06) atc/v0.12.5 - atc-installer/v0.12.3 - v0.13.5 - yokecd/v0.12.4 - yokecd-installer/v0.12.3
+## (2025-06-06) atc-installer/v0.12.3 - atc/v0.12.5 - v0.13.5 - yokecd-installer/v0.12.3 - yokecd/v0.12.4
 
 - atc: use new managed-by value to filter admission webhook resources ([7413098](https://github.com/yokecd/yoke/commit/74130989653d7b54749aa1c75aefe476857918ad))
 
-## (2025-06-05) atc/v0.12.4 - atc-installer/v0.12.2 - v0.13.4 - yokecd/v0.12.3 - yokecd-installer/v0.12.2
+## (2025-06-05) atc-installer/v0.12.2 - atc/v0.12.4 - v0.13.4 - yokecd-installer/v0.12.2 - yokecd/v0.12.3
 
 - yoke: pass yoke version to running flights ([cac5ef0](https://github.com/yokecd/yoke/commit/cac5ef08b7ee7728b35a581e809e68583b6079ac))
 
 ## (2025-06-03) yokecd/v0.12.2
 
 
-## (2025-06-02) atc/v0.12.3 - atc-installer/v0.12.1 - v0.13.3 - yokecd-installer/v0.12.1
+## (2025-06-02) atc-installer/v0.12.1 - atc/v0.12.3 - v0.13.3 - yokecd-installer/v0.12.1
 
 - Impove clarity of the comment  for the function  flight.Release ([bf1ecad](https://github.com/yokecd/yoke/commit/bf1ecadb3ffebcf19dff3a5b7d3b5d1375ca0110))
 
@@ -473,7 +568,7 @@
 
 - k8s/ctrl: switch controller event source from retry watcher to dynamic informer ([49c863f](https://github.com/yokecd/yoke/commit/49c863f88d390b0ba477f0b8e49f4067f96e4884))
 
-## (2025-06-01) atc/v0.12.0 - atc-installer/v0.12.0 - v0.13.0 - yokecd/v0.12.0 - yokecd-installer/v0.12.0
+## (2025-06-01) atc-installer/v0.12.0 - atc/v0.12.0 - v0.13.0 - yokecd-installer/v0.12.0 - yokecd/v0.12.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -489,13 +584,13 @@
 - atc/testing: refactors c4ts server ([34f0aca](https://github.com/yokecd/yoke/commit/34f0acaa59c537a05ae67aef154b81e669915957))
 - atc/testing: remove pdf from c4ts server ([ad44959](https://github.com/yokecd/yoke/commit/ad44959ac8aeebba52c09feee74a193d6f475d21))
 
-## (2025-05-19) atc/v0.11.8 - atc-installer/v0.11.7 - v0.12.9 - yokecd/v0.11.8 - yokecd-installer/v0.11.7
+## (2025-05-19) atc-installer/v0.11.7 - atc/v0.11.8 - v0.12.9 - yokecd-installer/v0.11.7 - yokecd/v0.11.8
 
 - pkg/flight: add observed generation to flight status ([cc4c979](https://github.com/yokecd/yoke/commit/cc4c9795031ff2d9fd9e89ef996ab536de04f8e2))
 - yoke&atc: add resource matcher flags or properties for extended cluster access ([102528b](https://github.com/yokecd/yoke/commit/102528b2dd7192ffdd28f3419fe558103c0e28c7))
 - internal/matcher: add new test cases to matcher format ([ce1afa4](https://github.com/yokecd/yoke/commit/ce1afa4cf82cb28d8689fa6febbd5e2796440b1c))
 
-## (2025-05-15) atc/v0.11.7 - atc-installer/v0.11.6 - v0.12.8 - yokecd/v0.11.7 - yokecd-installer/v0.11.6
+## (2025-05-15) atc-installer/v0.11.6 - atc/v0.11.7 - v0.12.8 - yokecd-installer/v0.11.6 - yokecd/v0.11.7
 
 - yoke/wasi: move resource ownership check out of guest onto the host ([d5b9b81](https://github.com/yokecd/yoke/commit/d5b9b81a0bc1edcfc725d31614b53b99e9d12989))
 
@@ -503,12 +598,12 @@
 
 - yoke/turbulence: support diff alias to turbulence command ([16303ef](https://github.com/yokecd/yoke/commit/16303ef5ec0ef6f0b8757cfb5b730f95ba2f33b1))
 
-## (2025-05-12) atc/v0.11.6 - atc-installer/v0.11.5 - v0.12.6 - yokecd/v0.11.6 - yokecd-installer/v0.11.5
+## (2025-05-12) atc-installer/v0.11.5 - atc/v0.11.6 - v0.12.6 - yokecd-installer/v0.11.5 - yokecd/v0.11.6
 
 - internal/unmarshalling: parsing of stages creates pre-stages for namespaces and crds ([494c01f](https://github.com/yokecd/yoke/commit/494c01f52f1622d5f023085b64585fcf6cf61bbf))
 - deps: update davidmdm/xerr ([465b107](https://github.com/yokecd/yoke/commit/465b107bec245620fd3ca15ace633bc0a1b28085))
 
-## (2025-05-10) atc/v0.11.5 - atc-installer/v0.11.4 - v0.12.5 - yokecd/v0.11.5 - yokecd-installer/v0.11.4
+## (2025-05-10) atc-installer/v0.11.4 - atc/v0.11.5 - v0.12.5 - yokecd-installer/v0.11.4 - yokecd/v0.11.5
 
 - deps: update deps ([a0c8bdb](https://github.com/yokecd/yoke/commit/a0c8bdbcae945d402117b2f21b1f06a930798667))
 - yoke: support multi-doc yaml outputs as a single stage for better ecosystem compat ([4d10928](https://github.com/yokecd/yoke/commit/4d10928e6792d5653154651cd9d8b97da364e859))
@@ -517,19 +612,19 @@
 
 - pkg/helm: add IsInstall render option ([d649b54](https://github.com/yokecd/yoke/commit/d649b546db0f2e804eb3d6d09c495dd46e7feabb))
 
-## (2025-05-05) atc/v0.11.4 - atc-installer/v0.11.3 - v0.12.4 - yokecd/v0.11.4 - yokecd-installer/v0.11.2
+## (2025-05-05) atc-installer/v0.11.3 - atc/v0.11.4 - v0.12.4 - yokecd-installer/v0.11.2 - yokecd/v0.11.4
 
 - yoke/takeoff: use discoveryv1.EndpointSlice for service readiness instead of deprecated corev1.Endpoints ([538b65d](https://github.com/yokecd/yoke/commit/538b65d2880e96d3aec7415c2a6557300b44cb9a))
 - deps: update deps ([0a5f9a6](https://github.com/yokecd/yoke/commit/0a5f9a69017441c4a28f0b7f6d0758e22964fccd))
 - yoke/testing: only recreate yoke-cli-testing cluster and not all kind clusters ([2584adc](https://github.com/yokecd/yoke/commit/2584adc6cf1906ada48ef198ed784434e03ac67f))
 
-## (2025-04-28) atc/v0.11.3 - atc-installer/v0.11.2 - v0.12.3 - yokecd/v0.11.3 - yokecd-installer/v0.11.1
+## (2025-04-28) atc-installer/v0.11.2 - atc/v0.11.3 - v0.12.3 - yokecd-installer/v0.11.1 - yokecd/v0.11.3
 
 - yoke: guard logic on EvalFlight output rather than stages ([f6a7b8a](https://github.com/yokecd/yoke/commit/f6a7b8ab514014ec938af4677772e48eaa4f23f7))
 - yoke: add `TestCreateEmptyDeployment` to testsuite ([9a27107](https://github.com/yokecd/yoke/commit/9a271078ce50bc2c196e4fa2ec38413097609f5b))
 - yoke: ensure the stages are not empty when `yoke takeoff` ([bd22fe2](https://github.com/yokecd/yoke/commit/bd22fe2be8d5f10435aad623218cb395f9ad59c6))
 
-## (2025-04-23) atc/v0.11.2 - atc-installer/v0.11.1 - v0.12.2 - yokecd/v0.11.2
+## (2025-04-23) atc-installer/v0.11.1 - atc/v0.11.2 - v0.12.2 - yokecd/v0.11.2
 
 - atc: add checksum and url to metadata of flights created ([ad72f69](https://github.com/yokecd/yoke/commit/ad72f69e829742da00f44705a5b2afeca5a00c49))
 - internal/k8s: enforce non guaranteed ordering when listing revision history ([197ed6d](https://github.com/yokecd/yoke/commit/197ed6de50c82381a0bb8b34cf10cdea0efca959))
@@ -542,7 +637,7 @@
 
 - yoke/takeoff: add force-ownership flag to allow releases to own previously existing unowned resources ([375758d](https://github.com/yokecd/yoke/commit/375758d5b24ea3fc6dad1df3c70c9e56ef8c06d9))
 
-## (2025-04-19) atc/v0.11.0 - atc-installer/v0.11.0 - v0.12.0 - yokecd/v0.11.0 - yokecd-installer/v0.11.0
+## (2025-04-19) atc-installer/v0.11.0 - atc/v0.11.0 - v0.12.0 - yokecd-installer/v0.11.0 - yokecd/v0.11.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -565,7 +660,7 @@
 - atc/test: fix flaky test race condition after resource creation ([cb56c00](https://github.com/yokecd/yoke/commit/cb56c0062fa70babe11e309162751882c06c0d87))
 - yoke/takeoff: improve target namespacing by considering internally dependent crds ([73bb676](https://github.com/yokecd/yoke/commit/73bb676a39e4ec003b2f19f2528623803de2864b))
 
-## (2025-04-05) atc/v0.10.3 - atc-installer/v0.10.3 - v0.11.4 - yokecd/v0.10.3 - yokecd-installer/v0.10.3
+## (2025-04-05) atc-installer/v0.10.3 - atc/v0.10.3 - v0.11.4 - yokecd-installer/v0.10.3 - yokecd/v0.10.3
 
 - deps: update deps ([b86881c](https://github.com/yokecd/yoke/commit/b86881c1c75fb0ffb92e8ac15c7b400e9c5e3847))
 - pkg/helm: support charts that use .yml suffix ([149319d](https://github.com/yokecd/yoke/commit/149319de4e386977c52de4176d14142bf6f3de50))
@@ -573,7 +668,7 @@
 - helm2go: prefer chart json schema over parsing of values file by default ([0c9831d](https://github.com/yokecd/yoke/commit/0c9831d9d55a892a06b19ec0d581caf28bd2c84a))
 - helm2go: proper support for builtin helm schemas ([bad0d09](https://github.com/yokecd/yoke/commit/bad0d0989a822dcefbdb463e939237f4fbe23358))
 
-## (2025-04-05) atc/v0.10.2 - atc-installer/v0.10.2 - v0.11.3 - yokecd/v0.10.2 - yokecd-installer/v0.10.2
+## (2025-04-05) atc-installer/v0.10.2 - atc/v0.10.2 - v0.11.3 - yokecd-installer/v0.10.2 - yokecd/v0.10.2
 
 <details>
 <summary>19 commits</summary>
@@ -600,7 +695,7 @@
 
 </details>
 
-## (2025-03-26) atc/v0.10.1 - atc-installer/v0.10.1 - v0.11.2 - yokecd/v0.10.1 - yokecd-installer/v0.10.1
+## (2025-03-26) atc-installer/v0.10.1 - atc/v0.10.1 - v0.11.2 - yokecd-installer/v0.10.1 - yokecd/v0.10.1
 
 - internal/wasi: move all methods in internal/wasm that included references to api.Module to internal/wasi ([ddae54a](https://github.com/yokecd/yoke/commit/ddae54a2cdaa07d299ea77aba53fe811f9d057f0))
 - deps: update deps ([16ccd52](https://github.com/yokecd/yoke/commit/16ccd52db72af5d56066663391f8e12f9f2adfb8))
@@ -612,7 +707,7 @@
 - yoke: Respect KUBECONFIG env var ([6bf1e65](https://github.com/yokecd/yoke/commit/6bf1e65cac7bfbb68120b416afd3ef71956406fb))
 - atc: fix tests that did not cleanup after themselves ([456bb01](https://github.com/yokecd/yoke/commit/456bb019aac894113e45630ff871f1cb497bda17))
 
-## (2025-03-20) atc/v0.10.0 - atc-installer/v0.10.0 - v0.11.0 - yokecd/v0.10.0 - yokecd-installer/v0.10.0
+## (2025-03-20) atc-installer/v0.10.0 - atc/v0.10.0 - v0.11.0 - yokecd-installer/v0.10.0 - yokecd/v0.10.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -629,7 +724,7 @@
 
 - yoke: support flag -kube-context ([fcec417](https://github.com/yokecd/yoke/commit/fcec4173500f3e943c212a55f3ecc9e97b17864e))
 
-## (2025-03-14) atc/v0.9.8 - atc-installer/v0.9.3 - v0.10.9 - yokecd/v0.9.8 - yokecd-installer/v0.9.1
+## (2025-03-14) atc-installer/v0.9.3 - atc/v0.9.8 - v0.10.9 - yokecd-installer/v0.9.1 - yokecd/v0.9.8
 
 - internal/releaser: update stow command to use proper tag flag ([2db9ba4](https://github.com/yokecd/yoke/commit/2db9ba4e6bf77077a3f546e85c981dc21bbaf03b))
 - deps: update dependencies ([be06643](https://github.com/yokecd/yoke/commit/be0664365a9104dacda032904804df18655cde40))
@@ -656,7 +751,7 @@
 
 - yoke/cmd: add stow command to top level help text ([a634f43](https://github.com/yokecd/yoke/commit/a634f436e7e47bb861c2614021c79c21642fad4e))
 
-## (2025-03-10) atc/v0.9.4 - atc-installer/v0.9.2 - v0.10.4 - yokecd/v0.9.4 - yokecd-installer/v0.9.0
+## (2025-03-10) atc-installer/v0.9.2 - atc/v0.9.4 - v0.10.4 - yokecd-installer/v0.9.0 - yokecd/v0.9.4
 
 - atc: extractor docker-watcher into its own component with more observability ([b121b5a](https://github.com/yokecd/yoke/commit/b121b5ac4ef3bc9f9250770f495aca142a550c3e))
 - atc: docker config secret retry watcher sets fieldSelector ([3de7239](https://github.com/yokecd/yoke/commit/3de7239b7c3db237d544bfa03d9e22ecd5eac142))
@@ -667,7 +762,7 @@
 - yoke/stow: add yoke stow command for push wasm artifacts to an oci registry ([13cd570](https://github.com/yokecd/yoke/commit/13cd57059df975274fef5947ce7efd006d88d6da))
 - internal/oci: add oci package to push and pull yoke wasm artifacts ([7d89461](https://github.com/yokecd/yoke/commit/7d8946103b03e7d54b2d3aebc4bc27f7fd23cb41))
 
-## (2025-03-05) atc/v0.9.3 - atc-installer/v0.9.1 - v0.10.3 - yokecd/v0.9.3
+## (2025-03-05) atc-installer/v0.9.1 - atc/v0.9.3 - v0.10.3 - yokecd/v0.9.3
 
 - atc: allow airways to skip admission review if configured ([ca69888](https://github.com/yokecd/yoke/commit/ca69888cba2ea273d5405c5e9c82245abf7d7bc5))
 - atc: add crossnamespace test ([57577d7](https://github.com/yokecd/yoke/commit/57577d7ab10934f1f5799ee97c97edeb029fca57))
@@ -683,7 +778,7 @@
 - yoke: descent fails with proper message when release not found in namespace ([664422a](https://github.com/yokecd/yoke/commit/664422a1f563c94379f9bf6a2ed1f7f9a8eadd95))
 - readme: add Homebrew installation instructions ([d09865f](https://github.com/yokecd/yoke/commit/d09865fb5da05b1404f2434ebeb5583c9a68ac51))
 
-## (2025-03-01) atc/v0.9.0 - atc-installer/v0.9.0 - v0.10.0 - yokecd/v0.9.0
+## (2025-03-01) atc-installer/v0.9.0 - atc/v0.9.0 - v0.10.0 - yokecd/v0.9.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -695,7 +790,7 @@
 
 - yoke: atc tower: fix incorrect resource count when fetching readiness ([3c0b7fa](https://github.com/yokecd/yoke/commit/3c0b7fa00c5b5355370c569e6b73acf35c78229d))
 
-## (2025-02-17) atc/v0.8.2 - atc-installer/v0.8.1 - v0.9.2 - yokecd-installer/v0.8.1
+## (2025-02-17) atc-installer/v0.8.1 - atc/v0.8.2 - v0.9.2 - yokecd-installer/v0.8.1
 
 - atc-installer: take advantage of flight.Stage custom JSON Marshalling to simplify implementation ([4619f8f](https://github.com/yokecd/yoke/commit/4619f8f210afa2a8cff06ed71a08855ff07d0285))
 - pkg/flight: add Resource, Stage, and Stages types to help type flight outputs ([a8aae42](https://github.com/yokecd/yoke/commit/a8aae42beea9e4e369214f3da570ffd75f1d46e6))
@@ -708,7 +803,7 @@
 - internal/k8s: add support readiness checks for jobs ([fb15512](https://github.com/yokecd/yoke/commit/fb15512285a6c7cc0a16c74f29c11cbeb4fe6d1c))
 - yoke: set default poll and wait only for stages that are not last ([4fb8c23](https://github.com/yokecd/yoke/commit/4fb8c23decef0ee3204caadcdb9e3c2537ab03d9))
 
-## (2025-02-16) atc/v0.8.0 - atc-installer/v0.8.0 - v0.9.0 - yokecd/v0.8.0 - yokecd-installer/v0.8.0
+## (2025-02-16) atc-installer/v0.8.0 - atc/v0.8.0 - v0.9.0 - yokecd-installer/v0.8.0 - yokecd/v0.8.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -718,7 +813,7 @@
 - deps: update deps ([5638adc](https://github.com/yokecd/yoke/commit/5638adcd23afcb97a521088f0b647fd6dbda12d4))
 - internal/wasm: refactor file ([a895a93](https://github.com/yokecd/yoke/commit/a895a932504d44f9853a5f6c5cb9b25675eb788e))
 
-## (2025-02-14) atc/v0.7.2 - atc-installer/v0.7.1 - v0.8.2 - yokecd/v0.7.2 - yokecd-installer/v0.7.2
+## (2025-02-14) atc-installer/v0.7.1 - atc/v0.7.2 - v0.8.2 - yokecd-installer/v0.7.2 - yokecd/v0.7.2
 
 <details>
 <summary>20 commits</summary>
@@ -746,12 +841,12 @@
 
 </details>
 
-## (2025-02-10) atc/v0.7.1 - atc-installer/v0.7.0 - v0.8.1 - yokecd/v0.7.1 - yokecd-installer/v0.7.1
+## (2025-02-10) atc-installer/v0.7.0 - atc/v0.7.1 - v0.8.1 - yokecd-installer/v0.7.1 - yokecd/v0.7.1
 
 - deps: update deps ([7d37db1](https://github.com/yokecd/yoke/commit/7d37db123c01ca2193c24ffec2028a19ecd35cc9))
 - yoke: remove orhpans while respecting stages in inverse order ([6f8212a](https://github.com/yokecd/yoke/commit/6f8212af613b6be1d95889ad484a40dfa5fba55e))
 
-## (2025-02-09) atc/v0.7.0 - v0.8.0 - yokecd/v0.7.0 - yokecd-installer/v0.7.0
+## (2025-02-09) atc/v0.7.0 - v0.8.0 - yokecd-installer/v0.7.0 - yokecd/v0.7.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -765,14 +860,14 @@
 
 - atc: validation handler respects flight override url ([d439716](https://github.com/yokecd/yoke/commit/d43971604c7346c2e6402ee2876520d24f655889))
 
-## (2025-01-26) atc/v0.6.3 - atc-installer/v0.6.2 - v0.7.3 - yokecd/v0.6.2 - yokecd-installer/v0.6.1
+## (2025-01-26) atc-installer/v0.6.2 - atc/v0.6.3 - v0.7.3 - yokecd-installer/v0.6.1 - yokecd/v0.6.2
 
 - atc: test flight override annotation ([f4f48a7](https://github.com/yokecd/yoke/commit/f4f48a7eeff73649ff74af41eadd2e86a5ce1945))
 - atc: introduce override flight annotation to change flight implementation per resource during flight reconciliation ([504a879](https://github.com/yokecd/yoke/commit/504a87948c81eb74603b8d4fd2c18bb24b2fac4b))
 - internal/releaser: push latest with force to override commit location ([f5ce2b1](https://github.com/yokecd/yoke/commit/f5ce2b1f1b068fcd302a3481c79fdec7c6f66c5a))
 - internal/releaser: feat: upload latest assets to tag latest ([f3a8377](https://github.com/yokecd/yoke/commit/f3a8377af6f1bd4dc2e37bdedd298e712659781e))
 
-## (2025-01-22) atc/v0.6.2 - atc-installer/v0.6.1 - v0.7.2
+## (2025-01-22) atc-installer/v0.6.1 - atc/v0.6.2 - v0.7.2
 
 - pkg/schema: make type cache local to each schema generation ([bf630dd](https://github.com/yokecd/yoke/commit/bf630dd6aadcb32c126877717516c190e27063ab))
 - atc-installer: include hash of tls secrets in deployment labels to trigger deployment restarts ([3f69266](https://github.com/yokecd/yoke/commit/3f692669962de91ac4ed441a7798e8fa69d232fe))
@@ -805,7 +900,7 @@
 
 - yoke: breaking change: gzip resource data in yoke revision secrets ([4035555](https://github.com/yokecd/yoke/commit/40355552ec0c56603aebff3ec3e33a72d9550a26))
 
-## (2025-01-17) atc/v0.5.7 - atc-installer/v0.5.4 - v0.6.8 - yokecd/v0.5.3 - yokecd-installer/v0.5.4
+## (2025-01-17) atc-installer/v0.5.4 - atc/v0.5.7 - v0.6.8 - yokecd-installer/v0.5.4 - yokecd/v0.5.3
 
 - helm2go: ensure dependent programs are at their latest ([e6e657d](https://github.com/yokecd/yoke/commit/e6e657dae6c284023704cae1040400f1a47d3968))
 - yoke: atc-viewer: fix interaction between managed field toggling and search highlighting ([12c68b2](https://github.com/yokecd/yoke/commit/12c68b20d4ecaefc840f634df4cb65f6713c9c3f))
@@ -815,7 +910,7 @@
 - refactor: reorganize project imports ([d04c0c3](https://github.com/yokecd/yoke/commit/d04c0c39fec912405ba5f8c12da5abe004096c72))
 - deps: update dependencies ([f917866](https://github.com/yokecd/yoke/commit/f91786600f654ebe058153500a280c467dc08f0f))
 
-## (2025-01-15) atc/v0.5.6 - atc-installer/v0.5.3 - v0.6.7 - yokecd/v0.5.2 - yokecd-installer/v0.5.3
+## (2025-01-15) atc-installer/v0.5.3 - atc/v0.5.6 - v0.6.7 - yokecd-installer/v0.5.3 - yokecd/v0.5.2
 
 - atc: use in memory wasi modules instead of cache ([e386bd8](https://github.com/yokecd/yoke/commit/e386bd838086b1b664eb2aa1e8dbfece803b311e))
 - yoke: refresh atc-tower views in background ([9ffca17](https://github.com/yokecd/yoke/commit/9ffca170fa81e5fab48720c2b2f45a3f07482f09))
@@ -824,7 +919,7 @@
 - yoke: atc table view: search on all fields in row ([a1f4193](https://github.com/yokecd/yoke/commit/a1f41935b5759eccc36caf9cb937dfb184a6fdd6))
 - yoke: atc view has border titles using yokecd/lipgloss fork ([0e2fb9c](https://github.com/yokecd/yoke/commit/0e2fb9c9eefcbab3af31b5970eed09d56f794c35))
 
-## (2025-01-11) atc/v0.5.5 - atc-installer/v0.5.2 - v0.6.6 - yokecd-installer/v0.5.2
+## (2025-01-11) atc-installer/v0.5.2 - atc/v0.5.5 - v0.6.6 - yokecd-installer/v0.5.2
 
 - yoke: atc command creates a debug file if -debug-file is passed ([d0e58d8](https://github.com/yokecd/yoke/commit/d0e58d8caf6e96a50343c439a166113838e31129))
 - atc: refactor flight status and ensure that flight status carry over during crd conversion webhooks ([d28f75d](https://github.com/yokecd/yoke/commit/d28f75de47327cd4cd1706cdbe32cf03d832a082))
@@ -833,7 +928,7 @@
 
 - atc: add more context to conversion handler and refactor resource mapping resets ([b6be425](https://github.com/yokecd/yoke/commit/b6be425ea25cb834ced0cc9a98b440af5fbf7b37))
 
-## (2025-01-08) atc/v0.5.3 - atc-installer/v0.5.1 - v0.6.4 - yokecd/v0.5.1 - yokecd-installer/v0.5.1
+## (2025-01-08) atc-installer/v0.5.1 - atc/v0.5.3 - v0.6.4 - yokecd-installer/v0.5.1 - yokecd/v0.5.1
 
 - k8s/ctrl: separate controller from run to avoid race conditions that could drop events before controller was ready to run ([1cec9cf](https://github.com/yokecd/yoke/commit/1cec9cfe35ffbf7775b9a46b99b133f15aaef6bd))
 - deps: update dependencies ([b3173e5](https://github.com/yokecd/yoke/commit/b3173e553128283e27a49c5ac2afe70fbb3de17f))
@@ -848,11 +943,11 @@
 
 - k8s/ctrl: use retry watcher to handle watcher restarts gracefully ([3151ff7](https://github.com/yokecd/yoke/commit/3151ff7b05afdc343775ee4be312f042979b2fe8))
 
-## (2025-01-07) atc/v0.5.1 - atc-installer/v0.5.0 - v0.6.1
+## (2025-01-07) atc-installer/v0.5.0 - atc/v0.5.1 - v0.6.1
 
 - pkg/openapi: support inline structs ([4920ebe](https://github.com/yokecd/yoke/commit/4920ebea7191f46b677f9999a2963daa3e1a49c1))
 
-## (2025-01-07) atc/v0.5.0 - v0.6.0 - yokecd/v0.5.0 - yokecd-installer/v0.5.0
+## (2025-01-07) atc/v0.5.0 - v0.6.0 - yokecd-installer/v0.5.0 - yokecd/v0.5.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -865,18 +960,18 @@
 - yoke: breaking change: change releases to be namespaced ([cbc42eb](https://github.com/yokecd/yoke/commit/cbc42eb5b215fca2b786b877608804b897708a31))
 - yoke: breaking change: disallow multi namespace flights by default and add --multi-namespaces flag ([066c74e](https://github.com/yokecd/yoke/commit/066c74e87c491cb20c7f53744da391095e088efb))
 
-## (2025-01-05) atc/v0.4.2 - atc-installer/v0.4.1 - v0.5.2
+## (2025-01-05) atc-installer/v0.4.1 - atc/v0.4.2 - v0.5.2
 
 - atc: attempt to clear airway cache dir on recompilation ([67ff745](https://github.com/yokecd/yoke/commit/67ff745283ca1853dbfe354bc9b2451ccbfd2c29))
 - atc: refactor module loading logic ([d540f74](https://github.com/yokecd/yoke/commit/d540f74b9a81cf95dc94d2a8a255d0594ea4ad50))
 - atc-installer: add new options and break out logic into go-gettable package ([31cef8e](https://github.com/yokecd/yoke/commit/31cef8e7c7b2a12772836ddc3905cbe8dc029686))
 
-## (2025-01-03) atc/v0.4.1 - atc-installer/v0.4.0 - v0.5.1 - yokecd/v0.4.1
+## (2025-01-03) atc-installer/v0.4.0 - atc/v0.4.1 - v0.5.1 - yokecd/v0.4.1
 
 - atc: test validation webhook for airway custom resources ([b2beb8c](https://github.com/yokecd/yoke/commit/b2beb8cbcfda9d135c32672d68116aaa929c3407))
 - atc: added generic flight validation handler ([162d825](https://github.com/yokecd/yoke/commit/162d8250e956ca5c46a83c45e5a2700fb2686640))
 
-## (2025-01-01) atc/v0.4.0 - v0.5.0 - yokecd/v0.4.0 - yokecd-installer/v0.4.0
+## (2025-01-01) atc/v0.4.0 - v0.5.0 - yokecd-installer/v0.4.0 - yokecd/v0.4.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -896,12 +991,12 @@
 - k9s/ctrl: simplify queue to not wait for dequeue but expose a public channel and fix watcher to exit on not found ([e9edee5](https://github.com/yokecd/yoke/commit/e9edee50576575bb76c25ab88188eb63fb30266d))
 - atc: use a compiled module cache to improve performance ([ffcddae](https://github.com/yokecd/yoke/commit/ffcddaed9f913741a574613234247fe402571222))
 
-## (2024-12-29) atc/v0.3.1 - atc-installer/v0.3.1 - v0.4.1 - yokecd/v0.3.1 - yokecd-installer/v0.3.1
+## (2024-12-29) atc-installer/v0.3.1 - atc/v0.3.1 - v0.4.1 - yokecd-installer/v0.3.1 - yokecd/v0.3.1
 
 - atc-installer: add a validation webhook configuration for airways and test ([b05851d](https://github.com/yokecd/yoke/commit/b05851deaa8402d05dc0e230d7088a1e334cc297))
 - atc: add airway admission validation logic to check crds ([7953c38](https://github.com/yokecd/yoke/commit/7953c3884d714f3c87cb24c2806a3fe5cc1e1ffe))
 
-## (2024-12-28) atc/v0.3.0 - atc-installer/v0.3.0 - v0.4.0 - yokecd/v0.3.0 - yokecd-installer/v0.3.0
+## (2024-12-28) atc-installer/v0.3.0 - atc/v0.3.0 - v0.4.0 - yokecd-installer/v0.3.0 - yokecd/v0.3.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -950,7 +1045,7 @@
 - yoke: log to stderr after successful takeoff ([01703c6](https://github.com/yokecd/yoke/commit/01703c62dd22fd1825b7dff77f46dc084255ffeb))
 - project: add code of conduct and contributing markdowns ([cc42a37](https://github.com/yokecd/yoke/commit/cc42a37732891e7000776c2f92a76f32e0705843))
 
-## (2024-12-01) atc/v0.1.0 - atc-installer/v0.1.0 - v0.2.0 - yokecd/v0.1.0 - yokecd-installer/v0.1.0
+## (2024-12-01) atc-installer/v0.1.0 - atc/v0.1.0 - v0.2.0 - yokecd-installer/v0.1.0 - yokecd/v0.1.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -962,11 +1057,11 @@
 - deps: update dependencies ([3baadfc](https://github.com/yokecd/yoke/commit/3baadfc203a5b673b8a750063920cd199f99cd29))
 - yoke: breaking change: remove resource-mapping and use labels instead ([2941bcf](https://github.com/yokecd/yoke/commit/2941bcf583ab4957d8a7ac323d968f8352be6f17))
 
-## (2024-11-24) atc/v0.0.2 - atc-installer/v0.0.2 - v0.1.4 - yokecd/v0.0.4 - yokecd-installer/v0.0.10
+## (2024-11-24) atc-installer/v0.0.2 - atc/v0.0.2 - v0.1.4 - yokecd-installer/v0.0.10 - yokecd/v0.0.4
 
 - yoke: fix segfault of wasm module close on invalid wasm inputs ([5fd75ea](https://github.com/yokecd/yoke/commit/5fd75ea23361ebadd7bd60b51290962506bf7129))
 
-## (2024-11-24) atc/v0.0.1 - atc-installer/v0.0.1 - v0.1.3 - yokecd/v0.0.3 - yokecd-installer/v0.0.9
+## (2024-11-24) atc-installer/v0.0.1 - atc/v0.0.1 - v0.1.3 - yokecd-installer/v0.0.9 - yokecd/v0.0.3
 
 <details>
 <summary>76 commits</summary>
