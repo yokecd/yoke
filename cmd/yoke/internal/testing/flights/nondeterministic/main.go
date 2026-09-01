@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +28,8 @@ func main() {
 			Name: flight.Release(),
 		},
 		Data: map[string]string{
-			"nonce": hex.EncodeToString(nonce),
+			"nonce":     hex.EncodeToString(nonce),
+			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 		},
 	}); err != nil {
 		panic(err)
