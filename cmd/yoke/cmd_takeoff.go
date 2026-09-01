@@ -19,7 +19,6 @@ import (
 type TakeoffParams struct {
 	GlobalSettings
 	yoke.TakeoffParams
-	VerifyReproducible bool
 }
 
 //go:embed cmd_takeoff_help.txt
@@ -51,7 +50,7 @@ func GetTakeoffParams(settings GlobalSettings, source io.Reader, args []string) 
 	flagset.BoolVar(&params.SkipDryRun, "skip-dry-run", false, "disables running dry run to resources before applying them; ineffective if dry-run is true")
 	flagset.BoolVar(&params.ForceConflicts, "force-conflicts", false, "force apply changes on field manager conflicts")
 	flagset.BoolVar(&params.ForceOwnership, "force-ownership", false, "take ownership of resources during takeoff of resources even if they belong to another release")
-	flagset.BoolVar(&params.VerifyReproducible, "verify-reproducible", false, "evaluate the flight twice before takeoff and fail if equivalent executions produce different desired state")
+	flagset.BoolVar(&params.Flight.Deterministic, "deterministic", false, "run the flight with deterministic WASI entropy and clock sources")
 
 	flagset.BoolVar(&params.Lock, "lock", false, "if enabled does locks release before deploying revision (only prevents other locked runs from running).")
 	flagset.BoolVar(&params.CreateNamespace, "create-namespace", false, "create namespace of target release if not present")
@@ -117,12 +116,6 @@ func TakeOff(ctx context.Context, params TakeoffParams) error {
 	commander, err := yoke.FromKubeConfigFlags(params.Kube)
 	if err != nil {
 		return err
-	}
-
-	if params.VerifyReproducible {
-		if err := verifyFlightReproducibility(ctx, commander, &params.TakeoffParams); err != nil {
-			return fmt.Errorf("reproducibility check failed: %w", err)
-		}
 	}
 
 	// We want the CLI to stream stderr back to the user instead of buffering.

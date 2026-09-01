@@ -24,13 +24,14 @@ import (
 )
 
 type ExecParams struct {
-	Module  *Module
-	BinName string
-	Stdin   io.Reader
-	Stderr  io.Writer
-	Args    []string
-	Timeout time.Duration
-	Env     map[string]string
+	Module        *Module
+	BinName       string
+	Stdin         io.Reader
+	Stderr        io.Writer
+	Args          []string
+	Timeout       time.Duration
+	Env           map[string]string
+	Deterministic bool
 
 	CompileParams
 }
@@ -76,11 +77,15 @@ func Execute(ctx context.Context, params ExecParams) (output []byte, err error) 
 			}
 			return &stderr
 		}()).
-		WithRandSource(rand.Reader).
-		WithSysNanosleep().
-		WithSysNanotime().
-		WithSysWalltime().
 		WithArgs(append([]string{params.BinName}, params.Args...)...)
+
+	if !params.Deterministic {
+		moduleCfg = moduleCfg.
+			WithRandSource(rand.Reader).
+			WithSysNanosleep().
+			WithSysNanotime().
+			WithSysWalltime()
+	}
 
 	if stdin := params.Stdin; stdin != nil {
 		moduleCfg = moduleCfg.WithStdin(stdin)

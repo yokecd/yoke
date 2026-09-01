@@ -46,6 +46,9 @@ type FlightParams struct {
 	Args                []string
 	CompilationCacheDir string
 
+	// Deterministic runs the flight using wazero's deterministic WASI entropy and clock sources.
+	Deterministic bool
+
 	// MaxMemoryMib is the maximum amount of memory a flight can allocate. If this is not set, the flight can use the maximum amount of memory available.
 	// The maximum memory abailable is 4gb or 4096mb
 	MaxMemoryMib uint64

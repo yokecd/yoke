@@ -153,13 +153,14 @@ func EvalFlight(ctx context.Context, params EvalParams) ([]byte, error) {
 	ctx = host.WithClusterAccess(ctx, params.ClusterAccess)
 
 	output, err := wasi.Execute(ctx, wasi.ExecParams{
-		Module:  params.Flight.Module.Instance,
-		BinName: params.Release,
-		Stdin:   params.Flight.Input,
-		Stderr:  params.Flight.Stderr,
-		Args:    params.Flight.Args,
-		Timeout: params.Flight.Timeout,
-		Env:     env,
+		Module:        params.Flight.Module.Instance,
+		BinName:       params.Release,
+		Stdin:         params.Flight.Input,
+		Stderr:        params.Flight.Stderr,
+		Args:          params.Flight.Args,
+		Timeout:       params.Flight.Timeout,
+		Env:           env,
+		Deterministic: params.Flight.Deterministic,
 		CompileParams: wasi.CompileParams{
 			Wasm:            params.Flight.Wasm,
 			CacheDir:        params.Flight.CompilationCacheDir,
