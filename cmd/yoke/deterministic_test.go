@@ -7,7 +7,10 @@ import (
 )
 
 func TestGetTakeoffParamsEnablesDeterministicFlight(t *testing.T) {
-	params, err := GetTakeoffParams(settings, nil, []string{
+	testSettings := settings
+	testSettings.Debug = new(bool)
+
+	params, err := GetTakeoffParams(testSettings, nil, []string{
 		"-deterministic",
 		"reproducible-flight",
 		"flight.wasm",
