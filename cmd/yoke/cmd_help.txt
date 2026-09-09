@@ -13,6 +13,7 @@ mayday       (aliases: delete)
 blackbox     (aliases: inspect)
 turbulence   (aliases: drift)
 stow         (aliases: push)
+flightplan   (aliases: render)
 atc
 sign
 verify

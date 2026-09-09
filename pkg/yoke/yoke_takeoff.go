@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -197,7 +196,12 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 		ctx = k8s.WithCustomReadiness(ctx, readiness)
 	}
 
-	targetNS := cmp.Or(params.Namespace, commander.k8s.DefaultNamespace)
+	targetNS := cmp.Or(params.Namespace, func() string {
+		if commander.k8s != nil {
+			return commander.k8s.DefaultNamespace
+		}
+		return "default"
+	}())
 
 	if err := LoadWasm(ctx, &params.Flight); err != nil {
 		return fmt.Errorf("failed to load wasm: %w", err)
@@ -529,25 +533,21 @@ func ExportToFS(dir, release string, resources []*unstructured.Unstructured) err
 }
 
 func ExportToStdout(ctx context.Context, resources []*unstructured.Unstructured) error {
-	output := make(map[string]any, len(resources))
-	for _, resource := range resources {
-		segments := strings.Split(internal.Canonical(resource), "/")
-		obj := output
-		for i, segment := range segments {
-			if i == len(segments)-1 {
-				obj[segment] = resource.Object
-				break
-			}
-			if _, ok := obj[segment]; !ok {
-				obj[segment] = map[string]any{}
-			}
-			obj = obj[segment].(map[string]any)
-		}
+	if len(resources) == 0 {
+		return nil
 	}
-
 	encoder := yaml.NewEncoder(internal.Stdout(ctx))
 	encoder.SetIndent(2)
-	return encoder.Encode(output)
+	for _, resource := range resources {
+		delete(resource.Object, "status")
+		if err := encoder.Encode(resource.Object); err != nil {
+			return err
+		}
+	}
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to close encoder: %w", err)
+	}
+	return nil
 }
 
 func toUnstructuredNS(ns string) *unstructured.Unstructured {

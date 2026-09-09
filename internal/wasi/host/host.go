@@ -76,6 +76,10 @@ type HostLookupResourceFunc func(ctx context.Context, name, namespace, kind, api
 
 func HostLookupResource(client *k8s.Client) HostLookupResourceFunc {
 	return func(ctx context.Context, name, namespace, kind, apiVersion string) (*unstructured.Unstructured, error) {
+		if client == nil {
+			return nil, fmt.Errorf("unexpected state: no client provided by host")
+		}
+
 		clusterAccess := clusterAccessEnabled(ctx)
 		if !clusterAccess.Enabled {
 			return nil, ErrFeatureNotGranted
@@ -148,6 +152,10 @@ type HostDiscoverMappingFunc func(ctx context.Context, group, kind string) (*Res
 
 func HostDiscoverMapping(client *k8s.Client) HostDiscoverMappingFunc {
 	return func(ctx context.Context, groupOrAPIVersion, kind string) (*RestMapping, error) {
+		if client == nil {
+			return nil, fmt.Errorf("unexpected state: no client provided by host")
+		}
+
 		clusterAccess := clusterAccessEnabled(ctx)
 		if !clusterAccess.Enabled {
 			return nil, ErrFeatureNotGranted
