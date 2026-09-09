@@ -82,6 +82,19 @@ func run() error {
 			}
 			return TakeOff(ctx, *params)
 		}
+	case "flightplan", "render":
+		{
+			var source io.Reader
+			if !term.IsTerminal(int(os.Stdin.Fd())) {
+				source = os.Stdin
+			}
+			params, err := GetFlightPlanParams(settings, source, subcmdArgs)
+			if err != nil {
+				return err
+			}
+			return Flightplan(ctx, *params)
+		}
+
 	case "descent", "down", "restore":
 		{
 			params, err := GetDescentfParams(settings, subcmdArgs)

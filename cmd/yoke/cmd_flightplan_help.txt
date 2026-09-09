@@ -1,0 +1,31 @@
+!yellow yoke flightplan
+
+!cyan Usage: 
+  yoke flightplan [flags] <release-name> <flight-path>
+
+!cyan Aliases:
+  render
+
+!cyan Examples:
+  # output the plan to stdout
+  yoke flightplan my-release ./main.wasm
+
+  # gzipped wasm files are supported
+  yoke flightplan my-release ./main.wasm.gz
+
+  # write the raw bytes from the executed flight instead of the standard multi-doc yaml
+  yoke flightplan -raw my-release ./main.wasm
+
+  # write the flightplan to the fs to a structured directory
+  yoke flightplan -out ./revision-dir my-release ./main.wasm
+
+  # pass arguments to the flight
+  yoke flightplan my-release ./main.wasm -- -env prod
+
+  # pass data over stdin to the flight
+  yoke flightplan my-release ./main.wasm < input.file
+
+  # use deterministic WASI entropy and clock sources for reproducible output
+  yoke flightplan -deterministic my-release main.wasm
+
+!cyan Flags:

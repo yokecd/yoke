@@ -49,8 +49,10 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	must(x.X("kind delete cluster --name=yoke-cli-tests"))
-	must(x.X("kind create cluster --name=yoke-cli-tests"))
+	if skip, _ := strconv.ParseBool(os.Getenv("SKIP_SETUP")); !skip {
+		must(x.X("kind delete cluster --name=yoke-cli-tests"))
+		must(x.X("kind create cluster --name=yoke-cli-tests"))
+	}
 
 	os.Exit(m.Run())
 }
@@ -2178,4 +2180,129 @@ func TestCodeSigning(t *testing.T) {
 		}),
 		"failed to verify module: invalid signature",
 	)
+}
+
+func TestFlightplan(t *testing.T) {
+	t.Run("standard flightplan emits multidoc yaml", func(t *testing.T) {
+		var buffer bytes.Buffer
+		ctx := internal.WithStdout(t.Context(), &buffer)
+
+		stages := []any{
+			[]any{
+				&corev1.ConfigMap{
+					TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+					ObjectMeta: metav1.ObjectMeta{Name: "alpha"},
+					Data:       map[string]string{},
+				},
+			},
+			[]any{
+				&corev1.ConfigMap{
+					TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+					ObjectMeta: metav1.ObjectMeta{Name: "beta"},
+					Data:       map[string]string{},
+				},
+			},
+		}
+		require.NoError(
+			t,
+			Flightplan(ctx, TakeoffParams{
+				GlobalSettings: GlobalSettings{
+					Kube:  &genericclioptions.ConfigFlags{},
+					Debug: new(bool),
+				},
+				Release: "foo",
+				Out:     "-",
+				Flight:  yoke.FlightParams{Input: internal.JSONReader(stages)},
+			}),
+		)
+
+		require.Equal(
+			t,
+			""+
+				"apiVersion: v1\n"+
+				"kind: ConfigMap\n"+
+				"metadata:\n"+
+				"  name: alpha\n"+
+				"---\n"+
+				"apiVersion: v1\n"+
+				"kind: ConfigMap\n"+
+				"metadata:\n"+
+				"  name: beta\n",
+			buffer.String(),
+		)
+
+		buffer.Reset()
+
+		require.NoError(
+			t,
+			Flightplan(ctx, TakeoffParams{
+				GlobalSettings: GlobalSettings{
+					Kube:  &genericclioptions.ConfigFlags{},
+					Debug: new(bool),
+				},
+				Release:      "foo",
+				Out:          "-",
+				SendToStdout: true,
+				Flight: yoke.FlightParams{
+					Input: internal.JSONReader(stages),
+				},
+			}),
+		)
+
+		expected, err := json.Marshal(stages)
+		require.NoError(t, err)
+
+		require.Equal(t, string(expected), buffer.String())
+	})
+
+	t.Run("error when k8s client unavailable", func(t *testing.T) {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+
+		ctx := internal.WithStdio(t.Context(), &stdout, &stderr, nil)
+
+		settings := GlobalSettings{
+			Kube: &genericclioptions.ConfigFlags{
+				Context: new("does-not-exist"),
+			},
+			Debug: new(bool),
+		}
+
+		require.NoError(t, Flightplan(ctx, TakeoffParams{
+			GlobalSettings: settings,
+			Release:        "foo",
+			Out:            "-",
+			Flight:         yoke.FlightParams{Input: internal.JSONReader([]any{})},
+		}))
+
+		require.Contains(
+			t,
+			stderr.String(),
+			`failed to instantiate a kubernetes client: failed to initialize k8s client: failed to build k8 config: context "does-not-exist" does not exist`,
+		)
+		require.Contains(
+			t,
+			stderr.String(),
+			`proceeding with flightplan, but certain features will be unavailable such as cluster access`,
+		)
+
+		stderr.Reset()
+
+		require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+
+		require.Error(
+			t,
+			Flightplan(
+				ctx,
+				TakeoffParams{
+					GlobalSettings: settings,
+					Release:        "foo",
+					Out:            "-",
+					Flight:         yoke.FlightParams{Path: "./test_output/flight.wasm"},
+				},
+			),
+		)
+
+		require.Contains(t, stderr.String(), "unexpected state: no client provided by host")
+	})
 }
