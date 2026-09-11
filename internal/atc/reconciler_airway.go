@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
-	"strings"
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -395,17 +394,5 @@ func (atc atc) Reconcile(ctx context.Context, event ctrl.Event) (result ctrl.Res
 }
 
 func ReleaseName(resource *unstructured.Unstructured) string {
-	gvk := resource.GroupVersionKind()
-	elems := []string{
-		gvk.Group,
-		gvk.Kind,
-	}
-
-	if ns := resource.GetNamespace(); ns != "" {
-		elems = append(elems, ns)
-	}
-
-	elems = append(elems, resource.GetName())
-
-	return strings.Join(elems, ".")
+	return internal.ResourceRef(resource)
 }
