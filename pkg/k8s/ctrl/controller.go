@@ -17,6 +17,7 @@ import (
 	"github.com/davidmdm/x/xsync"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,6 +134,9 @@ func (instance *Instance) register(entry Entry) error {
 				Namespace: resource.GetNamespace(),
 				GroupKind: entry.GroupKind,
 			}
+			if mapping.Scope == meta.RESTScopeNamespace && event.Namespace == "" {
+				event.Namespace = "default"
+			}
 			instance.events.Enqueue(event)
 			op(event)
 		}
@@ -148,6 +152,9 @@ func (instance *Instance) register(entry Entry) error {
 			Name:      next.GetName(),
 			Namespace: next.GetNamespace(),
 			GroupKind: entry.GroupKind,
+		}
+		if mapping.Scope == meta.RESTScopeNamespace && event.Namespace == "" {
+			event.Namespace = "default"
 		}
 		instance.events.Enqueue(event)
 		resourceMap.Add(event)

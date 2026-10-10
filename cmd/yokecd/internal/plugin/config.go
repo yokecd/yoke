@@ -252,10 +252,10 @@ func ConfigFromEnv() (cfg Config) {
 		cfg.Env[k] = v
 	}
 
-	conf.Var(conf.Environ, &cfg.Namespace, "ARGOCD_NAMESPACE", conf.Default("default"))
-	conf.Var(conf.Environ, &cfg.Application.Name, "ARGOCD_APP_NAME", conf.Required[string](true))
-	conf.Var(conf.Environ, &cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
-	conf.Var(conf.Environ, &cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
+	conf.Environ.Var(&cfg.Namespace, "ARGOCD_NAMESPACE", conf.Default("default"))
+	conf.Environ.Var(&cfg.Application.Name, "ARGOCD_APP_NAME", conf.Required[string](true))
+	conf.Environ.Var(&cfg.Application.Namespace, "ARGOCD_APP_NAMESPACE", conf.Required[string](true))
+	conf.Environ.Var(&cfg.Flight, "ARGOCD_APP_PARAMETERS", conf.Required[Parameters](true))
 
 	conf.Environ.MustParse()
 

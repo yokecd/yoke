@@ -38,17 +38,17 @@ type Config struct {
 }
 
 func ConfigFromEnv() (cfg Config) {
-	conf.Var(conf.Environ, &cfg.CacheFS, "YOKECD_CACHE_FS", conf.Default(os.TempDir()))
-	conf.Var(conf.Environ, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
+	conf.Environ.Var(&cfg.CacheFS, "YOKECD_CACHE_FS", conf.Default(os.TempDir()))
+	conf.Environ.Var(&cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
 
 	var verificationKeyPath string
-	conf.Var(conf.Environ, &verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
+	conf.Environ.Var(&verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
 
 	conf.Environ.MustParse()
 
 	if verificationKeyPath != "" {
 		fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
-		conf.Var(fs, &cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
+		fs.Var(&cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
 		fs.MustParse()
 	}
 
