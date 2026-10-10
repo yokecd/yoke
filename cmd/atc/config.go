@@ -48,25 +48,24 @@ func LoadConfig() (*Config, error) {
 
 	parser := conf.MakeParser(conf.CommandLineArgs(), os.LookupEnv)
 
-	conf.Var(parser, &cfg.Port, "PORT", conf.Default(3000))
-	conf.Var(parser, &cfg.KubeConfig, "KUBE")
-	conf.Var(parser, &cfg.Concurrency, "CONCURRENCY", conf.Default(runtime.GOMAXPROCS(0)))
-	conf.Var(parser, &cfg.Verbose, "VERBOSE")
-	conf.Var(parser, &cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
-	conf.Var(parser, &cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
-	conf.Var(parser, &cfg.DisableCustomReadiness, "DISABLE_CUSTOM_READINESS")
-	conf.Var(parser, &cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
+	parser.Var(&cfg.Port, "PORT", conf.Default(3000))
+	parser.Var(&cfg.KubeConfig, "KUBE")
+	parser.Var(&cfg.Concurrency, "CONCURRENCY", conf.Default(runtime.GOMAXPROCS(0)))
+	parser.Var(&cfg.Verbose, "VERBOSE")
+	parser.Var(&cfg.CacheFS, "CACHE_FS", conf.Default(os.TempDir()))
+	parser.Var(&cfg.ModuleAllowList, "MODULE_ALLOW_LIST")
+	parser.Var(&cfg.DisableCustomReadiness, "DISABLE_CUSTOM_READINESS")
+	parser.Var(&cfg.DockerConfigSecretName, "DOCKER_CONFIG_SECRET_NAME")
 
-	conf.Var(parser, &cfg.TLS.CA.Path, "TLS_CA_CERT", conf.RequiredNonEmpty[string]())
-	conf.Var(parser, &cfg.TLS.ServerCert.Path, "TLS_SERVER_CERT", conf.RequiredNonEmpty[string]())
-	conf.Var(parser, &cfg.TLS.ServerKey.Path, "TLS_SERVER_KEY", conf.RequiredNonEmpty[string]())
-
-	conf.Var(parser, &cfg.Service.Name, "SVC_NAME", conf.RequiredNonEmpty[string]())
-	conf.Var(parser, &cfg.Service.Namespace, "SVC_NAMESPACE", conf.RequiredNonEmpty[string]())
-	conf.Var(parser, &cfg.Service.Port, "SVC_PORT", conf.RequiredNonEmpty[int32]())
+	parser.Var(&cfg.TLS.CA.Path, "TLS_CA_CERT", conf.RequiredNonEmpty[string]())
+	parser.Var(&cfg.TLS.ServerCert.Path, "TLS_SERVER_CERT", conf.RequiredNonEmpty[string]())
+	parser.Var(&cfg.TLS.ServerKey.Path, "TLS_SERVER_KEY", conf.RequiredNonEmpty[string]())
+	parser.Var(&cfg.Service.Name, "SVC_NAME", conf.RequiredNonEmpty[string]())
+	parser.Var(&cfg.Service.Namespace, "SVC_NAMESPACE", conf.RequiredNonEmpty[string]())
+	parser.Var(&cfg.Service.Port, "SVC_PORT", conf.RequiredNonEmpty[int32]())
 
 	var verificationKeyPath string
-	conf.Var(parser, &verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
+	parser.Var(&verificationKeyPath, "MODULE_VERIFICATION_KEYS_PATH")
 
 	if err := parser.Parse(); err != nil {
 		return nil, err
@@ -74,12 +73,12 @@ func LoadConfig() (*Config, error) {
 
 	fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
 
-	conf.Var(fs, &cfg.TLS.CA.Data, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
-	conf.Var(fs, &cfg.TLS.ServerCert.Data, cfg.TLS.ServerCert.Path, conf.RequiredNonEmpty[[]byte]())
-	conf.Var(fs, &cfg.TLS.ServerKey.Data, cfg.TLS.ServerKey.Path, conf.RequiredNonEmpty[[]byte]())
+	fs.Var(&cfg.TLS.CA.Data, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
+	fs.Var(&cfg.TLS.ServerCert.Data, cfg.TLS.ServerCert.Path, conf.RequiredNonEmpty[[]byte]())
+	fs.Var(&cfg.TLS.ServerKey.Data, cfg.TLS.ServerKey.Path, conf.RequiredNonEmpty[[]byte]())
 
 	if verificationKeyPath != "" {
-		conf.Var(fs, &cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
+		fs.Var(&cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
 	}
 
 	if err := fs.Parse(); err != nil {
