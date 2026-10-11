@@ -56,7 +56,7 @@ func run() error {
 		return err
 	}
 
-	return json.NewEncoder(os.Stdout).Encode(resources)
+	return flight.JSONMarshalWrite(os.Stdout, resources)
 }
 
 func encodeAsYaml(dst io.Writer, value any) error {

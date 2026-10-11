@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -10,6 +9,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/yokecd/yoke/pkg/flight"
 )
 
 func main() {
@@ -61,8 +62,5 @@ func run() error {
 		},
 	}
 
-	return json.NewEncoder(os.Stdout).Encode([]any{dep})
+	return flight.JSONMarshalWrite(os.Stdout, flight.Resources{&dep})
 }
-
-//go:fix inline
-func ptr[T any](value T) *T { return new(value) }
