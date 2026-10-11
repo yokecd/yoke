@@ -2,7 +2,9 @@ package flight
 
 import (
 	"cmp"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,7 +70,7 @@ func (resources Resources) MarshalJSON() ([]byte, error) {
 		}
 		filtered = append(filtered, resource)
 	}
-	return json.Marshal(filtered)
+	return json.Marshal(filtered, MarhshalOptions)
 }
 
 // Stages is an ordered list of stages. Yoke will apply each stage one by one.
@@ -79,5 +81,19 @@ type Stages []Resources
 // This makes call sites for returning parent/identity resource updates with errors more ergonomic.
 // If an error occurs writing the value to stdout it will be joined with the provided error.
 func JSONEncodeWithError(out io.Writer, value any, err error) error {
-	return xerr.Join(err, json.NewEncoder(out).Encode(value))
+	return xerr.Join(err, JSONMarshalWrite(out, value))
+}
+
+var MarhshalOptions = json.JoinOptions(
+	jsonv1.DefaultOptionsV1(),
+	json.OmitZeroStructFields(true),
+	jsontext.AllowDuplicateNames(false),
+	jsontext.Multiline(true),
+	jsontext.WithIndent("  "),
+)
+
+// JSONMarshalWrite is a utility for calling the json/v2 MarshalWrite with json.Options that make sense
+// for kubernetes objects. Mainly printing human readable JSON as well as omitting empty structs. Otherwise follows json v1 semantics.
+func JSONMarshalWrite(out io.Writer, value any) error {
+	return json.MarshalWrite(out, value, MarhshalOptions)
 }

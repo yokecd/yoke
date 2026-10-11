@@ -263,7 +263,7 @@ func run() error {
 	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, plugin, server)
 	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, volumes...)
 
-	return json.NewEncoder(os.Stdout).Encode(resources)
+	return flight.JSONMarshalWrite(os.Stdout, resources)
 }
 
 func encodeAsYaml(dst io.Writer, value any) error {
