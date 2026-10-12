@@ -47,7 +47,7 @@ func ConfigFromEnv() (cfg Config) {
 	conf.Environ.MustParse()
 
 	if verificationKeyPath != "" {
-		fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
+		fs := conf.MakeParser(conf.MustFSFromRootPath("/"))
 		fs.Var(&cfg.ModuleVerificationKeys, verificationKeyPath, conf.JSON[xcrypto.PublicKeySet], conf.Required[xcrypto.PublicKeySet](true))
 		fs.MustParse()
 	}

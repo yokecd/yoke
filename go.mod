@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/davidmdm/ansi v0.0.7
-	github.com/davidmdm/conf v0.0.12
+	github.com/davidmdm/conf v0.0.16
 	github.com/davidmdm/x/xcontainer v0.0.3
 	github.com/davidmdm/x/xcontext v0.0.4
 	github.com/davidmdm/x/xerr v0.0.6
