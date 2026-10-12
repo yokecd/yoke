@@ -71,7 +71,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	fs := conf.MakeParser(conf.FileSystem(conf.FileSystemOptions{}))
+	fs := conf.MakeParser(conf.MustFSFromRootPath("/"))
 
 	fs.Var(&cfg.TLS.CA.Data, cfg.TLS.CA.Path, conf.RequiredNonEmpty[[]byte]())
 	fs.Var(&cfg.TLS.ServerCert.Data, cfg.TLS.ServerCert.Path, conf.RequiredNonEmpty[[]byte]())
