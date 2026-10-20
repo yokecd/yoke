@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -120,7 +121,11 @@ func SetSchematic(ctx context.Context, params SetSchematicParams) error {
 		return fmt.Errorf("no data for section")
 	}
 
-	temp, err := os.CreateTemp("", "module.wasm")
+	dir, base := filepath.Split(params.WasmPath)
+	ext := filepath.Ext(base)
+	base = base[:len(base)-len(ext)]
+
+	temp, err := os.CreateTemp(dir, base+".*"+ext)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
@@ -148,7 +153,7 @@ func SetSchematic(ctx context.Context, params SetSchematicParams) error {
 	}
 
 	if err := os.Rename(temp.Name(), params.WasmPath); err != nil {
-		return fmt.Errorf("faoled to rename temporary file: %w", err)
+		return fmt.Errorf("failed to rename temporary file: %w", err)
 	}
 
 	return nil
