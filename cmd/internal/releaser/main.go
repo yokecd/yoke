@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"compress/gzip"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"github.com/davidmdm/x/xerr"
 
 	"github.com/yokecd/yoke/internal/x"
+	"github.com/yokecd/yoke/pkg/yoke"
 )
 
 func init() {
@@ -455,7 +457,7 @@ func (releaser Releaser) Bump(version string, breaking bool) string {
 func buildWasm(path string) (string, error) {
 	_, name := filepath.Split(path)
 	out := name + ".wasm"
-	err := x.Xf("go build -o %s ./%s", []any{out, path}, x.Env("GOOS=wasip1", "GOARCH=wasm"))
+	err := x.Xf("go build -o ./%s ./%s", []any{out, path}, x.Env("GOOS=wasip1", "GOARCH=wasm"))
 	return out, err
 }
 
@@ -465,7 +467,14 @@ func buildCompressedWasm(path string) (string, error) {
 		return "", err
 	}
 
-	if err := x.Xf("go run ./cmd/yoke schematics -wasm %s set -cmd schema", []any{path}, x.Input(strings.NewReader("[-schema]"))); err != nil {
+	fmt.Println("built wasm module:", path)
+
+	if err := yoke.SetSchematic(context.Background(), yoke.SetSchematicParams{
+		WasmPath: path,
+		Name:     "schema",
+		Input:    strings.NewReader("[-schema]"),
+		CMD:      true,
+	}); err != nil {
 		return "", fmt.Errorf("failed to add schema to schematics: %w", err)
 	}
 
