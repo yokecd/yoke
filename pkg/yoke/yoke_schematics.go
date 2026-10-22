@@ -121,7 +121,12 @@ func SetSchematic(ctx context.Context, params SetSchematicParams) error {
 		return fmt.Errorf("no data for section")
 	}
 
-	dir, base := filepath.Split(params.WasmPath)
+	abs, err := filepath.Abs(params.WasmPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for %q: %w", params.WasmPath, err)
+	}
+
+	dir, base := filepath.Split(abs)
 	ext := filepath.Ext(base)
 	base = base[:len(base)-len(ext)]
 
