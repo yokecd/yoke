@@ -4,7 +4,39 @@
 > This project has not reached v1.0.0 and as such provides no backwards compatibility guarantees between versions.
 > Pre v1.0.0 minor bumps will repesent breaking changes.
 
-## (2026-08-25) atc/v0.20.0 - atc-installer/v0.19.0 - latest - v0.21.0 - yokecd/v0.20.0 - yokecd-installer/v0.20.0
+## (2026-10-21) atc/v0.21.3 - atc-installer/v0.20.1 - latest - v0.22.3 - yokecd/v0.21.3 - yokecd-installer/v0.21.1
+
+- pkg/yoke: schematics use absolute path when calculating parent directory for temporary module ([4dde655](https://github.com/yokecd/yoke/commit/4dde655d22e9e0537d970835ae6dd4330a35a7d8))
+- cmd/internal/releaser: use yoke sdk for setting schematics ([6592ad7](https://github.com/yokecd/yoke/commit/6592ad70bbe05c0f6f63345d42c6bf86e0aa1050))
+
+## (2026-10-20) atc/v0.21.2 - v0.22.2 - yokecd/v0.21.2
+
+- pkg/yoke: setting schematics writes to a local temp module ([a6a115e](https://github.com/yokecd/yoke/commit/a6a115e463a3cfbf6e9af9bde10e86a5c9e11aeb))
+- deps: update davidmdm/conf ([7bed5fe](https://github.com/yokecd/yoke/commit/7bed5fe884aca40c38bbca5b68edada37eac1741))
+- pkg/flight: use jsonv2 semantics to have better json marshalling defaults ([9629d7c](https://github.com/yokecd/yoke/commit/9629d7ce3baeff4ef95a6c030d2fc90d551ad10e))
+
+## (2026-10-10) atc-installer/v0.20.0 - atc/v0.21.1 - v0.22.1 - yokecd-installer/v0.21.0 - yokecd/v0.21.1
+
+- deps: update deps ([7bd3ba0](https://github.com/yokecd/yoke/commit/7bd3ba0457aebb879be021fa8881de2e511afd9f))
+
+## (2026-09-10) atc/v0.21.0 - v0.22.0 - yokecd/v0.21.0
+
+> [!CAUTION]
+> This version contains breaking changes, and is not expected to be compatible with previous versions
+
+- yoke/flightplan: breaking change: add new flightplan command for simply rendering modules ([9909864](https://github.com/yokecd/yoke/commit/99098644d46497c80c1450718cb7865474757442))
+
+## (2026-09-02) atc/v0.20.1 - v0.21.1 - yokecd/v0.20.1
+
+- test/yoke: initialize debug setting for deterministic flag ([407d645](https://github.com/yokecd/yoke/commit/407d6454a6a9e0130f230cac2614746509561eb7))
+- yoke/takeoff: add deterministic flight execution ([412fac0](https://github.com/yokecd/yoke/commit/412fac0b5613157bca3c5051edf2a860b60e952f))
+- yoke/takeoff: add reproducible flight preflight ([0b2020c](https://github.com/yokecd/yoke/commit/0b2020c3371a8a0e59931b8336327cb3d3904c67))
+
+## (2026-09-01) yokecd-installer/v0.20.1
+
+- yokecd-installer: use ArgoCD Helm Chart version 10.5.0 ([69a6fd7](https://github.com/yokecd/yoke/commit/69a6fd7f05cc81bda3f0dce15a2a2680d4a16a94))
+
+## (2026-08-25) atc-installer/v0.19.0 - atc/v0.20.0 - v0.21.0 - yokecd-installer/v0.20.0 - yokecd/v0.20.0
 
 > [!CAUTION]
 > This version contains breaking changes, and is not expected to be compatible with previous versions
@@ -12,7 +44,7 @@
 - go1.27: bump docker image versions to use go1.27 and fix tests ([6013565](https://github.com/yokecd/yoke/commit/6013565defe4d7fe273e5694103aa5c952a2bf58))
 - pkg/client: breaking change: move all k8s.TypedInterface generic function to be generic method on Client ([068b4ed](https://github.com/yokecd/yoke/commit/068b4eda69f7b06a8a69f2c27582a172d8297bc0))
 
-## (2026-08-17) atc/v0.19.26 - atc-installer/v0.18.15 - v0.20.27 - yokecd/v0.19.18 - yokecd-installer/v0.19.18
+## (2026-08-17) atc-installer/v0.18.15 - atc/v0.19.26 - v0.20.27 - yokecd-installer/v0.19.18 - yokecd/v0.19.18
 
 - atc: give custom readiness watcher a 1 minute resync period ([6f82f7e](https://github.com/yokecd/yoke/commit/6f82f7e3ac46d3ef4ef915df59b9b6d008110118))
 - deps: update deps ([7ac0a06](https://github.com/yokecd/yoke/commit/7ac0a0608e3608f651573fd88b16d3e8e62562f1))
@@ -21,7 +53,7 @@
 - atc: support custom readiness watcher for atc and as option in atc-installer ([b2d17af](https://github.com/yokecd/yoke/commit/b2d17afe349b498ceb4e2f1c8b50120bd562fc6b))
 - yoke: add custom readiness loading to takeoff and descent ([f4e020d](https://github.com/yokecd/yoke/commit/f4e020d80600448bf81e19d1892d89e962c29d6e))
 
-## (2026-08-10) atc/v0.19.25 - atc-installer/v0.18.14 - v0.20.26 - yokecd/v0.19.17
+## (2026-08-10) atc-installer/v0.18.14 - atc/v0.19.25 - v0.20.26 - yokecd/v0.19.17
 
 - pkg/k8s: add Patch method to k8s.Client ([b564542](https://github.com/yokecd/yoke/commit/b5645422abd93d43890d015f9d4ded37206a3ec2))
 
