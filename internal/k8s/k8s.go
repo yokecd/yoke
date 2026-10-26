@@ -657,8 +657,9 @@ func (client Client) GetDynamicResourceInterface(resource *unstructured.Unstruct
 	if err != nil {
 		return nil, err
 	}
-	if apiResource.Scope.Name() == meta.RESTScopeNameNamespace {
-		return client.Dynamic.Resource(apiResource.Resource).Namespace(resource.GetNamespace()), nil
+	if apiResource.Scope == meta.RESTScopeNamespace {
+		ns := cmp.Or(resource.GetNamespace(), client.DefaultNamespace, "default")
+		return client.Dynamic.Resource(apiResource.Resource).Namespace(ns), nil
 	}
 	return client.Dynamic.Resource(apiResource.Resource), nil
 }
