@@ -3,6 +3,8 @@
 package wasi
 
 import (
+	"unsafe"
+
 	"github.com/yokecd/yoke/internal/wasm"
 )
 
@@ -10,18 +12,18 @@ import (
 // This way GC cannot clean up the memory that is being used.
 //
 // It is the responsibility of the functions that receive a Buffer malloc-ed by a host function to free it.
-var heap = make(map[wasm.Buffer][]byte)
+var heap = make(map[wasm.Ptr][]byte)
 
 // Free releases the reference to the malloc-ed memory. Since Go does not offer manual memory management
 // Free does not actively release memory but allows drops the global reference to the memory so that GC can reclaim it if necessary.
-func Free(buffer wasm.Buffer) {
+func Free(buffer wasm.Ptr) {
 	delete(heap, buffer)
 }
 
 //go:wasmexport malloc
-func malloc(size uint32) wasm.Buffer {
+func malloc(size uint32) wasm.Ptr {
 	memory := make([]byte, size)
-	buffer := wasm.FromSlice(memory)
-	heap[buffer] = memory
-	return buffer
+	ptr := wasm.Ptr(uintptr(unsafe.Pointer(unsafe.SliceData(memory))))
+	heap[ptr] = memory
+	return ptr
 }

@@ -49,7 +49,7 @@ func GetRestMapping(groupOrAPIVersion, kind string) (*RestMapping, error) {
 		wasm.FromString(groupOrAPIVersion),
 		wasm.FromString(kind),
 	)
-	defer wasi.Free(buffer)
+	defer wasi.Free(buffer.Address())
 
 	if state != wasm.StateOK {
 		return nil, errorMapping(state, buffer)

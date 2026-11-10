@@ -27,6 +27,8 @@ const (
 
 type Ptr uint32
 
+func (ptr Ptr) Value() uint32 { return uint32(ptr) }
+
 func PtrTo[T any](value *T) Ptr {
 	return Ptr(uintptr(unsafe.Pointer(value)))
 }
@@ -49,8 +51,8 @@ func FromSlice(value []byte) Buffer {
 	return Buffer(ptr<<32 | uint64(len(value)))
 }
 
-func (buffer Buffer) Address() uint32 {
-	return uint32(buffer >> 32)
+func (buffer Buffer) Address() Ptr {
+	return Ptr(buffer >> 32)
 }
 
 func (buffer Buffer) Length() uint32 {
