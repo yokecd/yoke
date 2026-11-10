@@ -94,10 +94,10 @@ func NewController(params Params) *Instance {
 }
 
 type Entry struct {
+	Funcs
 	GroupKind  schema.GroupKind
-	Forwarders []schema.GroupKind
-	Funcs      Funcs
 	Filter     func(event Event) bool
+	Forwarders []schema.GroupKind
 }
 
 func (instance *Instance) Register(entries ...Entry) error {
