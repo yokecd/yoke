@@ -977,129 +977,139 @@ func TestTurbulenceFix(t *testing.T) {
 }
 
 func TestLookupResource(t *testing.T) {
-	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	for _, tc := range []struct {
+		Name string
+		Path string
+	}{
+		{Name: "malloc_u32", Path: "lookup"},
+		{Name: "malloc_u64", Path: "deprecatedmalloc"},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			require.NoError(t, x.Xf("go build -o ./test_output/flight.wasm ./internal/testing/flights/%s", []any{tc.Path}, x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
-	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
-	require.NoError(t, err)
+			client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
+			require.NoError(t, err)
 
-	var stderr bytes.Buffer
-	ctx := internal.WithStderr(background, &stderr)
+			var stderr bytes.Buffer
+			ctx := internal.WithStderr(background, &stderr)
 
-	require.ErrorContains(
-		t,
-		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: settings,
-			TakeoffParams: yoke.TakeoffParams{
-				Release:   "foo",
-				Namespace: "default",
-				Flight:    yoke.FlightParams{Path: "./test_output/flight.wasm"},
-				Wait:      10 * time.Second,
-				Poll:      time.Second,
-			},
-		}),
-		"exit_code(1)",
-	)
+			require.ErrorContains(
+				t,
+				TakeOff(ctx, TakeoffParams{
+					GlobalSettings: settings,
+					TakeoffParams: yoke.TakeoffParams{
+						Release:   "foo",
+						Namespace: "default",
+						Flight:    yoke.FlightParams{Path: "./test_output/flight.wasm"},
+						Wait:      10 * time.Second,
+						Poll:      time.Second,
+					},
+				}),
+				"exit_code(1)",
+			)
 
-	require.Contains(t, stderr.String(), "access to the cluster has not been granted for this flight invocation")
+			require.Contains(t, stderr.String(), "access to the cluster has not been granted for this flight invocation")
 
-	params := TakeoffParams{
-		GlobalSettings: settings,
-		TakeoffParams: yoke.TakeoffParams{
-			Release:       "foo",
-			Namespace:     "default",
-			ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
-			Flight:        yoke.FlightParams{Path: "./test_output/flight.wasm"},
-			Wait:          10 * time.Second,
-			Poll:          time.Second,
-		},
+			params := TakeoffParams{
+				GlobalSettings: settings,
+				TakeoffParams: yoke.TakeoffParams{
+					Release:       "foo",
+					Namespace:     "default",
+					ClusterAccess: yoke.ClusterAccessParams{Enabled: true},
+					Flight:        yoke.FlightParams{Path: "./test_output/flight.wasm"},
+					Wait:          10 * time.Second,
+					Poll:          time.Second,
+				},
+			}
+
+			require.NoError(t, TakeOff(background, params))
+			defer func() {
+				require.NoError(t, Mayday(background, MaydayParams{
+					GlobalSettings: params.GlobalSettings,
+					MaydayParams:   yoke.MaydayParams{Release: "foo"},
+				}))
+			}()
+
+			secret, err := client.Clientset.CoreV1().Secrets("default").Get(background, "foo-example", metav1.GetOptions{})
+			require.NoError(t, err)
+
+			require.NotEmpty(t, secret.Data["password"])
+
+			err = TakeOff(background, params)
+			require.NotNil(t, err)
+			require.True(t, internal.IsWarning(err), "should be warning but got: %v", err)
+			require.EqualError(t, err, "resources are the same as previous revision: skipping creation of new revision")
+
+			stderr.Reset()
+
+			require.ErrorContains(
+				t,
+				TakeOff(ctx, TakeoffParams{
+					GlobalSettings: settings,
+					TakeoffParams: yoke.TakeoffParams{
+						Release:         "foo",
+						Namespace:       "foo",
+						CreateNamespace: true,
+						ClusterAccess:   yoke.ClusterAccessParams{Enabled: true},
+						Flight: yoke.FlightParams{
+							Path:  "./test_output/flight.wasm",
+							Input: strings.NewReader(`{"Namespace": "default"}`),
+						},
+						Wait: 10 * time.Second,
+						Poll: time.Second,
+					},
+				}),
+				"exit_code(1)",
+			)
+
+			require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
+
+			require.ErrorContains(
+				t,
+				TakeOff(ctx, TakeoffParams{
+					GlobalSettings: settings,
+					TakeoffParams: yoke.TakeoffParams{
+						Release:         "foo",
+						Namespace:       "foo",
+						CreateNamespace: true,
+						ClusterAccess:   yoke.ClusterAccessParams{Enabled: true, ResourceMatchers: []string{"default/Configmap"}},
+						Flight: yoke.FlightParams{
+							Path:  "./test_output/flight.wasm",
+							Input: strings.NewReader(`{"Namespace": "default"}`),
+						},
+						Wait: 10 * time.Second,
+						Poll: time.Second,
+					},
+				}),
+				"exit_code(1)",
+			)
+
+			require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
+
+			require.NoError(
+				t,
+				TakeOff(ctx, TakeoffParams{
+					GlobalSettings: settings,
+					TakeoffParams: yoke.TakeoffParams{
+						Release:         "foo",
+						Namespace:       "foo",
+						CreateNamespace: true,
+						ClusterAccess: yoke.ClusterAccessParams{
+							Enabled:          true,
+							ResourceMatchers: []string{"default/*", "foo/*"},
+						},
+						Flight: yoke.FlightParams{
+							Path:  "./test_output/flight.wasm",
+							Input: strings.NewReader(`{"Namespace": "default"}`),
+						},
+						Wait: 10 * time.Second,
+						Poll: time.Second,
+					},
+				}),
+				"exit_code(1)",
+			)
+		})
 	}
-
-	require.NoError(t, TakeOff(background, params))
-	defer func() {
-		require.NoError(t, Mayday(background, MaydayParams{
-			GlobalSettings: params.GlobalSettings,
-			MaydayParams:   yoke.MaydayParams{Release: "foo"},
-		}))
-	}()
-
-	secret, err := client.Clientset.CoreV1().Secrets("default").Get(background, "foo-example", metav1.GetOptions{})
-	require.NoError(t, err)
-
-	require.NotEmpty(t, secret.Data["password"])
-
-	err = TakeOff(background, params)
-	require.NotNil(t, err)
-	require.True(t, internal.IsWarning(err), "should be warning but got: %v", err)
-	require.EqualError(t, err, "resources are the same as previous revision: skipping creation of new revision")
-
-	stderr.Reset()
-
-	require.ErrorContains(
-		t,
-		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: settings,
-			TakeoffParams: yoke.TakeoffParams{
-				Release:         "foo",
-				Namespace:       "foo",
-				CreateNamespace: true,
-				ClusterAccess:   yoke.ClusterAccessParams{Enabled: true},
-				Flight: yoke.FlightParams{
-					Path:  "./test_output/flight.wasm",
-					Input: strings.NewReader(`{"Namespace": "default"}`),
-				},
-				Wait: 10 * time.Second,
-				Poll: time.Second,
-			},
-		}),
-		"exit_code(1)",
-	)
-
-	require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
-
-	require.ErrorContains(
-		t,
-		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: settings,
-			TakeoffParams: yoke.TakeoffParams{
-				Release:         "foo",
-				Namespace:       "foo",
-				CreateNamespace: true,
-				ClusterAccess:   yoke.ClusterAccessParams{Enabled: true, ResourceMatchers: []string{"default/Configmap"}},
-				Flight: yoke.FlightParams{
-					Path:  "./test_output/flight.wasm",
-					Input: strings.NewReader(`{"Namespace": "default"}`),
-				},
-				Wait: 10 * time.Second,
-				Poll: time.Second,
-			},
-		}),
-		"exit_code(1)",
-	)
-
-	require.Contains(t, stderr.String(), "cannot access resource outside of target release ownership")
-
-	require.NoError(
-		t,
-		TakeOff(ctx, TakeoffParams{
-			GlobalSettings: settings,
-			TakeoffParams: yoke.TakeoffParams{
-				Release:         "foo",
-				Namespace:       "foo",
-				CreateNamespace: true,
-				ClusterAccess: yoke.ClusterAccessParams{
-					Enabled:          true,
-					ResourceMatchers: []string{"default/*", "foo/*"},
-				},
-				Flight: yoke.FlightParams{
-					Path:  "./test_output/flight.wasm",
-					Input: strings.NewReader(`{"Namespace": "default"}`),
-				},
-				Wait: 10 * time.Second,
-				Poll: time.Second,
-			},
-		}),
-		"exit_code(1)",
-	)
 }
 
 func TestBadVersion(t *testing.T) {
@@ -1999,7 +2009,7 @@ func TestDeprecatedReleaseLabelsCompat(t *testing.T) {
 }
 
 func TestDigestPinning(t *testing.T) {
-	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/lookup", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
 	flightModule, err := os.ReadFile("./test_output/flight.wasm")
@@ -2045,7 +2055,7 @@ func TestDigestPinning(t *testing.T) {
 }
 
 func TestChecksumVerification(t *testing.T) {
-	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+	require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/lookup", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 	require.NoError(t, x.X("go build -o ./test_output/basic.wasm ../../examples/basic", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
 	flightModule, err := os.ReadFile("./test_output/flight.wasm")
@@ -2288,7 +2298,7 @@ func TestFlightplan(t *testing.T) {
 
 		stderr.Reset()
 
-		require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/base", x.Env("GOOS=wasip1", "GOARCH=wasm")))
+		require.NoError(t, x.X("go build -o ./test_output/flight.wasm ./internal/testing/flights/lookup", x.Env("GOOS=wasip1", "GOARCH=wasm")))
 
 		require.Error(
 			t,

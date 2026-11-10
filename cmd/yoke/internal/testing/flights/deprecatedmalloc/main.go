@@ -1,3 +1,6 @@
+// The only difference is with lookup is that we're capturing the old implementation that used
+// uses a uint64 (wasm.Buffer) when mallocing. Yoke originally supported that implementation
+// but not supports both and returning a wasm.Ptr (uint32). This flight is used to test that the uint64 appraoch still works.
 package main
 
 import (
@@ -11,8 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/yokecd/yoke/cmd/yoke/internal/testing/flights/deprecatedmalloc/wasi/k8s"
 	"github.com/yokecd/yoke/pkg/flight"
-	"github.com/yokecd/yoke/pkg/flight/wasi/k8s"
 )
 
 func main() {
@@ -46,9 +49,7 @@ func run() error {
 			APIVersion: "v1",
 			Kind:       "Secret",
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: secretName,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: secretName},
 		StringData: map[string]string{
 			"password": func() string {
 				if secret != nil {

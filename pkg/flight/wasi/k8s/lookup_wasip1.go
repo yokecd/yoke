@@ -22,7 +22,7 @@ func Lookup[T any](identifier ResourceIdentifier) (*T, error) {
 		wasm.FromString(identifier.Kind),
 		wasm.FromString(identifier.ApiVersion),
 	)
-	defer wasi.Free(buffer)
+	defer wasi.Free(buffer.Address())
 
 	if state != wasm.StateOK {
 		return nil, errorMapping(state, buffer)

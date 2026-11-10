@@ -260,12 +260,24 @@ func Error(ctx context.Context, module api.Module, ptr wasm.Ptr, state wasm.Stat
 }
 
 func Malloc(ctx context.Context, module api.Module, data []byte) wasm.Buffer {
-	results, err := module.ExportedFunction("malloc").Call(ctx, uint64(len(data)))
-	if err != nil {
-		panic(err)
+	malloc := module.ExportedFunction("malloc")
+	resultType := malloc.Definition().ResultTypes()
+	if len(resultType) != 1 {
+		panic("exported guest malloc has no result type")
 	}
-	buffer := wasm.Buffer(results[0])
-	if !module.Memory().Write(buffer.Address(), data) {
+	results, err := malloc.Call(ctx, uint64(len(data)))
+	if err != nil {
+		panic(fmt.Errorf("guest malloc call failed: %v", err))
+	}
+	buffer := wasm.Buffer(func() uint64 {
+		switch resultType[0] {
+		case api.ValueTypeI32:
+			return (results[0] << 32) | uint64(len(data))
+		default:
+			return results[0]
+		}
+	}())
+	if !module.Memory().Write(buffer.Address().Value(), data) {
 		panic("write to memory out of range")
 	}
 	return buffer
@@ -287,7 +299,7 @@ func LoadBytes(module api.Module, value wasm.Buffer) []byte {
 	if value == 0 {
 		return nil
 	}
-	data, ok := module.Memory().Read(value.Address(), value.Length())
+	data, ok := module.Memory().Read(value.Address().Value(), value.Length())
 	if !ok {
 		panic("memory read out of bounds")
 	}
