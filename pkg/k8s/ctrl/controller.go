@@ -371,6 +371,14 @@ func Logger(ctx context.Context) *slog.Logger {
 	return logger
 }
 
+// AddLoggingAttributes modifies contextual logger by updating it with given attributes.
+// Attributes are passed directlt the (slog.Logger).With() method.
+func AddLoggingAttributes(ctx context.Context, attrs ...any) {
+	if logger := Logger(ctx); logger != nil {
+		*logger = *logger.With(attrs...)
+	}
+}
+
 type rootLoggerKey struct{}
 
 func RootLogger(ctx context.Context) *slog.Logger {
