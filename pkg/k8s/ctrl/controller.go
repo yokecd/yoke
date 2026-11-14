@@ -204,12 +204,12 @@ func (instance *Instance) register(entry Entry) error {
 	instance.gks.Store(
 		entry.GroupKind,
 		gkstate{
-			handler: entry.Funcs.Handler,
+			handler: entry.Handler,
 			shutdown: sync.OnceFunc(func() {
 				close(done)
 				factory.Shutdown()
 				instance.gks.Delete(entry.GroupKind)
-				if teardown := entry.Funcs.Teardown; teardown != nil {
+				if teardown := entry.Teardown; teardown != nil {
 					teardown()
 				}
 			}),
@@ -280,14 +280,17 @@ func (instance *Instance) Run(ctx context.Context) error {
 							timer.Stop()
 						}
 
+						start := time.Now()
+
 						logger := Logger(ctx).With(
 							slog.String("loopId", randHex()),
+							slog.String("startTime", start.Format("2006-01-02T15:04:05.999Z07:00")),
 							slog.Group(
 								"event",
 								"name", event.Name,
 								"namespace", event.Namespace,
 								"groupKind", event.GroupKind,
-								"attempt", event.meta.attempts,
+								"attempt", event.meta.attempts+1,
 							),
 						)
 
@@ -298,10 +301,6 @@ func (instance *Instance) Run(ctx context.Context) error {
 						ctx = context.WithValue(ctx, clientKey{}, instance.Client)
 						ctx = context.WithValue(ctx, instanceKey{}, instance)
 						ctx = internal.WithStdio(ctx, io.Discard, io.Discard, internal.Stdin(ctx))
-
-						logger.Info("processing event")
-
-						start := time.Now()
 
 						result, err := safe(state.handler)(ctx, event)
 
@@ -323,11 +322,13 @@ func (instance *Instance) Run(ctx context.Context) error {
 							}))
 						}
 
+						logger = logger.With("elapsed", time.Since(start).Round(time.Millisecond).String())
+
 						if err != nil {
 							logger.Error("error processing event", slog.String("error", err.Error()))
 							return
 						}
-						logger.Info("reconcile successfull", "elapsed", time.Since(start).Round(time.Millisecond).String())
+						logger.Info("reconcile successfull")
 					}()
 				}
 			}
@@ -364,11 +365,15 @@ func randHex() string {
 	return hex.EncodeToString(data)
 }
 
+var discardLogger = slog.New(slog.DiscardHandler)
+
 type loggerKey struct{}
 
 func Logger(ctx context.Context) *slog.Logger {
-	logger, _ := ctx.Value(loggerKey{}).(*slog.Logger)
-	return logger
+	if logger, _ := ctx.Value(loggerKey{}).(*slog.Logger); logger != nil {
+		return logger
+	}
+	return discardLogger
 }
 
 // AddLoggingAttributes modifies contextual logger by updating it with given attributes.
@@ -382,8 +387,10 @@ func AddLoggingAttributes(ctx context.Context, attrs ...any) {
 type rootLoggerKey struct{}
 
 func RootLogger(ctx context.Context) *slog.Logger {
-	logger, _ := ctx.Value(rootLoggerKey{}).(*slog.Logger)
-	return logger
+	if logger, _ := ctx.Value(rootLoggerKey{}).(*slog.Logger); logger != nil {
+		return logger
+	}
+	return discardLogger
 }
 
 type clientKey struct{}
