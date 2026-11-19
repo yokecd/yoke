@@ -92,6 +92,12 @@ func run() (err error) {
 	defer func() {
 		err = xerr.Join(err, teardown(context.Background()))
 	}()
+	//
+	// TODO: remove when we move to version 1.0.0
+	logger.Info("updating instance release names")
+	if err := (*ReleaseNameUpdater)(client).Update(ctx); err != nil {
+		return fmt.Errorf("failed to update release names: %w", err)
+	}
 
 	if !cfg.DisableCustomReadiness {
 		readiness, cancel, err := client.WatchCustomReadiness(ctx)
