@@ -46,6 +46,9 @@ func (client Client) isReady(ctx context.Context, resource *unstructured.Unstruc
 				}),
 			})
 			return endpoints != nil && len(endpoints.Items) > 0, err
+		case "PersistentVolume":
+			phase, _, _ := unstructured.NestedString(resource.Object, "status", "phase")
+			return phase == "Available", nil
 		}
 	case "apps":
 		switch gvk.Kind {
