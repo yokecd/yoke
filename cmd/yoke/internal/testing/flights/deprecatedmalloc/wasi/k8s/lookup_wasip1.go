@@ -5,8 +5,8 @@ package k8s
 import (
 	"encoding/json"
 
-	"github.com/yokecd/yoke/internal/wasm"
 	"github.com/yokecd/yoke/cmd/yoke/internal/testing/flights/deprecatedmalloc/wasi"
+	"github.com/yokecd/yoke/internal/wasm"
 )
 
 //go:wasmimport host k8s_lookup

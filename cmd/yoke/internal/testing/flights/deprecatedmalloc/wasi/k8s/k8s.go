@@ -8,8 +8,8 @@ import (
 
 	// Make sure to include wasi as it contains necessary "malloc" export that will be needed
 	// for the host to allocate a wasm.Buffer. IE: any wasm module that uses this package exports wasi.malloc
-	"github.com/yokecd/yoke/pkg/flight"
 	"github.com/yokecd/yoke/cmd/yoke/internal/testing/flights/deprecatedmalloc/wasi"
+	"github.com/yokecd/yoke/pkg/flight"
 )
 
 type ResourceIdentifier struct {

@@ -46,3 +46,20 @@ func (NoopErr) Is(err error) bool {
 	_, ok := err.(NoopErr)
 	return ok
 }
+
+type ValidationErr struct {
+	error
+}
+
+func FailedValidationf(format string, args ...any) error {
+	return ValidationErr{error: fmt.Errorf(format, args...)}
+}
+
+func IsValidationErr(err error) bool {
+	return errors.Is(err, ValidationErr{})
+}
+
+func (ValidationErr) Is(err error) bool {
+	_, ok := err.(ValidationErr)
+	return ok
+}

@@ -3,6 +3,7 @@ package yoke
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -17,6 +18,7 @@ import (
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -267,6 +269,21 @@ func (commander Commander) Takeoff(ctx context.Context, params TakeoffParams) (e
 	stages, err := internal.ParseStages(output)
 	if err != nil {
 		return fmt.Errorf("failed to parse output into valid flight output: %w", err)
+	}
+
+	var validationErrs []error
+	for _, resource := range stages.Flatten() {
+		if msgs := validation.NameIsDNSSubdomain(resource.GetName(), false); len(msgs) > 0 {
+			errs := make([]error, len(msgs))
+			for i, msg := range msgs {
+				errs[i] = errors.New(msg)
+			}
+			err := xerr.MultiErrFrom("invalid .metadata.name", errs...)
+			validationErrs = append(validationErrs, xerr.MultiErrFrom(internal.ResourceRef(resource), err))
+		}
+	}
+	if err := xerr.JoinOrdered(validationErrs...); err != nil {
+		return internal.FailedValidationf("invalid flight resource(s): %w", err)
 	}
 
 	if params.IdentityFunc != nil {
