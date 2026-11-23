@@ -308,18 +308,26 @@ func TestFailApplyDryRun(t *testing.T) {
 	params := TakeoffParams{
 		GlobalSettings: settings,
 		TakeoffParams: yoke.TakeoffParams{
-			Release:         "foo",
-			CreateNamespace: true,
+			Release:   "foo",
+			Namespace: "does-not-exist",
 			Flight: yoke.FlightParams{
-				Input: createBasicDeployment(t, "%invalid-chars&*", "default"),
+				Input: internal.JSONReader(&corev1.ConfigMap{
+					APIVersion: "v1",
+					Kind:       "ConfigMap",
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "does-not-exist",
+					},
+					Data: map[string]string{},
+				}),
 			},
 		},
 	}
 
-	require.ErrorContains(
+	require.EqualError(
 		t,
 		TakeOff(background, params),
-		`failed to apply resources: dry run: default/apps/v1/deployment/%invalid-chars&*: failed to validate resource release`,
+		`failed to apply resources: dry run: does-not-exist/ConfigMap:some-name: namespaces "does-not-exist" not found`,
 	)
 }
 
@@ -402,7 +410,7 @@ func TestReleaseOwnership(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, makeParams("bar")),
-		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "default/bar" but resource is already owned by "default/foo"`,
+		`failed to apply resources: dry run: default/Deployment.apps:sample-app: failed to validate resource release: expected release "default/bar" but resource is already owned by "default/foo"`,
 	)
 
 	client, err := k8s.NewClientFromKubeConfig(home.Kubeconfig)
@@ -458,7 +466,7 @@ func TestForceOwnership(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, makeParams("foo", false)),
-		`failed to apply resources: dry run: default/apps/v1/deployment/sample-app: failed to validate resource release: expected release "default/foo" but resource is already owned by ""`,
+		`failed to apply resources: dry run: default/Deployment.apps:sample-app: failed to validate resource release: expected release "default/foo" but resource is already owned by ""`,
 	)
 
 	require.NoError(t, TakeOff(background, makeParams("foo", true)))
@@ -505,7 +513,7 @@ func TestReleaseOwnershipAcrossNamespaces(t *testing.T) {
 				},
 			},
 		}),
-		`failed to apply resources: dry run: shared/apps/v1/deployment/x: failed to validate resource release: expected release "shared/release" but resource is already owned by "default/release"`,
+		`failed to apply resources: dry run: shared/Deployment.apps:x: failed to validate resource release: expected release "shared/release" but resource is already owned by "default/release"`,
 	)
 }
 
@@ -642,7 +650,7 @@ func TestTakeoffWithNamespaceStage(t *testing.T) {
 	require.EqualError(
 		t,
 		TakeOff(background, params(false)),
-		`failed to apply resources: dry run: test-ns-resource/core/v1/configmap/test-cm: namespaces "test-ns-resource" not found`,
+		`failed to apply resources: dry run: test-ns-resource/ConfigMap:test-cm: namespaces "test-ns-resource" not found`,
 	)
 
 	require.NoError(t, TakeOff(background, params(true)))

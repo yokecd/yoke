@@ -152,7 +152,7 @@ func (client Client) applyMany(ctx context.Context, resources []*unstructured.Un
 
 			err := client.ApplyResource(ctx, resource, opts)
 			if err != nil {
-				err = fmt.Errorf("%s: %w", internal.Canonical(resource), err)
+				err = fmt.Errorf("%s: %w", internal.ResourceRef(resource), err)
 			}
 			errs[i] = err
 		}()

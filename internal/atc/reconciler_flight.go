@@ -44,7 +44,7 @@ func flightReconciler(modules *cache.ModuleCache, clusterScope bool) ctrl.Funcs 
 
 	reconciler := func(ctx context.Context, evt ctrl.Event) (result ctrl.Result, err error) {
 		defer func() {
-			if cache.IsDisallowedModuleError(err) {
+			if cache.IsDisallowedModuleError(err) || internal.IsValidationErr(err) {
 				err = ctrl.Terminal(err)
 			}
 		}()
