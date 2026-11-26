@@ -2934,7 +2934,7 @@ func TestPruning(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	expectedOwner := "default/examples.com.Test.test"
+	expectedOwner := "default//Test.examples.com:test"
 
 	testutils.EventuallyNoErrorf(
 		t,
